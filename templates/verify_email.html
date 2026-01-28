@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <title>Verify Email</title>
+</head>
+
+<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+    <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+        <h2>Welcome to {{.AppName}}!</h2>
+        <p>Please click the link below to verify your email address:</p>
+        <p>
+            <a href="{{.VerifyURL}}"
+                style="display: inline-block; padding: 10px 20px; background-color: #007bff; color: white; text-decoration: none; border-radius: 5px;">Verify
+                Email</a>
+        </p>
+        <p>If you didn't request this, please ignore this email.</p>
+        <p>Link: {{.VerifyURL}}</p>
+    </div>
+</body>
+
+</html>

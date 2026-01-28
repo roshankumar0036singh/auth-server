@@ -43,7 +43,104 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusCreated, utils.SuccessResponse("Registration successful", user.ToPublic()))
+	c.JSON(http.StatusCreated, utils.SuccessResponse("Registration successful. Please check your email to verify your account.", user.ToPublic()))
+}
+
+// VerifyEmail handles email verification
+// @Summary Verify email
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param token query string true "Verification token"
+// @Success 200 {object} utils.Response
+// @Router /api/auth/verify-email [get]
+func (h *AuthHandler) VerifyEmail(c *gin.Context) {
+	token := c.Query("token")
+	if token == "" {
+		c.JSON(http.StatusBadRequest, utils.ValidationErrorResponse("Token is required"))
+		return
+	}
+
+	if err := h.authService.VerifyEmail(token); err != nil {
+		c.JSON(http.StatusBadRequest, utils.ErrorResponse("Verification failed", err))
+		return
+	}
+
+	c.JSON(http.StatusOK, utils.SuccessResponse("Email verified successfully", nil))
+}
+
+// ResendVerification handles resending verification email
+// @Summary Resend verification email
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param request body dto.ResendVerificationRequest true "Email data"
+// @Success 200 {object} utils.Response
+// @Router /api/auth/resend-verification [post]
+func (h *AuthHandler) ResendVerification(c *gin.Context) {
+	var req dto.ResendVerificationRequest
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, utils.ValidationErrorResponse(err.Error()))
+		return
+	}
+
+	if err := h.authService.ResendVerification(req.Email); err != nil {
+		// Don't reveal if user exists or not for security (unless it's a validation error)
+		// But for now we might return the error if it's "email already verified"
+		c.JSON(http.StatusBadRequest, utils.ErrorResponse("Failed to resend verification", err))
+		return
+	}
+
+	c.JSON(http.StatusOK, utils.SuccessResponse("Verification email sent", nil))
+}
+
+// ForgotPassword handles forgot password request
+// @Summary Request password reset
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param request body dto.ForgotPasswordRequest true "Email data"
+// @Success 200 {object} utils.Response
+// @Router /api/auth/forgot-password [post]
+func (h *AuthHandler) ForgotPassword(c *gin.Context) {
+	var req dto.ForgotPasswordRequest
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, utils.ValidationErrorResponse(err.Error()))
+		return
+	}
+
+	if err := h.authService.ForgotPassword(req.Email); err != nil {
+		c.JSON(http.StatusInternalServerError, utils.ErrorResponse("Failed to process request", err))
+		return
+	}
+
+	c.JSON(http.StatusOK, utils.SuccessResponse("If an account exists with this email, a password reset link has been sent.", nil))
+}
+
+// ResetPassword handles password reset
+// @Summary Reset password
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param request body dto.ResetPasswordRequest true "Reset data"
+// @Success 200 {object} utils.Response
+// @Router /api/auth/reset-password [post]
+func (h *AuthHandler) ResetPassword(c *gin.Context) {
+	var req dto.ResetPasswordRequest
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, utils.ValidationErrorResponse(err.Error()))
+		return
+	}
+
+	if err := h.authService.ResetPassword(req.Token, req.Password); err != nil {
+		c.JSON(http.StatusBadRequest, utils.ErrorResponse("Password reset failed", err))
+		return
+	}
+
+	c.JSON(http.StatusOK, utils.SuccessResponse("Password has been reset successfully. You can now login with your new password.", nil))
 }
 
 // Login handles user login with device tracking

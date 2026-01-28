@@ -59,10 +59,6 @@ type GitHubOAuthConfig struct {
 	CallbackURL  string
 }
 
-type EmailConfig struct {
-	From   string
-	APIKey string
-}
 
 type SecurityConfig struct {
 	BcryptRounds    int
@@ -119,10 +115,7 @@ func LoadConfig() *Config {
 				CallbackURL:  appURL + "/api/oauth/github/callback",
 			},
 		},
-		Email: EmailConfig{
-			From:   getEnv("EMAIL_FROM", ""),
-			APIKey: getEnv("SENDGRID_API_KEY", ""),
-		},
+		Email: LoadEmailConfig(),
 		Security: SecurityConfig{
 			BcryptRounds:    bcryptRounds,
 			RateLimitWindow: rateLimitWindow,

@@ -37,6 +37,22 @@ type LogoutRequest struct {
 	RefreshToken string `json:"refreshToken"`
 }
 
+// ResendVerificationRequest represents the resend verification request
+type ResendVerificationRequest struct {
+	Email string `json:"email" binding:"required,email"`
+}
+
+// ForgotPasswordRequest represents the forgot password request
+type ForgotPasswordRequest struct {
+	Email string `json:"email" binding:"required,email"`
+}
+
+// ResetPasswordRequest represents the reset password request
+type ResetPasswordRequest struct {
+	Token    string `json:"token" binding:"required"`
+	Password string `json:"password" binding:"required,min=8"`
+}
+
 // SessionResponse represents a user session
 type SessionResponse struct {
 	ID        string `json:"id"`

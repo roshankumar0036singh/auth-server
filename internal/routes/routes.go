@@ -16,11 +16,23 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, redisClient *redis.Client, cfg
 	// Initialize repositories
 	userRepo := repository.NewUserRepository(db)
 	tokenRepo := repository.NewTokenRepository(db)
+	verificationRepo := repository.NewVerificationRepository(db)
+	passwordResetRepo := repository.NewPasswordResetRepository(db)
 
 	// Initialize services
 	tokenService := service.NewTokenService(cfg)
 	cacheService := service.NewCacheService(redisClient)
-	authService := service.NewAuthService(userRepo, tokenRepo, tokenService, cacheService)
+	emailService := service.NewEmailService(cfg)
+	authService := service.NewAuthService(
+		userRepo,
+		tokenRepo,
+		verificationRepo,
+		passwordResetRepo,
+		tokenService,
+		cacheService,
+		emailService,
+		cfg,
+	)
 
 	// Initialize handlers
 	authHandler := handler.NewAuthHandler(authService)
@@ -46,6 +58,10 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, redisClient *redis.Client, cfg
 			auth.POST("/register", authHandler.Register)
 			auth.POST("/login", authHandler.Login)
 			auth.POST("/refresh", authHandler.RefreshToken)
+			auth.GET("/verify-email", authHandler.VerifyEmail)
+			auth.POST("/resend-verification", authHandler.ResendVerification)
+			auth.POST("/forgot-password", authHandler.ForgotPassword)
+			auth.POST("/reset-password", authHandler.ResetPassword)
 
 			// Protected routes
 			protected := auth.Group("")

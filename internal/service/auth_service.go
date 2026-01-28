@@ -7,33 +7,112 @@ import (
 	"time"
 
 	"golang.org/x/crypto/bcrypt"
+	"github.com/roshankumar0036singh/auth-server/internal/config"
 	"github.com/roshankumar0036singh/auth-server/internal/dto"
 	"github.com/roshankumar0036singh/auth-server/internal/models"
 	"github.com/roshankumar0036singh/auth-server/internal/repository"
 )
 
 type AuthService struct {
-	userRepo     *repository.UserRepository
-	tokenRepo    *repository.TokenRepository
-	tokenService *TokenService
-	cacheService *CacheService
+	userRepo          *repository.UserRepository
+	tokenRepo         *repository.TokenRepository
+	verificationRepo  *repository.VerificationRepository
+	passwordResetRepo *repository.PasswordResetRepository
+	tokenService      *TokenService
+	cacheService      *CacheService
+	emailService      *EmailService
+	config            *config.Config
 }
 
 func NewAuthService(
 	userRepo *repository.UserRepository,
 	tokenRepo *repository.TokenRepository,
+	verificationRepo *repository.VerificationRepository,
+	passwordResetRepo *repository.PasswordResetRepository,
 	tokenService *TokenService,
 	cacheService *CacheService,
+	emailService *EmailService,
+	cfg *config.Config,
 ) *AuthService {
 	return &AuthService{
-		userRepo:     userRepo,
-		tokenRepo:    tokenRepo,
-		tokenService: tokenService,
-		cacheService: cacheService,
+		userRepo:          userRepo,
+		tokenRepo:         tokenRepo,
+		verificationRepo:  verificationRepo,
+		passwordResetRepo: passwordResetRepo,
+		tokenService:      tokenService,
+		cacheService:      cacheService,
+		emailService:      emailService,
+		config:            cfg,
 	}
 }
 
-// Register creates a new user account
+// ... Register and other methods remain same ...
+
+// ForgotPassword initiates the password reset flow
+func (s *AuthService) ForgotPassword(email string) error {
+	user, err := s.userRepo.FindByEmail(email)
+	if err != nil {
+		// Return nil to prevent email enumeration
+		return nil
+	}
+
+	// Delete existing reset tokens
+	s.passwordResetRepo.DeleteByUserID(user.ID)
+
+	// Create new reset token
+	token := &models.PasswordResetToken{
+		UserID:    user.ID,
+		Token:     s.tokenService.GenerateRandomString(32),
+		ExpiresAt: time.Now().Add(1 * time.Hour), 
+	}
+
+	if err := s.passwordResetRepo.Create(token); err != nil {
+		return err
+	}
+
+	// Send email
+	return s.emailService.SendPasswordResetEmail(user.Email, token.Token, s.config.App.URL)
+}
+
+// ResetPassword resets the user's password using a valid token
+func (s *AuthService) ResetPassword(tokenString, newPassword string) error {
+	// Find token
+	token, err := s.passwordResetRepo.FindByToken(tokenString)
+	if err != nil {
+		return errors.New("invalid or expired reset token")
+	}
+
+	if token.IsExpired() {
+		return errors.New("reset token has expired")
+	}
+
+	if token.Used {
+		return errors.New("reset token has already been used")
+	}
+
+	// Hash new password
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
+	if err != nil {
+		return errors.New("failed to hash password")
+	}
+
+	// Update user password
+	if err := s.userRepo.Update(token.UserID, map[string]interface{}{
+		"password_hash": string(hashedPassword),
+	}); err != nil {
+		return errors.New("failed to update password")
+	}
+
+	// Mark token as used
+	s.passwordResetRepo.MarkAsUsed(token.ID)
+
+	// Revoke all existing sessions for security
+	s.tokenRepo.RevokeAllUserTokens(token.UserID)
+
+	return nil
+}
+
+// Register creates a new user account and sends verification email
 func (s *AuthService) Register(req *dto.RegisterRequest) (*models.User, error) {
 	// Check if email already exists
 	exists, err := s.userRepo.EmailExists(req.Email)
@@ -57,14 +136,83 @@ func (s *AuthService) Register(req *dto.RegisterRequest) (*models.User, error) {
 		FirstName:     req.FirstName,
 		LastName:      req.LastName,
 		OAuthProvider: "local",
+		IsActive:      true,  // Can allow login but restrict features, or set false
+		EmailVerified: false,
 	}
 
 	if err := s.userRepo.Create(user); err != nil {
 		return nil, errors.New("failed to create user")
 	}
 
+	// Generate and send verification email
+	if err := s.sendVerificationEmail(user); err != nil {
+		// Log error but don't fail registration
+		log.Printf("Failed to send verification email to %s: %v", user.Email, err)
+	}
+
 	return user, nil
 }
+
+func (s *AuthService) sendVerificationEmail(user *models.User) error {
+	// Generate verification token
+	token := &models.VerificationToken{
+		UserID:    user.ID,
+		Token:     s.tokenService.GenerateRandomString(32),
+		ExpiresAt: time.Now().Add(24 * time.Hour),
+	}
+
+	if err := s.verificationRepo.Create(token); err != nil {
+		return err
+	}
+
+	// Send email
+	return s.emailService.SendVerificationEmail(user.Email, token.Token, s.config.App.URL)
+}
+
+// VerifyEmail verifies a user's email address
+func (s *AuthService) VerifyEmail(tokenString string) error {
+	// Find token
+	token, err := s.verificationRepo.FindByToken(tokenString)
+	if err != nil {
+		return errors.New("invalid or expired verification token")
+	}
+
+	// Check expiry
+	if token.IsExpired() {
+		return errors.New("verification token has expired")
+	}
+
+	// Update user
+	if err := s.userRepo.Update(token.UserID, map[string]interface{}{
+		"email_verified": true,
+	}); err != nil {
+		return errors.New("failed to verify email")
+	}
+
+	// Delete used token (and potentially all tokens for this user)
+	s.verificationRepo.DeleteByUserID(token.UserID)
+
+	return nil
+}
+
+// ResendVerification sends a new verification email
+func (s *AuthService) ResendVerification(email string) error {
+	user, err := s.userRepo.FindByEmail(email)
+	if err != nil {
+		return errors.New("user not found")
+	}
+
+	if user.EmailVerified {
+		return errors.New("email already verified")
+	}
+
+	// Delete existing tokens
+	s.verificationRepo.DeleteByUserID(user.ID)
+
+	// Send new email
+	return s.sendVerificationEmail(user)
+}
+
 
 // Login authenticates a user and returns tokens with device tracking
 func (s *AuthService) Login(req *dto.LoginRequest, ipAddress, userAgent string) (*dto.LoginResponse, error) {
