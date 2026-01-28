@@ -143,6 +143,91 @@ func (h *AuthHandler) ResetPassword(c *gin.Context) {
 	c.JSON(http.StatusOK, utils.SuccessResponse("Password has been reset successfully. You can now login with your new password.", nil))
 }
 
+// UpdateProfile handles profile updates
+// @Summary Update user profile
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param request body dto.UpdateProfileRequest true "Profile data"
+// @Success 200 {object} utils.Response
+// @Router /api/auth/profile [put]
+func (h *AuthHandler) UpdateProfile(c *gin.Context) {
+	userID, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, utils.UnauthorizedResponse("Unauthorized"))
+		return
+	}
+
+	var req dto.UpdateProfileRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, utils.ValidationErrorResponse(err.Error()))
+		return
+	}
+
+	user, err := h.authService.UpdateProfile(userID.(string), &req)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, utils.ErrorResponse("Failed to update profile", err))
+		return
+	}
+
+	c.JSON(http.StatusOK, utils.SuccessResponse("Profile updated successfully", user.ToPublic()))
+}
+
+// ChangePassword handles password change
+// @Summary Change password
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param request body dto.ChangePasswordRequest true "Password data"
+// @Success 200 {object} utils.Response
+// @Router /api/auth/password [post]
+func (h *AuthHandler) ChangePassword(c *gin.Context) {
+	userID, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, utils.UnauthorizedResponse("Unauthorized"))
+		return
+	}
+
+	var req dto.ChangePasswordRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, utils.ValidationErrorResponse(err.Error()))
+		return
+	}
+
+	if err := h.authService.ChangePassword(userID.(string), &req); err != nil {
+		statusCode := http.StatusBadRequest
+		if err.Error() == "incorrect current password" {
+			statusCode = http.StatusUnauthorized
+		}
+		c.JSON(statusCode, utils.ErrorResponse(err.Error(), err))
+		return
+	}
+
+	c.JSON(http.StatusOK, utils.SuccessResponse("Password changed successfully", nil))
+}
+
+// DeleteAccount handles account deletion
+// @Summary Delete account
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Success 200 {object} utils.Response
+// @Router /api/auth/me [delete]
+func (h *AuthHandler) DeleteAccount(c *gin.Context) {
+	userID, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, utils.UnauthorizedResponse("Unauthorized"))
+		return
+	}
+
+	if err := h.authService.DeleteAccount(userID.(string)); err != nil {
+		c.JSON(http.StatusInternalServerError, utils.ErrorResponse("Failed to delete account", err))
+		return
+	}
+
+	c.JSON(http.StatusOK, utils.SuccessResponse("Account deleted successfully", nil))
+}
+
 // Login handles user login with device tracking
 // @Summary Login user
 // @Tags auth

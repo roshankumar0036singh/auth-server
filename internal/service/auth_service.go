@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log"
 	"time"
 
@@ -112,6 +113,73 @@ func (s *AuthService) ResetPassword(tokenString, newPassword string) error {
 	return nil
 }
 
+// UpdateProfile updates user profile information
+func (s *AuthService) UpdateProfile(userID string, req *dto.UpdateProfileRequest) (*models.User, error) {
+	updates := make(map[string]interface{})
+	
+	if req.FirstName != "" {
+		updates["first_name"] = req.FirstName
+	}
+	if req.LastName != "" {
+		updates["last_name"] = req.LastName
+	}
+	if req.Phone != "" {
+		updates["phone"] = req.Phone
+	}
+
+	if len(updates) == 0 {
+		return s.userRepo.FindByID(userID)
+	}
+
+	if err := s.userRepo.Update(userID, updates); err != nil {
+		return nil, errors.New("failed to update profile")
+	}
+
+	return s.userRepo.FindByID(userID)
+}
+
+// ChangePassword changes the user's password
+func (s *AuthService) ChangePassword(userID string, req *dto.ChangePasswordRequest) error {
+	user, err := s.userRepo.FindByID(userID)
+	if err != nil {
+		return errors.New("user not found")
+	}
+
+	// Verify current password
+	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.CurrentPassword)); err != nil {
+		return errors.New("incorrect current password")
+	}
+
+	// Hash new password
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.NewPassword), bcrypt.DefaultCost)
+	if err != nil {
+		return errors.New("failed to hash password")
+	}
+
+	// Update password
+	if err := s.userRepo.Update(userID, map[string]interface{}{
+		"password_hash": string(hashedPassword),
+	}); err != nil {
+		return errors.New("failed to update password")
+	}
+
+	// Revoke all other sessions? Maybe optional, but good practice for security.
+	// For now, let's keep current session active.
+	
+	return nil
+}
+
+// DeleteAccount soft deletes the user account
+func (s *AuthService) DeleteAccount(userID string) error {
+	// Revoke all tokens first
+	if err := s.tokenRepo.RevokeAllUserTokens(userID); err != nil {
+		// Log error but proceed
+	}
+
+	// Delete user (Soft delete via GORM)
+	return s.userRepo.Delete(userID)
+}
+
 // Register creates a new user account and sends verification email
 func (s *AuthService) Register(req *dto.RegisterRequest) (*models.User, error) {
 	// Check if email already exists
@@ -218,43 +286,44 @@ func (s *AuthService) ResendVerification(email string) error {
 func (s *AuthService) Login(req *dto.LoginRequest, ipAddress, userAgent string) (*dto.LoginResponse, error) {
 	ctx := context.Background()
 
-	// Check login attempts (rate limiting)
+	// Check login attempts (Redis - brute force mitigation for IP/User combination)
 	attempts, err := s.cacheService.GetLoginAttempts(ctx, req.Email)
-	if err == nil && attempts >= 5 {
+	if err == nil && attempts >= int64(s.config.Security.RateLimitMax) {
 		return nil, errors.New("too many login attempts, please try again later")
 	}
 
-	// Find user by email
 	user, err := s.userRepo.FindByEmail(req.Email)
 	if err != nil {
-		// Increment failed attempts
+		// Increment attempts even for non-existent users (to prevent enumeration)
 		s.cacheService.IncrementLoginAttempts(ctx, req.Email)
-		return nil, errors.New("invalid credentials")
+		return nil, errors.New("invalid email or password")
 	}
 
-	// Check if account is active
-	if !user.IsActive {
-		return nil, errors.New("account is deactivated")
+	// Check if account is locked (Database - persistent lock)
+	if user.LockedUntil != nil && time.Now().Before(*user.LockedUntil) {
+		return nil, fmt.Errorf("account is locked until %v", user.LockedUntil)
 	}
 
 	// Verify password
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password)); err != nil {
-		// Increment failed attempts
-		s.cacheService.IncrementLoginAttempts(ctx, req.Email)
-		return nil, errors.New("invalid credentials")
+		s.handleFailedLogin(user, req.Email, ctx)
+		return nil, errors.New("invalid email or password")
 	}
 
-	// Reset login attempts on successful login
+	// Reset failed attempts on successful login
+	if user.FailedLoginAttempts > 0 || user.LockedUntil != nil {
+		s.userRepo.Update(user.ID, map[string]interface{}{
+			"failed_login_attempts": 0,
+			"locked_until":          nil,
+		})
+	}
+
+	// Reset Redis attempts too
 	s.cacheService.ResetLoginAttempts(ctx, req.Email)
 
-	// Update last login time (non-critical operation)
-	now := time.Now()
-	user.LastLoginAt = &now
-	if err := s.userRepo.Update(user.ID, map[string]interface{}{
-		"last_login_at": now,
-	}); err != nil {
-		// Log warning but don't fail login for non-critical operation
-		log.Printf("Warning: Failed to update last_login_at for user %s: %v", user.ID, err)
+	// Check if user is active
+	if !user.IsActive {
+		return nil, errors.New("account is deactivated")
 	}
 
 	// Generate tokens
@@ -268,18 +337,22 @@ func (s *AuthService) Login(req *dto.LoginRequest, ipAddress, userAgent string) 
 		return nil, errors.New("failed to generate refresh token")
 	}
 
-	// Store refresh token in database with device info
+	// Store refresh token
 	refreshToken := &models.RefreshToken{
 		UserID:    user.ID,
 		Token:     refreshTokenString,
-		ExpiresAt: time.Now().Add(7 * 24 * time.Hour), // 7 days
+		ExpiresAt: time.Now().Add(7 * 24 * time.Hour), // TODO: Align with config
 		IPAddress: ipAddress,
 		UserAgent: userAgent,
 	}
 
 	if err := s.tokenRepo.CreateRefreshToken(refreshToken); err != nil {
-		log.Printf("Warning: Failed to store refresh token: %v", err)
-		// Continue anyway - token is still valid
+		return nil, errors.New("failed to store refresh token")
+	}
+
+	// Update last login
+	if err := s.userRepo.Update(user.ID, map[string]interface{}{"last_login_at": time.Now()}); err != nil {
+		log.Printf("Failed to update last login for user %s: %v", user.ID, err)
 	}
 
 	return &dto.LoginResponse{
@@ -287,6 +360,25 @@ func (s *AuthService) Login(req *dto.LoginRequest, ipAddress, userAgent string) 
 		RefreshToken: refreshTokenString,
 		User:         user.ToPublic(),
 	}, nil
+}
+
+func (s *AuthService) handleFailedLogin(user *models.User, email string, ctx context.Context) {
+	// Increment Redis counter (cheap, fast)
+	s.cacheService.IncrementLoginAttempts(ctx, email)
+
+	// Increment Database counter (persistent)
+	attempts := user.FailedLoginAttempts + 1
+	updates := map[string]interface{}{
+		"failed_login_attempts": attempts,
+	}
+
+	if attempts >= s.config.Security.AccountLockMaxAttempts {
+		lockDuration := time.Duration(s.config.Security.AccountLockDuration) * time.Minute
+		lockedUntil := time.Now().Add(lockDuration)
+		updates["locked_until"] = lockedUntil
+	}
+
+	s.userRepo.Update(user.ID, updates)
 }
 
 // RefreshAccessToken generates a new access token using refresh token with rotation

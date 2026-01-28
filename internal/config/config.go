@@ -61,9 +61,11 @@ type GitHubOAuthConfig struct {
 
 
 type SecurityConfig struct {
-	BcryptRounds    int
-	RateLimitWindow int
-	RateLimitMax    int
+	BcryptRounds           int
+	RateLimitWindow        int
+	RateLimitMax           int
+	AccountLockMaxAttempts int
+	AccountLockDuration    int // in minutes
 }
 
 func LoadConfig() *Config {
@@ -79,6 +81,8 @@ func LoadConfig() *Config {
 	bcryptRounds, _ := strconv.Atoi(getEnv("BCRYPT_ROUNDS", "12"))
 	rateLimitWindow, _ := strconv.Atoi(getEnv("RATE_LIMIT_WINDOW", "900000"))
 	rateLimitMax, _ := strconv.Atoi(getEnv("RATE_LIMIT_MAX", "5"))
+	accountLockMax, _ := strconv.Atoi(getEnv("ACCOUNT_LOCK_MAX_ATTEMPTS", "5"))
+	accountLockDuration, _ := strconv.Atoi(getEnv("ACCOUNT_LOCK_DURATION", "30")) // Minutes
 
 	appURL := getEnv("APP_URL", "http://localhost:3000")
 
@@ -117,9 +121,11 @@ func LoadConfig() *Config {
 		},
 		Email: LoadEmailConfig(),
 		Security: SecurityConfig{
-			BcryptRounds:    bcryptRounds,
-			RateLimitWindow: rateLimitWindow,
-			RateLimitMax:    rateLimitMax,
+			BcryptRounds:           bcryptRounds,
+			RateLimitWindow:        rateLimitWindow,
+			RateLimitMax:           rateLimitMax,
+			AccountLockMaxAttempts: accountLockMax,
+			AccountLockDuration:    accountLockDuration,
 		},
 	}
 }

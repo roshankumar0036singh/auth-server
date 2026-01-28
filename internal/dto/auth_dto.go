@@ -53,6 +53,19 @@ type ResetPasswordRequest struct {
 	Password string `json:"password" binding:"required,min=8"`
 }
 
+// UpdateProfileRequest represents profile update data
+type UpdateProfileRequest struct {
+	FirstName string `json:"firstName" binding:"max=100"`
+	LastName  string `json:"lastName" binding:"max=100"`
+	Phone     string `json:"phone" binding:"max=20"`
+}
+
+// ChangePasswordRequest represents password change data
+type ChangePasswordRequest struct {
+	CurrentPassword string `json:"currentPassword" binding:"required"`
+	NewPassword     string `json:"newPassword" binding:"required,min=8"`
+}
+
 // SessionResponse represents a user session
 type SessionResponse struct {
 	ID        string `json:"id"`

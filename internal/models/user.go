@@ -22,9 +22,12 @@ type User struct {
 	OAuthID       string     `gorm:"size:255" json:"-"`
 	MFAEnabled    bool       `gorm:"default:false" json:"mfaEnabled"`
 	MFASecret     string     `gorm:"size:255" json:"-"`
-	CreatedAt     time.Time  `json:"createdAt"`
-	UpdatedAt     time.Time  `json:"updatedAt"`
-	LastLoginAt   *time.Time `json:"lastLoginAt,omitempty"`
+	FailedLoginAttempts int            `gorm:"default:0" json:"-"`
+	LockedUntil         *time.Time     `json:"lockedUntil,omitempty"`
+	CreatedAt           time.Time      `json:"createdAt"`
+	UpdatedAt           time.Time      `json:"updatedAt"`
+	DeletedAt           gorm.DeletedAt `gorm:"index" json:"-"`
+	LastLoginAt         *time.Time     `json:"lastLoginAt,omitempty"`
 }
 
 // BeforeCreate hook to generate UUID if not provided

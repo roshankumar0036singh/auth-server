@@ -12,6 +12,8 @@ featuring JWT-based authentication, OAuth integration, MFA, and RBAC.
   - 📨 HTML Email Templates
   - 🔄 Email Verification Flow
   - 🔑 Password Reset Flow (Forgot/Reset password)
+  - 👤 Profile Management (Update details, Delete account)
+  - 🛡️ Account Locking (Brute-force protection)
 
 ### Phase 1 & 2 - ✅ Complete
 - **Token Management**
