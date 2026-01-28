@@ -4,15 +4,23 @@ A production-ready authentication server built with Go and Gin framework, featur
 
 ## 🚀 Features
 
-### Phase 1 (MVP) - ✅ Complete
-- ✅ User registration with email/password
-- ✅ Login with JWT access tokens
-- ✅ Refresh token support
-- ✅ Password hashing with bcrypt
-- ✅ Protected routes with JWT middleware
-- ✅ CORS configuration
-- ✅ PostgreSQL database with GORM
-- ✅ Redis integration
+### Phase 1 & 2 - ✅ Complete
+- **Token Management**
+  - 🔄 Refresh token rotation (DB-backed)
+  - 🚫 Token blacklisting (Redis)
+  - 📱 Device tracking (IP & User Agent)
+  - 🔒 Session management (view & revoke active sessions)
+  - 🚪 Secure logout (all devices or specific session)
+  - 🛡️ Rate limiting (login attempts)
+- **User Management**
+  - 📧 Email/Password registration
+  - 🔐 Bcrypt password hashing
+  - 👤 Profile management
+  - 🛡️ Protected routes with JWT middleware
+- **Infrastructure**
+  - 🐘 PostgreSQL database with GORM
+  - 🚀 Redis integration
+  - 🐳 Docker support
 
 ### Upcoming Phases
 - 📧 Email verification
@@ -21,7 +29,6 @@ A production-ready authentication server built with Go and Gin framework, featur
 - 👥 Role-based access control (RBAC)
 - 🌐 OAuth (Google, GitHub)
 - 📊 Audit logging
-- 🛡️ Rate limiting
 
 ## 📋 Prerequisites
 
