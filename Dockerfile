@@ -33,6 +33,7 @@ RUN addgroup -S authgroup && adduser -S authuser -G authgroup
 # Copy binary from builder
 COPY --from=builder /app/auth-server .
 COPY --from=builder /app/templates ./templates
+COPY --from=builder /app/docs ./docs
 # Copy .env.example as .env template if needed, but usually .env is mounted
 # COPY --from=builder /app/.env.example ./
 
