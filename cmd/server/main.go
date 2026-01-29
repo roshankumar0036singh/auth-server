@@ -47,6 +47,11 @@ func main() {
 		&models.VerificationToken{},
 		&models.PasswordResetToken{},
 		&models.AuditLog{},
+		// OAuth 2.0 Provider models
+		&models.OAuthClient{},
+		&models.AuthorizationCode{},
+		&models.OAuthAccessToken{},
+		&models.UserConsent{},
 	)
 	if err != nil {
 		log.Fatal("Failed to migrate database:", err)
