@@ -75,6 +75,10 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, redisClient *redis.Client, cfg
 	router.GET("/", func(c *gin.Context) {
 		c.Redirect(http.StatusMovedPermanently, "/swagger/")
 	})
+	// Explicitly handle index.html to avoid 404s
+	router.GET("/swagger/index.html", func(c *gin.Context) {
+		c.File("./docs/index.html")
+	})
 
 	// Health check endpoint
 	router.GET("/health", func(c *gin.Context) {
