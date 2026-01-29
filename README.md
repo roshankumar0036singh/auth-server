@@ -1,132 +1,113 @@
-# Auth Server - Production-Ready Authentication
+<a name="top"></a>
+
+## Hey <𝚌𝚘𝚍𝚎𝚛𝚜/>! 👋
+
+<p align="center">
+  <img src="https://readme-typing-svg.herokuapp.com?font=JetBrains+Mono&weight=700&size=28&duration=2500&pause=1000&color=6366F1&center=true&vCenter=true&width=900&lines=Welcome+to+Auth+Server;Production-Ready+Go+Backend;Enterprise-Grade+JWT+%26+OAuth2;Built+with+Go+%2B+Gin+%2B+PostgreSQL;Your+Security+First+Microservice;Open+for+Collaborations!+🚀" alt="Typing SVG" />
+</p>
 
 <div align="center">
 
-<h1 align="center">Secure Your App <img src="https://raw.githubusercontent.com/MartinHeinz/MartinHeinz/master/wave.gif" width="30px"></h1>
+  <p>
+    <a href="https://auth-server-4nmm.onrender.com/swagger/">
+      <img src="https://img.shields.io/badge/API%20Docs-6366F1?style=for-the-badge&logo=swagger&logoColor=white">
+    </a>
+    <a href="https://github.com/roshankumar0036singh/auth-server/releases">
+      <img src="https://img.shields.io/badge/Release-v1.0-orange?style=for-the-badge&logo=github&logoColor=white">
+    </a>
+  </p>
 
-<!-- <img src="./docs/assets/banner.png" alt="Auth Server Banner" width="1000" /> -->
+  <p>
+    <img src="https://img.shields.io/github/repo-size/roshankumar0036singh/auth-server" />
+    <img src="https://img.shields.io/github/languages/count/roshankumar0036singh/auth-server" />
+    <img src="https://img.shields.io/github/stars/roshankumar0036singh/auth-server" />
+    <img src="https://img.shields.io/github/forks/roshankumar0036singh/auth-server" />
+    <img src="https://img.shields.io/github/last-commit/roshankumar0036singh/auth-server" />
+    <img src="https://img.shields.io/github/license/roshankumar0036singh/auth-server" />
+  </p>
 
-[![Typing SVG](https://readme-typing-svg.herokuapp.com?font=Fira+Code&size=25&pause=1000&color=1E3A8A&center=true&vCenter=true&width=435&lines=Secure.;Scalable.;Go-Powered.;Auth.)](https://git.io/typing-svg)
+  <p>
+    <img src="https://img.shields.io/github/issues-raw/roshankumar0036singh/auth-server" />
+    <img src="https://img.shields.io/github/issues-closed-raw/roshankumar0036singh/auth-server" />
+    <img src="https://img.shields.io/github/issues-pr-raw/roshankumar0036singh/auth-server" />
+    <img src="https://img.shields.io/github/issues-pr-closed-raw/roshankumar0036singh/auth-server" />
+  </p>
 
-<p align="center">
-  <a href="http://localhost:8080/swagger/index.html">
-    <img src="https://img.shields.io/badge/API_DOCS-4CAF50?style=for-the-badge&logo=swagger&logoColor=white" alt="Swagger Docs" />
-  </a>
-  <a href="./docs">
-    <img src="https://img.shields.io/badge/DOCUMENTATION-007ACC?style=for-the-badge&logo=readthedocs&logoColor=white" alt="Documentation" />
-  </a>
-  <a href="https://github.com/roshankumar0036singh/auth-server/releases">
-    <img src="https://img.shields.io/github/v/release/roshankumar0036singh/auth-server?style=for-the-badge&logo=github&color=orange" alt="Release" />
-  </a>
-</p>
-
-<p align="center">
-  <!-- Tech Stack Badges -->
-  <img src="https://img.shields.io/badge/Go-00ADD8?style=for-the-badge&logo=go&logoColor=white" alt="Go" />
-  <img src="https://img.shields.io/badge/Gin_Framework-00ADD8?style=for-the-badge&logo=go&logoColor=white" alt="Gin" />
-  <img src="https://img.shields.io/badge/PostgreSQL-336791?style=for-the-badge&logo=postgresql&logoColor=white" alt="PostgreSQL" />
-  <img src="https://img.shields.io/badge/Redis-DC382D?style=for-the-badge&logo=redis&logoColor=white" alt="Redis" />
-  <img src="https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white" alt="Docker" />
-</p>
-
-<p align="center">
-  <a href="https://github.com/roshankumar0036singh/auth-server/issues">
-    <img src="https://img.shields.io/github/issues/roshankumar0036singh/auth-server?style=for-the-badge&logo=github" alt="Open Issues" />
-  </a>
-  <a href="https://github.com/roshankumar0036singh/auth-server/pulls">
-    <img src="https://img.shields.io/github/issues-pr/roshankumar0036singh/auth-server?style=for-the-badge&logo=github" alt="Pull Requests" />
-  </a>
-  <a href="https://github.com/roshankumar0036singh/auth-server/blob/main/LICENSE">
-    <img src="https://img.shields.io/github/license/roshankumar0036singh/auth-server?style=for-the-badge&logo=github" alt="License" />
-  </a>
-</p>
+![Go](https://img.shields.io/badge/Go-00ADD8?style=for-the-badge&logo=go&logoColor=white)
+![Gin](https://img.shields.io/badge/Gin-0081CB.svg?style=for-the-badge&logo=go&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-336791?style=for-the-badge&logo=postgresql&logoColor=white)
+![Redis](https://img.shields.io/badge/redis-%23DD0031.svg?style=for-the-badge&logo=redis&logoColor=white)
+![GORM](https://img.shields.io/badge/GORM-00ADD8?style=for-the-badge&logo=go&logoColor=white)
+![Docker](https://img.shields.io/badge/docker-%230db7ed.svg?style=for-the-badge&logo=docker&logoColor=white)
+![JWT](https://img.shields.io/badge/JWT-black?style=for-the-badge&logo=JSON%20web%20tokens)
 
 </div>
 
----
+<p align="center">
+  <b>Auth Server</b> is a robust, production-ready authentication microservice built with <b>Go</b> and <b>Gin</b>. It provides a full OAuth 2.0 Provider implementation, MFA, and RBAC out of the box.
+</p>
 
-<h2 align="center" style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #1E3A8A; font-weight: 700; margin-top: 2rem;">
-📋 Overview
-</h2>
+## 📖 About Auth Server
 
-**Auth Server** is a robust, production-ready authentication and authorization microservice built with **Go (Golang)** and **Gin**. It provides a complete solution for modern applications, featuring JWT management, OAuth2 social login, Multi-Factor Authentication (MFA), Role-Based Access Control (RBAC), and enterprise-grade security hardening.
+> [!NOTE]
+> This project is designed to be the backbone of your's app security. It's not just a boilerplate, but a feature-complete service that handles user lifecycles, OAuth flows, and administrative management.
 
-### Key Benefits
+### ⚡ Feature Highlights
 
-- **High Performance**: Built on Go and Gin for blazing fast response times.
-- **Security First**: Implements industry standards (BCrypt, HS256, CSRF protection, Security Headers).
-- **Scalable**: Stateless JWT architecture with Redis for session management and rate limiting.
-- **Developer Ready**: Comprehensive Swagger API documentation and easy Docker deployment.
-- **Feature Rich**: Out-of-the-box support for Email verification, Password resets, and Social Login.
+Auth Server is built on a modular architecture using **Clean Architecture** principles in Go. 
+- **High Performance**: Optimized Gin routes and Redis caching.
+- **Security Hardened**: CSP headers, CORS protection, and secure token rotation.
+- **Enterprise Ready**: Full OAuth 2.0 Provider flow for 3rd party integrations.
+- **Interactive Documentation**: Beautifully redesigned Swagger UI.
 
----
-
-<h2 align="center" style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #1E3A8A; font-weight: 700; margin-top: 2rem;">
-✨ Features
-</h2>
-
-### core Authentication
-
-| Feature | Description |
-|---------|-------------|
-| **JWT Management** | Access (15m) & Refresh (7d) tokens with secure rotation |
-| **User Onboarding** | Email/Password registration with verification flow |
-| **Password Management** | Secure hashing (BCrypt), complexity rules, and reset flows |
-| **Session Control** | Device tracking, remote logout, and token revocation |
-
-### Advanced Security
-
-| Feature | Description |
-|---------|-------------|
-| **MFA (2FA)** | Time-based One-Time Password (TOTP) support (Google Authenticator) |
-| **RBAC** | Granular permission system with `user` and `admin` roles |
-| **Social Login** | OAuth 2.0 integration for **Google** and **GitHub** |
-| **Rate Limiting** | Redis-backed global and per-IP safeguards against abuse |
-| **Audit Logging** | Detailed tracking of all security-critical events |
-
-### Infrastructure & DevOps
-
-| Feature | Description |
-|---------|-------------|
-| **Dockerized** | Multi-stage Dockerfile and Docker Compose setup |
-| **CI/CD** | Automated testing and build pipeline via GitHub Actions |
-| **API Docs** | Interactive Swagger/OpenAPI documentation |
-| **Monitoring** | Health checks and structured logging |
+> [!IMPORTANT]
+> You can directly explore the API using our hosted documentation:
+> - **[Live Swagger Docs](https://auth-server-4nmm.onrender.com/swagger/)**
+> - **[OAuth Test Client](https://github.com/roshankumar0036singh/auth-server/tree/main/cmd/oauth-test-client)**
 
 ---
 
-<h2 align="center" style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #1E3A8A; font-weight: 700; margin-top: 2rem;">
-🛠️ Technology Stack
-</h2>
+## ✨ Features Checklist
 
-### Core
-- **Go 1.25+** - Language
-- **Gin Web Framework** - HTTP handling
-- **GORM** - ORM for database interaction
+> [!NOTE]  
+> These features represent the current state of **Auth Server**. We are actively looking for contributors to expand these capabilities.
 
-### Storage
-- **PostgreSQL** - Primary relationship database
-- **Redis** - Cache, Rate Limiting, and Session revocation
-
-### Libraries & Tools
-- **Golang-JWT** - Token signing and verification
-- **Pquerna/OTP** - TOTP generation for MFA
-- **Viper** - Configuration management
-- **Swaggo** - API Documentation generation
-- **Testify** - Unit and Integration testing
+- [x] **JWT Core**: Access & Refresh token rotation with secure revocation.
+- [x] **OAuth 2.0 Provider**: Complete Authorization Code flow for 1st & 3rd party apps.
+- [x] **Multi-Factor Auth**: TOTP support (Google Authenticator / Authy compatibility).
+- [x] **Social Login**: One-click sign-in with **Google** & **GitHub**.
+- [x] **Role-Based Access**: Granular `admin` vs `user` permissions.
+- [x] **Audit Logging**: Comprehensive tracking of security events.
+- [x] **Rate Limiting**: Redis-backed protection for all auth endpoints.
+- [x] **Email flow**: Verification, Password Reset, and Welcome emails.
+- [x] **Docker Ready**: Multi-stage builds and Compose orchestration.
+- [ ] **Webhooks**: Notify external systems on auth events (Coming Soon).
+- [ ] **SAML Integration**: Enterprise SSO support (Open for Contribution).
+- [ ] **SDKs**: Official Client SDKs for React, Flutter, and Go.
 
 ---
 
-<h2 align="center" style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #1E3A8A; font-weight: 700; margin-top: 2rem;">
-🚀 Quick Start
-</h2>
+## 🛠️ Tech Stack
+
+### Backend Infrastructure
+- **Language**: Go 1.25+
+- **Framework**: Gin Gonic
+- **ORM**: GORM (PostgreSQL Driver)
+- **Cache/Session**: Redis (Rate limiting & Token blacklist)
+
+### Security Features
+- **Hashing**: BCrypt
+- **Auth Protocols**: OAuth 2.0, OpenID Connect (Partial), TOTP
+- **Transport**: TLS-ready, CSP & Security Headers
+
+---
+
+## 🚀 Getting Started
 
 ### Prerequisites
-
-- **Go 1.25+** ([Download](https://golang.org/dl/))
-- **Docker & Docker Compose** (Recommended)
-- **PostgreSQL 15+** (If running locally)
-- **Redis 7+** (If running locally)
+- **Go 1.25+**
+- **Docker & Docker Compose**
+- **PostgreSQL 15+** & **Redis 7+**
 
 ### Installation
 
@@ -137,96 +118,47 @@ cd auth-server
 
 # Install dependencies
 go mod download
+
+# Set up environment
+cp .env.example .env
 ```
 
-### Configuration
-
-1. **Copy environment template**:
-   ```bash
-   cp .env.example .env
-   ```
-
-2. **Configure credentials** in `.env`:
-   - Database connection string (`DATABASE_URL`)
-   - Redis URL (`REDIS_URL`)
-   - JWT Secrets (Critical security keys)
-   - OAuth Credentials (Google/GitHub Client IDs)
-
-### Running with Docker (Recommended)
+### Running with Docker (Quickest)
 
 ```bash
-# Start all services (App, Postgres, Redis)
-make docker-up
-# or
 docker compose up --build -d
 ```
-
-The server will start on `http://localhost:8080`.
-
-### Running Locally
-
-```bash
-# Ensure Postgres and Redis are running first
-make run
-# or
-go run cmd/server/main.go
-```
+Access the server at `http://localhost:8080` and docs at `/swagger/`.
 
 ---
 
-<h2 align="center" style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #1E3A8A; font-weight: 700; margin-top: 2rem;">
-📚 Documentation
-</h2>
+## 🤝 Contributing & Community
 
-- **[API Documentation (Swagger)](http://localhost:8080/swagger/index.html)** - Interactive Endpoint Reference
-- **[Setup Guide](./README.md#configuration)** - Configuration details
-- **[Deployment](./README.md#deployment)** - Prod deployment instructions
+> [!IMPORTANT]  
+> We thrive on community contributions. Whether it's fixing a bug, improving docs, or proposing a new feature, your help is welcome!
 
-### Main Endpoints
+### Join the Discussion
+- 💬 **Discord Server** — [Join our community](https://discord.gg/your-link)
+- 🧭 **GitHub Discussions** — [Share ideas](https://github.com/roshankumar0036singh/auth-server/discussions)
 
-- `POST /api/auth/register` - Create account
-- `POST /api/auth/login` - Authenticate
-- `GET /api/auth/me` - Get profile (Protected)
-- `POST /api/auth/refresh` - Refresh access token
-- `POST /api/auth/mfa/verify` - Verify 2FA
-
----
-
-<h2 align="center" style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #1E3A8A; font-weight: 700; margin-top: 2rem;">
-🤝 Contributing
-</h2>
-
-We welcome contributions! Please follow these steps:
-
-1. Fork the repository
-2. Create feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit changes (`git commit -m 'feat: Add amazing feature'`)
-4. Push to branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+### How to Contribute
+1. **Fork** the project.
+2. **Branch** off (`git checkout -b feature/AmazingFeature`).
+3. **Commit** your changes (`git commit -m 'feat: add some amazing feature'`).
+4. **Push** to the branch (`git push origin feature/AmazingFeature`).
+5. **Open a PR**!
 
 ---
 
-<h2 align="center" style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #1E3A8A; font-weight: 700; margin-top: 2rem;">
-📄 License
-</h2>
+## 📄 License & Author
 
-This project is licensed under the **MIT License**.
+Distributed under the **MIT License**. See `LICENSE` for more information.
 
----
+**Roshan Kumar Singh** - [@roshankumar0036singh](https://github.com/roshankumar0036singh)
 
-<h2 align="center" style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #1E3A8A; font-weight: 700; margin-top: 2rem;">
-👤 Author
-</h2>
-
-**Roshan Kumar Singh**
-- GitHub: [@roshankumar0036singh](https://github.com/roshankumar0036singh)
-
----
+<a href="#top"><img src="https://img.shields.io/badge/⬆-Back%20to%20Top-red?style=for-the-badge" align="right"/></a>
 
 <div align="center">
-
-**Built with ❤️ using Go and Gin**
-
-[⬆ Back to Top](#auth-server---production-ready-authentication)
-
+  <br />
+  <b>Built with ❤️ using Go and Gin</b>
 </div>
