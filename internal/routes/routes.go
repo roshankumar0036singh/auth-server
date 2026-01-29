@@ -26,6 +26,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, redisClient *redis.Client, cfg
 	emailService := service.NewEmailService(cfg)
 	auditService := service.NewAuditService(auditRepo)
 	oauthService := service.NewOAuthService(cfg)
+	mfaService := service.NewMFAService(cfg)
 	
 	authService := service.NewAuthService(
 		userRepo,
@@ -36,11 +37,13 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, redisClient *redis.Client, cfg
 		cacheService,
 		emailService,
 		auditService,
+		mfaService,
 		cfg,
 	)
 
 	// Initialize handlers
 	authHandler := handler.NewAuthHandler(authService, oauthService)
+	adminHandler := handler.NewAdminHandler(authService)
 
 	// Apply global middleware
 	router.Use(middleware.CORSMiddleware())
@@ -68,6 +71,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, redisClient *redis.Client, cfg
 			// Public endpoints
 			auth.POST("/register", authHandler.Register)
 			auth.POST("/login", authHandler.Login)
+			auth.POST("/login/mfa", authHandler.LoginMFA) // MFA Login
 			auth.POST("/refresh", authHandler.RefreshToken)
 			auth.GET("/verify-email", authHandler.VerifyEmail)
 			auth.POST("/resend-verification", authHandler.ResendVerification)
@@ -85,14 +89,30 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, redisClient *redis.Client, cfg
 			protected.Use(middleware.AuthMiddleware(tokenService))
 			{
 				protected.GET("/me", authHandler.GetMe)
-				protected.GET("/audit-logs", authHandler.GetAuditLogs)
+				protected.PUT("/profile", authHandler.UpdateProfile)
 				protected.POST("/logout", authHandler.Logout)
 				protected.POST("/logout-all", authHandler.LogoutAll)
-				
-				// Session management
 				protected.GET("/sessions", authHandler.GetSessions)
 				protected.DELETE("/sessions/:sessionId", authHandler.RevokeSession)
+				protected.POST("/password", authHandler.ChangePassword)
+				protected.DELETE("/me", authHandler.DeleteAccount)
+				protected.GET("/audit-logs", authHandler.GetAuditLogs)
+				
+				// MFA Routes (Protected)
+				protected.POST("/mfa/enable", authHandler.EnableMFA)
+				protected.POST("/mfa/verify", authHandler.VerifyMFA)
 			}
+		}
+
+		// Admin routes (Protected + RBAC)
+		admin := api.Group("/admin")
+		admin.Use(middleware.AuthMiddleware(tokenService))
+		admin.Use(middleware.RequireRole("admin"))
+		{
+			admin.GET("/users", adminHandler.GetUsers)
+			admin.POST("/users/:id/lock", adminHandler.LockUser)
+			admin.POST("/users/:id/unlock", adminHandler.UnlockUser)
+			admin.DELETE("/users/:id", adminHandler.DeleteUser)
 		}
 	}
 }

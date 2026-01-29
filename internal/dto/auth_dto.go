@@ -75,3 +75,23 @@ type SessionResponse struct {
 	ExpiresAt string `json:"expiresAt"`
 	IsCurrent bool   `json:"isCurrent"`
 }
+
+// MFAEnableResponse represents the response when enabling MFA
+type MFAEnableResponse struct {
+	Secret    string `json:"secret"`
+	QRCodeURL string `json:"qrCodeUrl"`
+}
+
+// MFAVerifyRequest represents the request to verify/enable MFA
+type MFAVerifyRequest struct {
+	Code string `json:"code" binding:"required,len=6"`
+}
+
+// MFALoginRequest represents the request to login with MFA
+type MFALoginRequest struct {
+	Email string `json:"email" binding:"required,email"`
+	Code  string `json:"code" binding:"required,len=6"`
+}
+
+// LoginResponse represents the login response (updated for MFA)
+// If MFA is required but not provided, this will be returned with MFAEnabled=true and no tokens

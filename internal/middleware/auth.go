@@ -41,6 +41,7 @@ func AuthMiddleware(tokenService *service.TokenService) gin.HandlerFunc {
 		// Attach user info to context
 		c.Set("userID", claims.UserID)
 		c.Set("email", claims.Email)
+		c.Set("role", claims.Role)
 
 		c.Next()
 	}

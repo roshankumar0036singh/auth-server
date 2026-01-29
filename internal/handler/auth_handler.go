@@ -630,3 +630,83 @@ func (h *AuthHandler) GitHubCallback(c *gin.Context) {
 
 	c.JSON(http.StatusOK, utils.SuccessResponse("Login successful", loginResp))
 }
+
+// EnableMFA initates MFA setup
+// @Summary Enable MFA
+// @Tags auth
+// @Security BearerAuth
+// @Produce json
+// @Success 200 {object} utils.Response
+// @Router /api/auth/mfa/enable [post]
+func (h *AuthHandler) EnableMFA(c *gin.Context) {
+	userID, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, utils.UnauthorizedResponse("Unauthorized"))
+		return
+	}
+
+	resp, err := h.authService.EnableMFA(userID.(string))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, utils.ErrorResponse("Failed to enable MFA", err))
+		return
+	}
+
+	c.JSON(http.StatusOK, utils.SuccessResponse("MFA setup initiated", resp))
+}
+
+// VerifyMFA verifies and enables MFA
+// @Summary Verify and enable MFA
+// @Tags auth
+// @Security BearerAuth
+// @Accept json
+// @Produce json
+// @Param request body dto.MFAVerifyRequest true "Verification code"
+// @Success 200 {object} utils.Response
+// @Router /api/auth/mfa/verify [post]
+func (h *AuthHandler) VerifyMFA(c *gin.Context) {
+	userID, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, utils.UnauthorizedResponse("Unauthorized"))
+		return
+	}
+
+	var req dto.MFAVerifyRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, utils.ValidationErrorResponse(err.Error()))
+		return
+	}
+
+	if err := h.authService.VerifyEnableMFA(userID.(string), req.Code); err != nil {
+		c.JSON(http.StatusBadRequest, utils.ErrorResponse("MFA verification failed", err))
+		return
+	}
+
+	c.JSON(http.StatusOK, utils.SuccessResponse("MFA enabled successfully", nil))
+}
+
+// LoginMFA handles login with MFA code
+// @Summary Login with MFA
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param request body dto.MFALoginRequest true "MFA Login data"
+// @Success 200 {object} utils.Response
+// @Router /api/auth/login/mfa [post]
+func (h *AuthHandler) LoginMFA(c *gin.Context) {
+	var req dto.MFALoginRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, utils.ValidationErrorResponse(err.Error()))
+		return
+	}
+
+	ipAddress := c.ClientIP()
+	userAgent := c.GetHeader("User-Agent")
+
+	resp, err := h.authService.VerifyLoginMFA(req.Email, req.Code, ipAddress, userAgent)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, utils.ErrorResponse("MFA login failed", err))
+		return
+	}
+
+	c.JSON(http.StatusOK, utils.SuccessResponse("Login successful", resp))
+}

@@ -52,13 +52,18 @@ func ValidationErrorResponse(message string) Response {
 	}
 }
 
-// UnauthorizedResponse creates an unauthorized error response
+// UnauthorizedResponse returns a 401 Unauthorized response
 func UnauthorizedResponse(message string) Response {
 	return Response{
 		Success: false,
-		Error: &ErrorDetail{
-			Code:    "UNAUTHORIZED",
-			Message: message,
-		},
+		Message: message,
+	}
+}
+
+// ForbiddenResponse returns a 403 Forbidden response
+func ForbiddenResponse(message string) Response {
+	return Response{
+		Success: false,
+		Message: message,
 	}
 }

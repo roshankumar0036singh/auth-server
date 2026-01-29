@@ -22,6 +22,7 @@ type User struct {
 	OAuthID       string     `gorm:"size:255" json:"-"`
 	MFAEnabled    bool       `gorm:"default:false" json:"mfaEnabled"`
 	MFASecret     string     `gorm:"size:255" json:"-"`
+	Role          string     `gorm:"default:'user';size:50" json:"role"` // 'user', 'admin'
 	FailedLoginAttempts int            `gorm:"default:0" json:"-"`
 	LockedUntil         *time.Time     `json:"lockedUntil,omitempty"`
 	CreatedAt           time.Time      `json:"createdAt"`
@@ -38,6 +39,10 @@ func (u *User) BeforeCreate(tx *gorm.DB) error {
 	// Set default OAuth provider if not set
 	if u.OAuthProvider == "" {
 		u.OAuthProvider = "local"
+	}
+	// Set default Role if not set
+	if u.Role == "" {
+		u.Role = "user"
 	}
 	return nil
 }

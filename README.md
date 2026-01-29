@@ -1,8 +1,8 @@
-# Authentication Server - Go + Gin ![Status](https://img.shields.io/badge/Status-Phase_5_Complete-green)
+# Authentication Server - Go + Gin ![Status](https://img.shields.io/badge/Status-Phase_6_Complete-green)
 
 A production-ready Authentication Server written in Go using the standard library approach (no framework overkill).
-**Currently completed Phase 5 (OAuth Integration).**
-featuring JWT-based authentication, OAuth integration, MFA, and RBAC.
+**Currently completed Phase 6 (Advanced Features).**
+features include JWT-based authentication, OAuth, MFA, and RBAC.
 
 ## 🚀 Features
 
@@ -16,6 +16,13 @@ featuring JWT-based authentication, OAuth integration, MFA, and RBAC.
   - 🛡️ Account Locking (Brute-force protection)
   - 📝 Audit Logging (Critical action tracking)
   - 🔐 Enhanced Password Security (Complexity requirements)
+
+### Phase 6 - ✅ Complete
+- **Advanced Security**
+  - 🔐 Multi-Factor Authentication (TOTP/Authenticator App)
+  - 🛡️ Role-Based Access Control (RBAC) - 'user' vs 'admin'
+  - 🛂 Admin Management Endpoints
+  - 📜 Session & Device Tracking
 
 ### Phase 5 - ✅ Complete
 - **Social Authentication (OAuth2)**
@@ -208,6 +215,15 @@ Content-Type: application/json
 - `GET /api/auth/audit-logs` - View security audit history
 - `GET /api/auth/google/login` - Initiate Google OAuth
 - `GET /api/auth/github/login` - Initiate GitHub OAuth
+- `POST /api/auth/login/mfa` - Login with 2FA code
+- `POST /api/auth/mfa/enable` - Setup 2FA (Returns QR Code)
+- `POST /api/auth/mfa/verify` - Verify and activate 2FA
+
+### Admin Endpoints (Require 'admin' role)
+- `GET /api/admin/users` - List all users
+- `POST /api/admin/users/:id/lock` - Lock user account
+- `POST /api/admin/users/:id/unlock` - Unlock user account
+- `DELETE /api/admin/users/:id` - Delete user account
 ```
 
 ### Health Check

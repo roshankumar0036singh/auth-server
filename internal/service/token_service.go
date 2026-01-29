@@ -21,6 +21,7 @@ func NewTokenService(cfg *config.Config) *TokenService {
 type JWTClaims struct {
 	UserID string `json:"sub"`
 	Email  string `json:"email"`
+	Role   string `json:"role"`
 	jwt.RegisteredClaims
 }
 
@@ -31,6 +32,7 @@ func (s *TokenService) GenerateAccessToken(user *models.User) (string, error) {
 	claims := &JWTClaims{
 		UserID: user.ID,
 		Email:  user.Email,
+		Role:   user.Role,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(expirationTime),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
@@ -54,6 +56,7 @@ func (s *TokenService) GenerateRefreshToken(user *models.User) (string, error) {
 	claims := &JWTClaims{
 		UserID: user.ID,
 		Email:  user.Email,
+		Role:   user.Role,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(expirationTime),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),

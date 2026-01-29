@@ -24,6 +24,7 @@ type AuthService struct {
 	cacheService      *CacheService
 	emailService      *EmailService
 	auditService      *AuditService
+	mfaService        *MFAService
 	config            *config.Config
 }
 
@@ -36,6 +37,7 @@ func NewAuthService(
 	cacheService *CacheService,
 	emailService *EmailService,
 	auditService *AuditService,
+	mfaService *MFAService,
 	cfg *config.Config,
 ) *AuthService {
 	return &AuthService{
@@ -47,6 +49,7 @@ func NewAuthService(
 		cacheService:      cacheService,
 		emailService:      emailService,
 		auditService:      auditService,
+		mfaService:        mfaService,
 		config:            cfg,
 	}
 }
@@ -214,10 +217,119 @@ func (s *AuthService) DeleteAccount(userID string) error {
 
 	// Delete user (Soft delete via GORM)
 	err := s.userRepo.Delete(userID)
-	if err == nil {
-		s.auditService.LogEvent(&userID, "ACCOUNT_DELETED", "USER", userID, "", "", nil)
+	if err != nil {
+		return err
 	}
-	return err
+	// Audit Log
+	s.auditService.LogEvent(&userID, "ACCOUNT_DELETED", "USER", userID, "", "", nil)
+	return nil
+}
+
+// EnableMFA generates a secret and returns it with QR code URL
+func (s *AuthService) EnableMFA(userID string) (*dto.MFAEnableResponse, error) {
+	user, err := s.userRepo.FindByID(userID)
+	if err != nil {
+		return nil, errors.New("user not found")
+	}
+
+	if user.MFAEnabled {
+		return nil, errors.New("MFA is already enabled")
+	}
+
+	secret, qrCodeURL, err := s.mfaService.GenerateMFA(user.Email)
+	if err != nil {
+		return nil, err
+	}
+
+	// Save temp secret
+	if err := s.userRepo.Update(userID, map[string]interface{}{
+		"mfa_secret": secret,
+	}); err != nil {
+		return nil, errors.New("failed to save temp MFA secret")
+	}
+
+	return &dto.MFAEnableResponse{
+		Secret:    secret,
+		QRCodeURL: qrCodeURL,
+	}, nil
+}
+
+// VerifyEnableMFA verifies the code and enables MFA
+func (s *AuthService) VerifyEnableMFA(userID, code string) error {
+	user, err := s.userRepo.FindByID(userID)
+	if err != nil {
+		return errors.New("user not found")
+	}
+
+	if user.MFAEnabled {
+		return errors.New("MFA is already enabled")
+	}
+
+	if user.MFASecret == "" {
+		return errors.New("MFA setup not initiated")
+	}
+
+	if !s.mfaService.ValidateMFA(user.MFASecret, code) {
+		return errors.New("invalid TOTP code")
+	}
+
+	// Enable MFA
+	if err := s.userRepo.Update(userID, map[string]interface{}{
+		"mfa_enabled": true,
+	}); err != nil {
+		return errors.New("failed to enable MFA")
+	}
+
+	s.auditService.LogEvent(&userID, "MFA_ENABLED", "USER", userID, "", "", nil)
+	return nil
+}
+
+// VerifyLoginMFA completes the login process with MFA code
+func (s *AuthService) VerifyLoginMFA(email, code, ipAddress, userAgent string) (*dto.LoginResponse, error) {
+	user, err := s.userRepo.FindByEmail(email)
+	if err != nil {
+		return nil, errors.New("user not found")
+	}
+
+	if !user.MFAEnabled {
+		return nil, errors.New("MFA not enabled for this user")
+	}
+
+	if !s.mfaService.ValidateMFA(user.MFASecret, code) {
+		s.auditService.LogEvent(&user.ID, "MFA_LOGIN_FAILED", "USER", user.ID, ipAddress, userAgent, nil)
+		return nil, errors.New("invalid TOTP code")
+	}
+
+	// Generate tokens
+	accessToken, err := s.tokenService.GenerateAccessToken(user)
+	if err != nil {
+		return nil, errors.New("failed to generate access token")
+	}
+
+	refreshTokenString, err := s.tokenService.GenerateRefreshToken(user)
+	if err != nil {
+		return nil, errors.New("failed to generate refresh token")
+	}
+
+	refreshToken := &models.RefreshToken{
+		UserID:    user.ID,
+		Token:     refreshTokenString,
+		ExpiresAt: time.Now().Add(7 * 24 * time.Hour), 
+		IPAddress: ipAddress,
+		UserAgent: userAgent,
+	}
+
+	if err := s.tokenRepo.CreateRefreshToken(refreshToken); err != nil {
+		return nil, errors.New("failed to store refresh token")
+	}
+
+	s.auditService.LogEvent(&user.ID, "USER_LOGIN_SUCCESS_MFA", "USER", user.ID, ipAddress, userAgent, nil)
+
+	return &dto.LoginResponse{
+		AccessToken:  accessToken,
+		RefreshToken: refreshTokenString,
+		User:         user.ToPublic(),
+	}, nil
 }
 
 // Register creates a new user account and sends verification email
@@ -374,6 +486,11 @@ func (s *AuthService) Login(req *dto.LoginRequest, ipAddress, userAgent string) 
 		return nil, errors.New("account is deactivated")
 	}
 
+	// Check MFA
+	if user.MFAEnabled {
+		return nil, errors.New("mfa_required")
+	}
+
 	// Generate tokens
 	accessToken, err := s.tokenService.GenerateAccessToken(user)
 	if err != nil {
@@ -415,7 +532,6 @@ func (s *AuthService) Login(req *dto.LoginRequest, ipAddress, userAgent string) 
 
 // LoginWithOAuth handles login or registration via OAuth provider
 func (s *AuthService) LoginWithOAuth(email, oauthID, firstName, lastName, provider, ipAddress, userAgent string) (*dto.LoginResponse, error) {
-	ctx := context.Background()
 	user, err := s.userRepo.FindByEmail(email)
 	if err != nil {
 		// User does not exist, create new one
@@ -477,7 +593,7 @@ func (s *AuthService) LoginWithOAuth(email, oauthID, firstName, lastName, provid
 		return nil, errors.New("failed to store refresh token")
 	}
 
-	s.auditService.LogEvent(&user.ID, "USER_LOGIN_OAUTH", "USER", user.ID, ipAddress, userAgent, map[string]interface{}{"provider": provider})
+	s.auditService.LogEvent(&user.ID, "USER_LOGIN_Success_MFA", "USER", user.ID, ipAddress, userAgent, nil)
 
 	return &dto.LoginResponse{
 		AccessToken:  accessToken,
