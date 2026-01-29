@@ -1,375 +1,232 @@
-# Authentication Server - Go + Gin ![Status](https://img.shields.io/badge/Status-Phase_6_Complete-green)
+# Auth Server - Production-Ready Authentication
 
-A production-ready Authentication Server written in Go using the standard library approach (no framework overkill).
-**Currently completed Phase 6 (Advanced Features).**
-features include JWT-based authentication, OAuth, MFA, and RBAC.
+<div align="center">
 
-## 🚀 Features
+<h1 align="center">Secure Your App <img src="https://raw.githubusercontent.com/MartinHeinz/MartinHeinz/master/wave.gif" width="30px"></h1>
 
-### Phase 3 - ✅ Complete
-- **Email Services**
-  - 📧 SMTP Integration (native Go implementation)
-  - 📨 HTML Email Templates
-  - 🔄 Email Verification Flow
-  - 🔑 Password Reset Flow (Forgot/Reset password)
-  - 👤 Profile Management (Update details, Delete account)
-  - 🛡️ Account Locking (Brute-force protection)
-  - 📝 Audit Logging (Critical action tracking)
-  - 🔐 Enhanced Password Security (Complexity requirements)
+<!-- <img src="./docs/assets/banner.png" alt="Auth Server Banner" width="1000" /> -->
 
-### Phase 6 - ✅ Complete
-- **Advanced Security**
-  - 🔐 Multi-Factor Authentication (TOTP/Authenticator App)
-  - 🛡️ Role-Based Access Control (RBAC) - 'user' vs 'admin'
-  - 🛂 Admin Management Endpoints
-  - 📜 Session & Device Tracking
+[![Typing SVG](https://readme-typing-svg.herokuapp.com?font=Fira+Code&size=25&pause=1000&color=1E3A8A&center=true&vCenter=true&width=435&lines=Secure.;Scalable.;Go-Powered.;Auth.)](https://git.io/typing-svg)
 
-### Phase 5 - ✅ Complete
-- **Social Authentication (OAuth2)**
-  - 🌐 Google Sign-In
-  - 🐙 GitHub Sign-In
-  - 🔗 Account Linking (Auto-link by email)
-  - 🔒 Secure State Management (CSRF protection)
+<p align="center">
+  <a href="http://localhost:8080/swagger/index.html">
+    <img src="https://img.shields.io/badge/API_DOCS-4CAF50?style=for-the-badge&logo=swagger&logoColor=white" alt="Swagger Docs" />
+  </a>
+  <a href="./docs">
+    <img src="https://img.shields.io/badge/DOCUMENTATION-007ACC?style=for-the-badge&logo=readthedocs&logoColor=white" alt="Documentation" />
+  </a>
+  <a href="https://github.com/roshankumar0036singh/auth-server/releases">
+    <img src="https://img.shields.io/github/v/release/roshankumar0036singh/auth-server?style=for-the-badge&logo=github&color=orange" alt="Release" />
+  </a>
+</p>
 
-### Phase 4 - ✅ Complete
-- **Security Hardening**
-  - 🚦 Global Rate Limiting (Redis-backed)
-  - 🛡️ Security Headers (HSTS, CSP, X-Frame-Options)
-  - 📝 Audit Logging System
-  - 🔑 Strict Password Validation (Upper, Lower, Number, Special)
+<p align="center">
+  <!-- Tech Stack Badges -->
+  <img src="https://img.shields.io/badge/Go-00ADD8?style=for-the-badge&logo=go&logoColor=white" alt="Go" />
+  <img src="https://img.shields.io/badge/Gin_Framework-00ADD8?style=for-the-badge&logo=go&logoColor=white" alt="Gin" />
+  <img src="https://img.shields.io/badge/PostgreSQL-336791?style=for-the-badge&logo=postgresql&logoColor=white" alt="PostgreSQL" />
+  <img src="https://img.shields.io/badge/Redis-DC382D?style=for-the-badge&logo=redis&logoColor=white" alt="Redis" />
+  <img src="https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white" alt="Docker" />
+</p>
 
-### Phase 1 & 2 - ✅ Complete
-- **Token Management**
-  - 🔄 Refresh token rotation (DB-backed)
-  - 🚫 Token blacklisting (Redis)
-  - 📱 Device tracking (IP & User Agent)
-  - 🔒 Session management (view & revoke active sessions)
-  - 🚪 Secure logout (all devices or specific session)
-  - 🛡️ Rate limiting (login attempts)
-- **User Management**
-  - 📧 Email/Password registration
-  - 🔐 Bcrypt password hashing
-  - 👤 Profile management
-  - 🛡️ Protected routes with JWT middleware
-- **Infrastructure**
-  - 🐘 PostgreSQL database with GORM
-  - 🚀 Redis integration
-  - 🐳 Docker support
+<p align="center">
+  <a href="https://github.com/roshankumar0036singh/auth-server/issues">
+    <img src="https://img.shields.io/github/issues/roshankumar0036singh/auth-server?style=for-the-badge&logo=github" alt="Open Issues" />
+  </a>
+  <a href="https://github.com/roshankumar0036singh/auth-server/pulls">
+    <img src="https://img.shields.io/github/issues-pr/roshankumar0036singh/auth-server?style=for-the-badge&logo=github" alt="Pull Requests" />
+  </a>
+  <a href="https://github.com/roshankumar0036singh/auth-server/blob/main/LICENSE">
+    <img src="https://img.shields.io/github/license/roshankumar0036singh/auth-server?style=for-the-badge&logo=github" alt="License" />
+  </a>
+</p>
 
-### Upcoming Phases
-- 👥 Role-based access control (RBAC)
-- 🌐 OAuth (Google, GitHub)
-- 📊 Audit logging
+</div>
 
-## 📋 Prerequisites
+---
 
-- Go 1.21+ ([Install](https://golang.org/dl/))
-- PostgreSQL 15+ ([Install](https://www.postgresql.org/download/))
-- Redis 7+ ([Install](https://redis.io/download))
+<h2 align="center" style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #1E3A8A; font-weight: 700; margin-top: 2rem;">
+📋 Overview
+</h2>
 
-## 🛠️ Installation
+**Auth Server** is a robust, production-ready authentication and authorization microservice built with **Go (Golang)** and **Gin**. It provides a complete solution for modern applications, featuring JWT management, OAuth2 social login, Multi-Factor Authentication (MFA), Role-Based Access Control (RBAC), and enterprise-grade security hardening.
 
-### 1. Clone the repository
+### Key Benefits
+
+- **High Performance**: Built on Go and Gin for blazing fast response times.
+- **Security First**: Implements industry standards (BCrypt, HS256, CSRF protection, Security Headers).
+- **Scalable**: Stateless JWT architecture with Redis for session management and rate limiting.
+- **Developer Ready**: Comprehensive Swagger API documentation and easy Docker deployment.
+- **Feature Rich**: Out-of-the-box support for Email verification, Password resets, and Social Login.
+
+---
+
+<h2 align="center" style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #1E3A8A; font-weight: 700; margin-top: 2rem;">
+✨ Features
+</h2>
+
+### core Authentication
+
+| Feature | Description |
+|---------|-------------|
+| **JWT Management** | Access (15m) & Refresh (7d) tokens with secure rotation |
+| **User Onboarding** | Email/Password registration with verification flow |
+| **Password Management** | Secure hashing (BCrypt), complexity rules, and reset flows |
+| **Session Control** | Device tracking, remote logout, and token revocation |
+
+### Advanced Security
+
+| Feature | Description |
+|---------|-------------|
+| **MFA (2FA)** | Time-based One-Time Password (TOTP) support (Google Authenticator) |
+| **RBAC** | Granular permission system with `user` and `admin` roles |
+| **Social Login** | OAuth 2.0 integration for **Google** and **GitHub** |
+| **Rate Limiting** | Redis-backed global and per-IP safeguards against abuse |
+| **Audit Logging** | Detailed tracking of all security-critical events |
+
+### Infrastructure & DevOps
+
+| Feature | Description |
+|---------|-------------|
+| **Dockerized** | Multi-stage Dockerfile and Docker Compose setup |
+| **CI/CD** | Automated testing and build pipeline via GitHub Actions |
+| **API Docs** | Interactive Swagger/OpenAPI documentation |
+| **Monitoring** | Health checks and structured logging |
+
+---
+
+<h2 align="center" style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #1E3A8A; font-weight: 700; margin-top: 2rem;">
+🛠️ Technology Stack
+</h2>
+
+### Core
+- **Go 1.25+** - Language
+- **Gin Web Framework** - HTTP handling
+- **GORM** - ORM for database interaction
+
+### Storage
+- **PostgreSQL** - Primary relationship database
+- **Redis** - Cache, Rate Limiting, and Session revocation
+
+### Libraries & Tools
+- **Golang-JWT** - Token signing and verification
+- **Pquerna/OTP** - TOTP generation for MFA
+- **Viper** - Configuration management
+- **Swaggo** - API Documentation generation
+- **Testify** - Unit and Integration testing
+
+---
+
+<h2 align="center" style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #1E3A8A; font-weight: 700; margin-top: 2rem;">
+🚀 Quick Start
+</h2>
+
+### Prerequisites
+
+- **Go 1.25+** ([Download](https://golang.org/dl/))
+- **Docker & Docker Compose** (Recommended)
+- **PostgreSQL 15+** (If running locally)
+- **Redis 7+** (If running locally)
+
+### Installation
+
 ```bash
+# Clone the repository
 git clone https://github.com/roshankumar0036singh/auth-server.git
 cd auth-server
+
+# Install dependencies
+go mod download
 ```
 
-### 2. Install dependencies
+### Configuration
+
+1. **Copy environment template**:
+   ```bash
+   cp .env.example .env
+   ```
+
+2. **Configure credentials** in `.env`:
+   - Database connection string (`DATABASE_URL`)
+   - Redis URL (`REDIS_URL`)
+   - JWT Secrets (Critical security keys)
+   - OAuth Credentials (Google/GitHub Client IDs)
+
+### Running with Docker (Recommended)
+
 ```bash
-go mod tidy
+# Start all services (App, Postgres, Redis)
+make docker-up
+# or
+docker compose up --build -d
 ```
 
-### 3. Setup environment variables
+The server will start on `http://localhost:8080`.
+
+### Running Locally
+
 ```bash
-cp .env.example .env
-```
-
-Edit `.env` and configure your database and other settings:
-```env
-DATABASE_URL=postgresql://postgres:password@localhost:5432/auth_server?sslmode=disable
-REDIS_URL=redis://localhost:6379
-JWT_SECRET=your-super-secret-jwt-key-change-this
-JWT_REFRESH_SECRET=your-refresh-secret-key-change-this
-```
-
-### 4. Create database
-```bash
-createdb auth_server
-```
-
-### 5. Run the server
-```bash
-# Using Make
+# Ensure Postgres and Redis are running first
 make run
-
-# Or directly with Go
+# or
 go run cmd/server/main.go
 ```
 
-The server will start on `http://localhost:3000` 🎉
+---
 
-## 📚 API Documentation
+<h2 align="center" style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #1E3A8A; font-weight: 700; margin-top: 2rem;">
+📚 Documentation
+</h2>
 
-### Base URL
-```
-http://localhost:3000/api
-```
+- **[API Documentation (Swagger)](http://localhost:8080/swagger/index.html)** - Interactive Endpoint Reference
+- **[Setup Guide](./README.md#configuration)** - Configuration details
+- **[Deployment](./README.md#deployment)** - Prod deployment instructions
 
-### Endpoints
+### Main Endpoints
 
-#### 1. Register
-```http
-POST /api/auth/register
-Content-Type: application/json
+- `POST /api/auth/register` - Create account
+- `POST /api/auth/login` - Authenticate
+- `GET /api/auth/me` - Get profile (Protected)
+- `POST /api/auth/refresh` - Refresh access token
+- `POST /api/auth/mfa/verify` - Verify 2FA
 
-{
-  "email": "user@example.com",
-  "password": "SecurePassword123!",
-  "firstName": "John",
-  "lastName": "Doe"
-}
-```
+---
 
-**Response (201 Created):**
-```json
-{
-  "success": true,
-  "message": "Registration successful",
-  "data": {
-    "id": "uuid",
-    "email": "user@example.com",
-    "firstName": "John",
-    "lastName": "Doe",
-    "emailVerified": false,
-    "mfaEnabled": false,
-    "createdAt": "2024-01-01T00:00:00Z"
-  }
-}
-```
+<h2 align="center" style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #1E3A8A; font-weight: 700; margin-top: 2rem;">
+🤝 Contributing
+</h2>
 
-#### 2. Login
-```http
-POST /api/auth/login
-Content-Type: application/json
-
-{
-  "email": "user@example.com",
-  "password": "SecurePassword123!"
-}
-```
-
-**Response (200 OK):**
-```json
-{
-  "success": true,
-  "message": "Login successful",
-  "data": {
-    "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-    "refreshToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-    "user": {
-      "id": "uuid",
-      "email": "user@example.com",
-      "firstName": "John"
-    }
-  }
-}
-```
-
-#### 3. Get Current User (Protected)
-```http
-GET /api/auth/me
-Authorization: Bearer <access-token>
-```
-
-**Response (200 OK):**
-```json
-{
-  "success": true,
-  "message": "User retrieved successfully",
-  "data": {
-    "id": "uuid",
-    "email": "user@example.com",
-    "firstName": "John",
-    "lastName": "Doe"
-  }
-}
-```
-
-#### 4. Refresh Token
-```http
-POST /api/auth/refresh
-Content-Type: application/json
-
-{
-  "refreshToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-}
-```
-
-#### 5. Logout (Protected)
-```http
-- `POST /api/auth/resend-verification` - Resend verification email
-- `POST /api/auth/forgot-password` - Request password reset
-- `POST /api/auth/reset-password` - Reset password with token
-- `POST /api/auth/logout` - Logout (blacklist access token)
-- `GET /api/auth/audit-logs` - View security audit history
-- `GET /api/auth/google/login` - Initiate Google OAuth
-- `GET /api/auth/github/login` - Initiate GitHub OAuth
-- `POST /api/auth/login/mfa` - Login with 2FA code
-- `POST /api/auth/mfa/enable` - Setup 2FA (Returns QR Code)
-- `POST /api/auth/mfa/verify` - Verify and activate 2FA
-
-### Admin Endpoints (Require 'admin' role)
-- `GET /api/admin/users` - List all users
-- `POST /api/admin/users/:id/lock` - Lock user account
-- `POST /api/admin/users/:id/unlock` - Unlock user account
-- `DELETE /api/admin/users/:id` - Delete user account
-```
-
-### Health Check
-```http
-GET /health
-```
-
-## 🏗️ Project Structure
-
-```
-auth-server/
-├── cmd/
-│   └── server/
-│       └── main.go              # Application entry point
-├── internal/
-│   ├── config/                  # Configuration
-│   ├── models/                  # Data models
-│   ├── repository/              # Data access layer
-│   ├── service/                 # Business logic
-│   ├── handler/                 # HTTP handlers
-│   ├── middleware/              # Middleware
-│   ├── routes/                  # Route definitions
-│   ├── dto/                     # Data transfer objects
-│   └── utils/                   # Utility functions
-├── migrations/                  # Database migrations
-├── tests/                       # Tests
-├── .env.example                 # Environment template
-├── Makefile                     # Build commands
-└── go.mod                       # Dependencies
-```
-
-## 📚 API Documentation
-
-Full API documentation is available via Swagger UI:
-- **URL**: `http://localhost:8080/swagger/index.html`
-
-### Endpoints Overview
-- **Auth**: Register, Login, Refresh Token
-- **User**: Profile, Password Management
-- **Admin**: User Management (Lock/Unlock/Delete)
-- **MFA**: Enable, Verify, Login with MFA
-
-## 🔧 Development
-
-### Available Make Commands
-
-```bash
-make run            # Run the application
-make build          # Build binary
-make test           # Run tests
-make test-coverage  # Run tests with coverage
-make docker-up      # Start Docker containers
-make docker-down    # Stop Docker containers
-make lint           # Run linter
-make fmt            # Format code
-make tidy           # Tidy dependencies
-```
-
-### Running with Docker
-
-```bash
-# Start all services (app, postgres, redis)
-make docker-up
-
-# Stop all services
-make docker-down
-```
-
-## 🧪 Testing
-
-```bash
-# Run all tests
-go test ./...
-
-# Run with coverage
-go test ./... -cover
-
-# Generate coverage report
-go test ./... -coverprofile=coverage.out
-go tool cover -html=coverage.out
-```
-
-## 🔒 Security
-
-- ✅ Passwords hashed with bcrypt (cost 12)
-- ✅ JWT tokens with expiration (15 min access, 7 days refresh)
-- ✅ CORS configured
-- ✅ Input validation with Gin binding
-- ⏳ Rate limiting (upcoming)
-- ⏳ Token blacklisting (upcoming)
-
-## 📝 Environment Variables
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `APP_ENV` | Environment (development/production) | development |
-| `PORT` | Server port | 3000 |
-| `DATABASE_URL` | PostgreSQL connection string | - |
-| `REDIS_URL` | Redis connection string | - |
-| `JWT_SECRET` | JWT signing secret | - |
-| `JWT_REFRESH_SECRET` | Refresh token secret | - |
-
-## 🚀 Deployment
-
-### Build for Production
-
-```bash
-# Build optimized binary
-make build-prod
-
-# Output: bin/auth-server
-```
-
-### Deploy with Docker
-
-```bash
-# Build image
-docker build -t auth-server:latest .
-
-# Run container
-docker run -p 3000:3000 --env-file .env auth-server:latest
-```
-
-## 🤝 Contributing
+We welcome contributions! Please follow these steps:
 
 1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
+2. Create feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit changes (`git commit -m 'feat: Add amazing feature'`)
+4. Push to branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
 
-## 📄 License
+---
 
-This project is licensed under the MIT License.
+<h2 align="center" style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #1E3A8A; font-weight: 700; margin-top: 2rem;">
+📄 License
+</h2>
 
-## 👤 Author
+This project is licensed under the **MIT License**.
+
+---
+
+<h2 align="center" style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #1E3A8A; font-weight: 700; margin-top: 2rem;">
+👤 Author
+</h2>
 
 **Roshan Kumar Singh**
 - GitHub: [@roshankumar0036singh](https://github.com/roshankumar0036singh)
 
-## 🙏 Acknowledgments
-
-- Built with [Gin](https://gin-gonic.com/)
-- ORM by [GORM](https://gorm.io/)
-- JWT by [golang-jwt](https://github.com/golang-jwt/jwt)
-
 ---
 
-Made with ❤️ using Go and Gin
+<div align="center">
+
+**Built with ❤️ using Go and Gin**
+
+[⬆ Back to Top](#auth-server---production-ready-authentication)
+
+</div>
