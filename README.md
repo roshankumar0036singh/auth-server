@@ -23,7 +23,7 @@
     <img src="https://img.shields.io/github/stars/roshankumar0036singh/auth-server" />
     <img src="https://img.shields.io/github/forks/roshankumar0036singh/auth-server" />
     <img src="https://img.shields.io/github/last-commit/roshankumar0036singh/auth-server" />
-    <img src="https://img.shields.io/github/LICENSE/roshankumar0036singh/auth-server" />
+    <img src="https://img.shields.io/github/license/roshankumar0036singh/auth-server" />
   </p>
 
   <p>
