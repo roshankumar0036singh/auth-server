@@ -22,7 +22,7 @@ type AuthService struct {
 	passwordResetRepo *repository.PasswordResetRepository
 	tokenService      *TokenService
 	cacheService      *CacheService
-	emailService      *EmailService
+	emailService      EmailSender
 	auditService      *AuditService
 	mfaService        *MFAService
 	config            *config.Config
@@ -35,7 +35,7 @@ func NewAuthService(
 	passwordResetRepo *repository.PasswordResetRepository,
 	tokenService *TokenService,
 	cacheService *CacheService,
-	emailService *EmailService,
+	emailService EmailSender,
 	auditService *AuditService,
 	mfaService *MFAService,
 	cfg *config.Config,

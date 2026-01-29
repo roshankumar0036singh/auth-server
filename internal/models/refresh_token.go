@@ -8,7 +8,7 @@ import (
 )
 
 type RefreshToken struct {
-	ID        string    `gorm:"type:uuid;primary_key;default:gen_random_uuid()" json:"id"`
+	ID        string    `gorm:"type:uuid;primary_key" json:"id"`
 	UserID    string    `gorm:"type:uuid;not null;index" json:"userId"`
 	Token     string    `gorm:"type:varchar(500);uniqueIndex;not null" json:"-"` // Never expose in JSON
 	ExpiresAt time.Time `gorm:"not null;index" json:"expiresAt"`

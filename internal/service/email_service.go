@@ -10,6 +10,11 @@ import (
 	"github.com/roshankumar0036singh/auth-server/internal/config"
 )
 
+type EmailSender interface {
+	SendVerificationEmail(email, token, appURL string) error
+	SendPasswordResetEmail(email, token, appURL string) error
+}
+
 type EmailService struct {
 	config config.EmailConfig
 }

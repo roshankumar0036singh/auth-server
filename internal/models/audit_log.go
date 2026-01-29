@@ -9,7 +9,7 @@ import (
 
 // AuditLog represents a security audit event
 type AuditLog struct {
-	ID        string    `gorm:"type:uuid;primary_key;default:gen_random_uuid()" json:"id"`
+	ID        string    `gorm:"type:uuid;primary_key" json:"id"`
 	UserID    *string   `gorm:"index" json:"userId,omitempty"`
 	Action    string    `gorm:"not null" json:"action"`
 	Entity    string    `gorm:"size:50" json:"entity"`         // e.g., "USER", "TOKEN"
