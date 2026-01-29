@@ -1,24 +1,5 @@
 {
-    "schemes": [
-        "http",
-        "https"
-    ],
     "swagger": "2.0",
-    "info": {
-        "description": "Production-ready Authentication Server in Go",
-        "title": "Auth Server API",
-        "termsOfService": "http://swagger.io/terms/",
-        "contact": {
-            "name": "API Support",
-            "email": "support@authserver.com"
-        },
-        "license": {
-            "name": "MIT",
-            "url": "https://opensource.org/licenses/MIT"
-        },
-        "version": "1.0"
-    },
-    "host": "localhost:8080",
     "basePath": "/",
     "paths": {
         "/api/admin/users": {
