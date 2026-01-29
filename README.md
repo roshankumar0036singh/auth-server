@@ -164,7 +164,3 @@ Distributed under the **MIT License**. See `LICENSE` for more information.
 
 <a href="#top"><img src="https://img.shields.io/badge/⬆-Back%20to%20Top-red?style=for-the-badge" align="right"/></a>
 
-<div align="center">
-  <br />
-  <b>Built with ❤️ using Go and Gin</b>
-</div>
