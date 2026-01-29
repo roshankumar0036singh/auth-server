@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sign in - Auth Server</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=Roboto:wght@400;500&display=swap"
+        rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Roboto', 'Google Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: #202124;
+            color: #e8eaed;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+        }
+
+        .consent-container {
+            background: #292a2d;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3), 0 4px 8px 3px rgba(0, 0, 0, 0.15);
+            max-width: 450px;
+            width: 100%;
+            overflow: hidden;
+        }
+
+        .header {
+            text-align: center;
+            padding: 48px 40px 36px;
+            border-bottom: 1px solid #3c4043;
+        }
+
+        .logo-container {
+            width: 96px;
+            height: 96px;
+            margin: 0 auto 24px;
+            background: linear-gradient(135deg, #8ab4f8 0%, #aecbfa 100%);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 8px rgba(138, 180, 248, 0.3);
+        }
+
+        .logo-icon {
+            font-size: 48px;
+            filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2));
+        }
+
+        .header h1 {
+            font-family: 'Google Sans', sans-serif;
+            font-size: 24px;
+            font-weight: 400;
+            color: #e8eaed;
+            margin-bottom: 8px;
+            letter-spacing: 0;
+        }
+
+        .header p {
+            font-size: 14px;
+            color: #9aa0a6;
+            font-weight: 400;
+        }
+
+        .content {
+            padding: 24px 40px 36px;
+        }
+
+        .permission-header {
+            font-size: 14px;
+            color: #e8eaed;
+            margin-bottom: 16px;
+            font-weight: 500;
+        }
+
+        .permission-list {
+            list-style: none;
+            margin-bottom: 24px;
+        }
+
+        .permission-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            padding: 12px 0;
+            border-bottom: 1px solid #3c4043;
+        }
+
+        .permission-item:last-child {
+            border-bottom: none;
+        }
+
+        .permission-icon {
+            width: 20px;
+            height: 20px;
+            flex-shrink: 0;
+            margin-top: 2px;
+        }
+
+        .permission-icon svg {
+            width: 100%;
+            height: 100%;
+            fill: #8ab4f8;
+        }
+
+        .permission-text {
+            font-size: 14px;
+            color: #e8eaed;
+            line-height: 20px;
+        }
+
+        .info-box {
+            background: #3c4043;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 24px;
+        }
+
+        .info-box p {
+            font-size: 12px;
+            color: #9aa0a6;
+            line-height: 16px;
+        }
+
+        .info-box a {
+            color: #8ab4f8;
+            text-decoration: none;
+        }
+
+        .info-box a:hover {
+            text-decoration: underline;
+        }
+
+        .actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+            padding-top: 24px;
+        }
+
+        .btn {
+            font-family: 'Google Sans', sans-serif;
+            font-size: 14px;
+            font-weight: 500;
+            padding: 10px 24px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            letter-spacing: 0.25px;
+        }
+
+        .btn:focus {
+            outline: none;
+        }
+
+        .btn-text {
+            background: transparent;
+            color: #8ab4f8;
+        }
+
+        .btn-text:hover {
+            background: rgba(138, 180, 248, 0.08);
+        }
+
+        .btn-text:active {
+            background: rgba(138, 180, 248, 0.16);
+        }
+
+        .btn-primary {
+            background: #8ab4f8;
+            color: #202124;
+        }
+
+        .btn-primary:hover {
+            background: #aecbfa;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 1px 3px 1px rgba(0, 0, 0, 0.15);
+        }
+
+        .btn-primary:active {
+            background: #669df6;
+        }
+
+        .footer {
+            padding: 0 40px 36px;
+        }
+
+        .footer-links {
+            display: flex;
+            justify-content: center;
+            gap: 24px;
+            font-size: 12px;
+        }
+
+        .footer-links a {
+            color: #8ab4f8;
+            text-decoration: none;
+        }
+
+        .footer-links a:hover {
+            text-decoration: underline;
+        }
+
+        .language-selector {
+            text-align: center;
+            margin-top: 16px;
+        }
+
+        .language-selector select {
+            background: transparent;
+            border: 1px solid #5f6368;
+            border-radius: 4px;
+            color: #9aa0a6;
+            font-size: 12px;
+            padding: 4px 8px;
+            cursor: pointer;
+        }
+
+        .language-selector select:hover {
+            border-color: #8ab4f8;
+        }
+
+        @media (max-width: 480px) {
+            .header {
+                padding: 32px 24px 24px;
+            }
+
+            .content {
+                padding: 20px 24px 28px;
+            }
+
+            .footer {
+                padding: 0 24px 28px;
+            }
+
+            .actions {
+                flex-direction: column-reverse;
+            }
+
+            .btn {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="consent-container">
+        <div class="header">
+            <div class="logo-container">
+                <span class="logo-icon">🔐</span>
+            </div>
+            <h1>{{ .ClientName }}</h1>
+            <p>wants to access your Auth Server Account</p>
+        </div>
+
+        <div class="content">
+            <div class="permission-header">
+                This will allow {{ .ClientName }} to:
+            </div>
+
+            <ul class="permission-list">
+                {{ range .Scopes }}
+                <li class="permission-item">
+                    <div class="permission-icon">
+                        <svg viewBox="0 0 24 24">
+                            <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z" />
+                        </svg>
+                    </div>
+                    <div class="permission-text">{{ . }}</div>
+                </li>
+                {{ end }}
+            </ul>
+
+            <div class="info-box">
+                <p>
+                    Make sure you trust {{ .ClientName }}. You may be sharing sensitive info with this site or app.
+                    <a href="#">Learn about how {{ .ClientName }} will handle your data</a>
+                </p>
+            </div>
+
+            <form method="POST" action="/oauth/authorize">
+                <input type="hidden" name="client_id" value="{{ .ClientID }}">
+                <input type="hidden" name="redirect_uri" value="{{ .RedirectURI }}">
+                <input type="hidden" name="scope" value="{{ .Scope }}">
+                <input type="hidden" name="state" value="{{ .State }}">
+
+                <div class="actions">
+                    <button type="submit" name="action" value="deny" class="btn btn-text">
+                        Cancel
+                    </button>
+                    <button type="submit" name="action" value="approve" class="btn btn-primary">
+                        Allow
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <div class="footer">
+            <div class="footer-links">
+                <a href="#">Privacy Policy</a>
+                <a href="#">Terms of Service</a>
+            </div>
+            <div class="language-selector">
+                <select>
+                    <option>English (United States)</option>
+                </select>
+            </div>
+        </div>
+    </div>
+</body>
+
+</html>

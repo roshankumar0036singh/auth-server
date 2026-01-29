@@ -66,6 +66,9 @@ func main() {
 	}
 
 	router := gin.Default()
+	
+	// Load HTML templates for OAuth consent
+	router.LoadHTMLGlob("templates/*")
 
 	// Setup routes
 	routes.SetupRoutes(router, db, redisClient, cfg)
