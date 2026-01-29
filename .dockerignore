@@ -1,0 +1,24 @@
+# Binaries
+bin/
+server.exe
+*.exe
+*.dll
+*.so
+*.dylib
+test/
+/tests
+/docs
+
+# IDEs
+.vscode/
+.idea/
+.DS_Store
+
+# Version Control
+.git/
+
+# Environment
+.env
+
+# Logs
+*.log
