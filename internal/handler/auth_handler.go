@@ -228,6 +228,29 @@ func (h *AuthHandler) DeleteAccount(c *gin.Context) {
 	c.JSON(http.StatusOK, utils.SuccessResponse("Account deleted successfully", nil))
 }
 
+// GetAuditLogs retrieves audit logs for the authenticated user
+// @Summary Get audit logs
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Success 200 {object} utils.Response
+// @Router /api/auth/audit-logs [get]
+func (h *AuthHandler) GetAuditLogs(c *gin.Context) {
+	userID, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, utils.UnauthorizedResponse("Unauthorized"))
+		return
+	}
+
+	logs, err := h.authService.GetUserAuditLogs(userID.(string))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, utils.ErrorResponse("Failed to retrieve audit logs", err))
+		return
+	}
+
+	c.JSON(http.StatusOK, utils.SuccessResponse("Audit logs retrieved successfully", logs))
+}
+
 // Login handles user login with device tracking
 // @Summary Login user
 // @Tags auth

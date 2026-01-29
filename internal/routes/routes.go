@@ -18,11 +18,13 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, redisClient *redis.Client, cfg
 	tokenRepo := repository.NewTokenRepository(db)
 	verificationRepo := repository.NewVerificationRepository(db)
 	passwordResetRepo := repository.NewPasswordResetRepository(db)
+	auditRepo := repository.NewAuditRepository(db)
 
 	// Initialize services
 	tokenService := service.NewTokenService(cfg)
 	cacheService := service.NewCacheService(redisClient)
 	emailService := service.NewEmailService(cfg)
+	auditService := service.NewAuditService(auditRepo)
 	authService := service.NewAuthService(
 		userRepo,
 		tokenRepo,
@@ -31,6 +33,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, redisClient *redis.Client, cfg
 		tokenService,
 		cacheService,
 		emailService,
+		auditService,
 		cfg,
 	)
 
@@ -39,6 +42,12 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, redisClient *redis.Client, cfg
 
 	// Apply global middleware
 	router.Use(middleware.CORSMiddleware())
+	router.Use(middleware.SecurityMiddleware()) // Security headers
+	
+	// Rate limiting (global)
+	// We apply it here to all routes. Alternatively, apply to specific groups.
+	// For now, global protection is safer.
+	router.Use(middleware.RateLimitMiddleware(cacheService, cfg))
 
 	// Health check endpoint
 	router.GET("/health", func(c *gin.Context) {
@@ -68,6 +77,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, redisClient *redis.Client, cfg
 			protected.Use(middleware.AuthMiddleware(tokenService))
 			{
 				protected.GET("/me", authHandler.GetMe)
+				protected.GET("/audit-logs", authHandler.GetAuditLogs)
 				protected.POST("/logout", authHandler.Logout)
 				protected.POST("/logout-all", authHandler.LogoutAll)
 				

@@ -87,3 +87,19 @@ func (s *CacheService) ResetLoginAttempts(ctx context.Context, email string) err
 	key := fmt.Sprintf("login_attempts:%s", email)
 	return s.client.Del(ctx, key).Err()
 }
+
+// AllowRequest checks if a request is allowed based on rate limiting logic
+func (s *CacheService) AllowRequest(ctx context.Context, key string, limit int, window time.Duration) (bool, error) {
+	// Simple counter based rate limiting
+	count, err := s.client.Incr(ctx, key).Result()
+	if err != nil {
+		return false, err
+	}
+
+	// Set expiry on first request
+	if count == 1 {
+		s.client.Expire(ctx, key, window)
+	}
+
+	return count <= int64(limit), nil
+}

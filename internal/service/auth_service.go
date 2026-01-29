@@ -12,6 +12,7 @@ import (
 	"github.com/roshankumar0036singh/auth-server/internal/dto"
 	"github.com/roshankumar0036singh/auth-server/internal/models"
 	"github.com/roshankumar0036singh/auth-server/internal/repository"
+	"github.com/roshankumar0036singh/auth-server/internal/utils"
 )
 
 type AuthService struct {
@@ -22,6 +23,7 @@ type AuthService struct {
 	tokenService      *TokenService
 	cacheService      *CacheService
 	emailService      *EmailService
+	auditService      *AuditService
 	config            *config.Config
 }
 
@@ -33,6 +35,7 @@ func NewAuthService(
 	tokenService *TokenService,
 	cacheService *CacheService,
 	emailService *EmailService,
+	auditService *AuditService,
 	cfg *config.Config,
 ) *AuthService {
 	return &AuthService{
@@ -43,6 +46,7 @@ func NewAuthService(
 		tokenService:      tokenService,
 		cacheService:      cacheService,
 		emailService:      emailService,
+		auditService:      auditService,
 		config:            cfg,
 	}
 }
@@ -72,7 +76,11 @@ func (s *AuthService) ForgotPassword(email string) error {
 	}
 
 	// Send email
-	return s.emailService.SendPasswordResetEmail(user.Email, token.Token, s.config.App.URL)
+	err = s.emailService.SendPasswordResetEmail(user.Email, token.Token, s.config.App.URL)
+	if err == nil {
+		s.auditService.LogEvent(&user.ID, "PASSWORD_RESET_REQUESTED", "USER", user.ID, "", "", nil)
+	}
+	return err
 }
 
 // ResetPassword resets the user's password using a valid token
@@ -89,6 +97,11 @@ func (s *AuthService) ResetPassword(tokenString, newPassword string) error {
 
 	if token.Used {
 		return errors.New("reset token has already been used")
+	}
+
+	// Validate password strength
+	if err := utils.ValidatePassword(newPassword); err != nil {
+		return err
 	}
 
 	// Hash new password
@@ -109,6 +122,9 @@ func (s *AuthService) ResetPassword(tokenString, newPassword string) error {
 
 	// Revoke all existing sessions for security
 	s.tokenRepo.RevokeAllUserTokens(token.UserID)
+
+	// Audit Log
+	s.auditService.LogEvent(&token.UserID, "PASSWORD_RESET_SUCCESS", "USER", token.UserID, "", "", nil)
 
 	return nil
 }
@@ -135,7 +151,19 @@ func (s *AuthService) UpdateProfile(userID string, req *dto.UpdateProfileRequest
 		return nil, errors.New("failed to update profile")
 	}
 
-	return s.userRepo.FindByID(userID)
+	// Audit Log
+	s.auditService.LogEvent(&userID, "PROFILE_UPDATED", "USER", userID, "", "", nil)
+
+	user, err := s.userRepo.FindByID(userID)
+	if err != nil {
+		return nil, errors.New("user not found")
+	}
+	return user, nil
+}
+
+// GetUserAuditLogs proxies the call to audit service
+func (s *AuthService) GetUserAuditLogs(userID string) ([]models.AuditLog, error) {
+	return s.auditService.GetUserAuditLogs(userID)
 }
 
 // ChangePassword changes the user's password
@@ -148,6 +176,11 @@ func (s *AuthService) ChangePassword(userID string, req *dto.ChangePasswordReque
 	// Verify current password
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.CurrentPassword)); err != nil {
 		return errors.New("incorrect current password")
+	}
+
+	// Validate password strength
+	if err := utils.ValidatePassword(req.NewPassword); err != nil {
+		return err
 	}
 
 	// Hash new password
@@ -166,6 +199,9 @@ func (s *AuthService) ChangePassword(userID string, req *dto.ChangePasswordReque
 	// Revoke all other sessions? Maybe optional, but good practice for security.
 	// For now, let's keep current session active.
 	
+	// Audit Log
+	s.auditService.LogEvent(&userID, "PASSWORD_CHANGED", "USER", userID, "", "", nil)
+
 	return nil
 }
 
@@ -177,7 +213,11 @@ func (s *AuthService) DeleteAccount(userID string) error {
 	}
 
 	// Delete user (Soft delete via GORM)
-	return s.userRepo.Delete(userID)
+	err := s.userRepo.Delete(userID)
+	if err == nil {
+		s.auditService.LogEvent(&userID, "ACCOUNT_DELETED", "USER", userID, "", "", nil)
+	}
+	return err
 }
 
 // Register creates a new user account and sends verification email
@@ -189,6 +229,11 @@ func (s *AuthService) Register(req *dto.RegisterRequest) (*models.User, error) {
 	}
 	if exists {
 		return nil, errors.New("email already registered")
+	}
+
+	// Validate password strength
+	if err := utils.ValidatePassword(req.Password); err != nil {
+		return nil, err
 	}
 
 	// Hash password
@@ -217,6 +262,9 @@ func (s *AuthService) Register(req *dto.RegisterRequest) (*models.User, error) {
 		// Log error but don't fail registration
 		log.Printf("Failed to send verification email to %s: %v", user.Email, err)
 	}
+
+	// Audit Log
+	s.auditService.LogEvent(&user.ID, "USER_REGISTERED", "USER", user.ID, "", "", nil)
 
 	return user, nil
 }
@@ -355,6 +403,9 @@ func (s *AuthService) Login(req *dto.LoginRequest, ipAddress, userAgent string) 
 		log.Printf("Failed to update last login for user %s: %v", user.ID, err)
 	}
 
+	// Audit Log
+	s.auditService.LogEvent(&user.ID, "USER_LOGIN_SUCCESS", "USER", user.ID, ipAddress, userAgent, nil)
+
 	return &dto.LoginResponse{
 		AccessToken:  accessToken,
 		RefreshToken: refreshTokenString,
@@ -376,9 +427,14 @@ func (s *AuthService) handleFailedLogin(user *models.User, email string, ctx con
 		lockDuration := time.Duration(s.config.Security.AccountLockDuration) * time.Minute
 		lockedUntil := time.Now().Add(lockDuration)
 		updates["locked_until"] = lockedUntil
+		// Audit Log Lock
+		s.auditService.LogEvent(&user.ID, "ACCOUNT_LOCKED", "USER", user.ID, "", "", map[string]interface{}{"reason": "too_many_failed_attempts"})
 	}
 
 	s.userRepo.Update(user.ID, updates)
+	
+	// Audit Log Failed Login
+	s.auditService.LogEvent(&user.ID, "USER_LOGIN_FAILED", "USER", user.ID, "", "", map[string]interface{}{"email": email})
 }
 
 // RefreshAccessToken generates a new access token using refresh token with rotation

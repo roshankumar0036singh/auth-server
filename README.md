@@ -1,7 +1,7 @@
-# Authentication Server - Go + Gin ![Status](https://img.shields.io/badge/Status-Phase_3_Complete-green)
+# Authentication Server - Go + Gin ![Status](https://img.shields.io/badge/Status-Phase_4_Complete-green)
 
 A production-ready Authentication Server written in Go using the standard library approach (no framework overkill).
-**Currently completed Phase 3 (User Management).**
+**Currently completed Phase 4 (Security Enhancements).**
 featuring JWT-based authentication, OAuth integration, MFA, and RBAC.
 
 ## 🚀 Features
@@ -14,6 +14,15 @@ featuring JWT-based authentication, OAuth integration, MFA, and RBAC.
   - 🔑 Password Reset Flow (Forgot/Reset password)
   - 👤 Profile Management (Update details, Delete account)
   - 🛡️ Account Locking (Brute-force protection)
+  - 📝 Audit Logging (Critical action tracking)
+  - 🔐 Enhanced Password Security (Complexity requirements)
+
+### Phase 4 - ✅ Complete
+- **Security Hardening**
+  - 🚦 Global Rate Limiting (Redis-backed)
+  - 🛡️ Security Headers (HSTS, CSP, X-Frame-Options)
+  - 📝 Audit Logging System
+  - 🔑 Strict Password Validation (Upper, Lower, Number, Special)
 
 ### Phase 1 & 2 - ✅ Complete
 - **Token Management**
@@ -189,6 +198,7 @@ Content-Type: application/json
 - `POST /api/auth/forgot-password` - Request password reset
 - `POST /api/auth/reset-password` - Reset password with token
 - `POST /api/auth/logout` - Logout (blacklist access token)
+- `GET /api/auth/audit-logs` - View security audit history
 ```
 
 ### Health Check

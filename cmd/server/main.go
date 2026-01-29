@@ -24,7 +24,12 @@ func main() {
 	db := config.InitDatabase(cfg)
 
 	// Auto-migrate database models
-	err := config.AutoMigrate(db, &models.User{}, &models.RefreshToken{}, &models.VerificationToken{}, &models.PasswordResetToken{})
+	err := config.AutoMigrate(db, 		&models.User{},
+		&models.RefreshToken{},
+		&models.VerificationToken{},
+		&models.PasswordResetToken{},
+		&models.AuditLog{},
+	)
 	if err != nil {
 		log.Fatal("Failed to migrate database:", err)
 	}
