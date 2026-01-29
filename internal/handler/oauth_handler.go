@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"fmt"
 	"net/http"
 	"net/url"
 
@@ -32,7 +31,6 @@ func (h *OAuthHandler) Authorize(c *gin.Context) {
 
 	// Validate required parameters
 	if clientID == "" || redirectURI == "" || responseType == "" {
-		fmt.Printf("OAuth Authorize Error: Missing parameters. clientID: %s, redirectURI: %s, responseType: %s\n", clientID, redirectURI, responseType)
 		c.HTML(http.StatusBadRequest, "error.html", gin.H{
 			"error": "Missing required parameters",
 		})
@@ -41,7 +39,6 @@ func (h *OAuthHandler) Authorize(c *gin.Context) {
 
 	// Only support authorization_code flow
 	if responseType != "code" {
-		fmt.Printf("OAuth Authorize Error: Unsupported responseType: %s\n", responseType)
 		c.HTML(http.StatusBadRequest, "error.html", gin.H{
 			"error": "Unsupported response_type. Only 'code' is supported",
 		})
@@ -49,9 +46,8 @@ func (h *OAuthHandler) Authorize(c *gin.Context) {
 	}
 
 	// Validate client
-	client, err := h.oauthProviderService.ValidateClient(clientID, "")
+	client, err := h.oauthProviderService.GetPublicClient(clientID)
 	if err != nil {
-		fmt.Printf("OAuth Authorize Error: Invalid client_id %s: %v\n", clientID, err)
 		c.HTML(http.StatusBadRequest, "error.html", gin.H{
 			"error": "Invalid client_id",
 		})
@@ -60,7 +56,6 @@ func (h *OAuthHandler) Authorize(c *gin.Context) {
 
 	// Validate redirect URI
 	if err := h.oauthProviderService.ValidateRedirectURI(client, redirectURI); err != nil {
-		fmt.Printf("OAuth Authorize Error: Invalid redirect_uri %s for client %s. Registered URIs: %v\n", redirectURI, clientID, client.RedirectURIs)
 		c.HTML(http.StatusBadRequest, "error.html", gin.H{
 			"error": "Invalid redirect_uri",
 		})

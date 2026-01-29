@@ -111,6 +111,20 @@ func (s *OAuthProviderService) ValidateClient(clientID, clientSecret string) (*m
 	return client, nil
 }
 
+// GetPublicClient validates only client ID and status (for authorization flow)
+func (s *OAuthProviderService) GetPublicClient(clientID string) (*models.OAuthClient, error) {
+	client, err := s.clientRepo.FindByClientID(clientID)
+	if err != nil {
+		return nil, errors.New("client not found")
+	}
+
+	if !client.IsActive {
+		return nil, errors.New("client is inactive")
+	}
+
+	return client, nil
+}
+
 // ValidateRedirectURI checks if the redirect URI is allowed for the client
 func (s *OAuthProviderService) ValidateRedirectURI(client *models.OAuthClient, redirectURI string) error {
 	for _, uri := range client.RedirectURIs {
