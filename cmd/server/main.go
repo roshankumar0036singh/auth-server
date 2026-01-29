@@ -56,8 +56,8 @@ func main() {
 
 	// Start server in goroutine
 	go func() {
-		log.Printf("🚀 Server starting on %s", addr)
-		log.Printf("📚 Environment: %s", cfg.App.Env)
+		log.Printf(" Server starting on %s", addr)
+		log.Printf(" Environment: %s", cfg.App.Env)
 
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatal("Failed to start server:", err)
@@ -87,7 +87,7 @@ func main() {
 		if err := sqlDB.Close(); err != nil {
 			log.Printf("Error closing database: %v", err)
 		} else {
-			log.Println("✅ Database connection closed")
+			log.Println(" Database connection closed")
 		}
 	}
 
@@ -95,8 +95,8 @@ func main() {
 	if err := redisClient.Close(); err != nil {
 		log.Printf("Error closing Redis: %v", err)
 	} else {
-		log.Println("✅ Redis connection closed")
+		log.Println(" Redis connection closed")
 	}
 
-	log.Println("✅ Server exited gracefully")
+	log.Println(" Server exited gracefully")
 }
