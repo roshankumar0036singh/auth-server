@@ -84,8 +84,8 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, redisClient *redis.Client, cfg
 		})
 	})
 	
-	// OAuth 2.0 Provider endpoints (public)
-	router.GET("/oauth/authorize", middleware.AuthMiddleware(tokenService), oauthHandler.Authorize)
+	// OAuth 2.0 Provider endpoints
+	router.GET("/oauth/authorize", middleware.OptionalAuthMiddleware(tokenService), oauthHandler.Authorize)
 	router.POST("/oauth/authorize", middleware.AuthMiddleware(tokenService), oauthHandler.AuthorizePost)
 	router.POST("/oauth/token", oauthHandler.Token)
 	router.GET("/oauth/userinfo", oauthHandler.UserInfo)
@@ -100,6 +100,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, redisClient *redis.Client, cfg
 		{
 			// Public endpoints
 			auth.POST("/register", authHandler.Register)
+			auth.GET("/login", authHandler.ShowLogin)
 			auth.POST("/login", authHandler.Login)
 			auth.POST("/login/mfa", authHandler.LoginMFA) // MFA Login
 			auth.POST("/refresh", authHandler.RefreshToken)

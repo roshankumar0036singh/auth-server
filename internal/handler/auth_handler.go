@@ -256,6 +256,11 @@ func (h *AuthHandler) GetAuditLogs(c *gin.Context) {
 	c.JSON(http.StatusOK, utils.SuccessResponse("Audit logs retrieved successfully", logs))
 }
 
+// ShowLogin serves the login page UI
+func (h *AuthHandler) ShowLogin(c *gin.Context) {
+	c.HTML(http.StatusOK, "login.html", nil)
+}
+
 // Login handles user login with device tracking
 // @Summary Login user
 // @Tags auth
@@ -284,6 +289,10 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, utils.ErrorResponse("Login failed", err))
 		return
 	}
+
+	// Set session cookie for browser flows (like OAuth)
+	// MaxAge is 7 days (matching refresh token)
+	c.SetCookie("auth_token", loginResp.AccessToken, 7*24*3600, "/", "", false, true)
 
 	c.JSON(http.StatusOK, utils.SuccessResponse("Login successful", loginResp))
 }

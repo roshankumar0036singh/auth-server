@@ -9,28 +9,17 @@ import (
 	"github.com/roshankumar0036singh/auth-server/internal/utils"
 )
 
-// AuthMiddleware validates JWT tokens and attaches user info to context
+// AuthMiddleware validates JWT tokens and attaches user info to context (Strict)
 func AuthMiddleware(tokenService *service.TokenService) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// Get Authorization header
-		authHeader := c.GetHeader("Authorization")
-		if authHeader == "" {
-			c.JSON(http.StatusUnauthorized, utils.UnauthorizedResponse("Authorization header required"))
+		tokenString := getAuthToken(c)
+
+		if tokenString == "" {
+			c.JSON(http.StatusUnauthorized, utils.UnauthorizedResponse("Authentication required"))
 			c.Abort()
 			return
 		}
 
-		// Check Bearer format
-		parts := strings.Split(authHeader, " ")
-		if len(parts) != 2 || parts[0] != "Bearer" {
-			c.JSON(http.StatusUnauthorized, utils.UnauthorizedResponse("Invalid authorization format"))
-			c.Abort()
-			return
-		}
-
-		tokenString := parts[1]
-
-		// Validate token
 		claims, err := tokenService.ValidateAccessToken(tokenString)
 		if err != nil {
 			c.JSON(http.StatusUnauthorized, utils.UnauthorizedResponse("Invalid or expired token"))
@@ -38,11 +27,49 @@ func AuthMiddleware(tokenService *service.TokenService) gin.HandlerFunc {
 			return
 		}
 
-		// Attach user info to context
-		c.Set("userID", claims.UserID)
-		c.Set("email", claims.Email)
-		c.Set("role", claims.Role)
+		setContextUser(c, claims)
+		c.Next()
+	}
+}
+
+// OptionalAuthMiddleware validates JWT if present, but doesn't abort if missing
+func OptionalAuthMiddleware(tokenService *service.TokenService) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		tokenString := getAuthToken(c)
+
+		if tokenString != "" {
+			claims, err := tokenService.ValidateAccessToken(tokenString)
+			if err == nil {
+				setContextUser(c, claims)
+			}
+		}
 
 		c.Next()
 	}
+}
+
+// Helper to extract token from header or cookie
+func getAuthToken(c *gin.Context) string {
+	// 1. Get from Authorization header
+	authHeader := c.GetHeader("Authorization")
+	if authHeader != "" {
+		parts := strings.Split(authHeader, " ")
+		if len(parts) == 2 && parts[0] == "Bearer" {
+			return parts[1]
+		}
+	}
+
+	// 2. Get from cookie
+	if cookie, err := c.Cookie("auth_token"); err == nil {
+		return cookie
+	}
+
+	return ""
+}
+
+// Helper to set user info in context
+func setContextUser(c *gin.Context, claims *service.TokenClaims) {
+	c.Set("userID", claims.UserID)
+	c.Set("email", claims.Email)
+	c.Set("role", claims.Role)
 }
