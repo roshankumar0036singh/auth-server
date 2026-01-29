@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Auth Server API - Documentation</title>
-    <link rel="stylesheet" type="text/css" href="./swagger-ui.css" />
+    <link rel="stylesheet" type="text/css" href="https://unpkg.com/swagger-ui-dist@5.11.0/swagger-ui.css" />
     <style>
         :root {
             --primary: #6366f1;
@@ -90,7 +90,6 @@
             padding: 0.25rem 0.75rem;
             border-radius: 9999px;
             background-color: rgba(99, 102, 241, 0.1);
-            /* Low opacity primary */
             color: var(--primary);
             border: 1px solid rgba(99, 102, 241, 0.2);
             display: flex;
@@ -156,7 +155,6 @@
             border: 1px solid var(--border-color);
             border-radius: 8px;
             box-shadow: none;
-            /* Removed heavy shadow */
             margin-bottom: 1rem;
         }
 
@@ -285,12 +283,12 @@
         <div id="swagger-ui"></div>
     </main>
 
-    <script src="./swagger-ui-bundle.js"></script>
-    <script src="./swagger-ui-standalone-preset.js"></script>
+    <script src="https://unpkg.com/swagger-ui-dist@5.11.0/swagger-ui-bundle.js"></script>
+    <script src="https://unpkg.com/swagger-ui-dist@5.11.0/swagger-ui-standalone-preset.js"></script>
     <script>
         window.onload = function () {
             window.ui = SwaggerUIBundle({
-                url: "./doc.json",
+                url: "./swagger.json",
                 dom_id: '#swagger-ui',
                 deepLinking: true,
                 presets: [
