@@ -1,6 +1,6 @@
 module github.com/roshankumar0036singh/auth-server
 
-go 1.25.1
+go 1.25.0
 
 require (
 	github.com/alicebob/miniredis/v2 v2.36.1
