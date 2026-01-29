@@ -3,7 +3,7 @@
 ## Hey <𝚌𝚘𝚍𝚎𝚛𝚜/>! 👋
 
 <p align="center">
-  <img src="https://readme-typing-svg.herokuapp.com?font=JetBrains+Mono&weight=700&size=28&duration=2500&pause=1000&color=6366F1&center=true&vCenter=true&width=900&lines=Welcome+to+Auth+Server;Production-Ready+Go+Backend;Enterprise-Grade+JWT+%26+OAuth2;Built+with+Go+%2B+Gin+%2B+PostgreSQL;Your+Security+First+Microservice;Open+for+Collaborations!+🚀" alt="Typing SVG" />
+  <img src="https://readme-typing-svg.herokuapp.com?font=JetBrains+Mono&weight=700&size=28&duration=2500&pause=1000&color=6366F1&center=true&vCenter=true&width=900&lines=Welcome+to+Auth+Server;Production-Ready+Go+Backend;Enterprise-Grade+JWT+%26+OAuth2;Built+with+Go+%2B+Gin+%2B+PostgreSQL;Your+Security+First+Microservice;Open+for+Collaborations!" alt="Typing SVG" />
 </p>
 
 <div align="center">
@@ -15,6 +15,9 @@
     <a href="https://github.com/roshankumar0036singh/auth-server/releases">
       <img src="https://img.shields.io/badge/Release-v1.0-orange?style=for-the-badge&logo=github&logoColor=white">
     </a>
+    <a href="./LICENSE">
+      <img src="https://img.shields.io/badge/License-MIT-green?style=for-the-badge&logo=opensourceinitiative&logoColor=white">
+    </a>
   </p>
 
   <p>
@@ -23,7 +26,6 @@
     <img src="https://img.shields.io/github/stars/roshankumar0036singh/auth-server" />
     <img src="https://img.shields.io/github/forks/roshankumar0036singh/auth-server" />
     <img src="https://img.shields.io/github/last-commit/roshankumar0036singh/auth-server" />
-    <img src="https://img.shields.io/github/license/roshankumar0036singh/auth-server" />
   </p>
 
   <p>
