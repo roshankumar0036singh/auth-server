@@ -3,13 +3,313 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta http-equiv="refresh" content="0; url=./swagger-custom.html">
-    <title>Redirecting to API Documentation...</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Auth Server API - Documentation</title>
+    <link rel="stylesheet" type="text/css" href="./swagger-ui.css" />
+    <style>
+        :root {
+            --primary: #6366f1;
+            /* Indigo 500 */
+            --primary-hover: #4f46e5;
+            /* Indigo 600 */
+            --bg-body: #0f1117;
+            /* Very Dark Slate */
+            --bg-nav: #161b22;
+            /* Darker header */
+            --bg-card: #1e293b;
+            /* Slate 800 */
+            --text-primary: #e2e8f0;
+            /* Slate 200 */
+            --text-secondary: #94a3b8;
+            /* Slate 400 */
+            --border-color: #334155;
+            /* Slate 700 */
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: var(--bg-body);
+            color: var(--text-primary);
+            min-height: 100vh;
+        }
+
+        /* Header */
+        .header {
+            background-color: var(--bg-nav);
+            border-bottom: 1px solid var(--border-color);
+            padding: 1.5rem 0;
+            margin-bottom: 2rem;
+        }
+
+        .header-content {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 0 2rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .header-title-row {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .logo-icon {
+            font-size: 2rem;
+        }
+
+        .header-title {
+            font-size: 1.75rem;
+            font-weight: 700;
+            color: var(--primary);
+            letter-spacing: -0.5px;
+        }
+
+        .header-subtitle {
+            font-size: 1rem;
+            color: var(--text-secondary);
+        }
+
+        .badges {
+            display: flex;
+            gap: 0.75rem;
+            flex-wrap: wrap;
+        }
+
+        .badge {
+            font-size: 0.75rem;
+            font-weight: 600;
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            background-color: rgba(99, 102, 241, 0.1);
+            /* Low opacity primary */
+            color: var(--primary);
+            border: 1px solid rgba(99, 102, 241, 0.2);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .badge.live {
+            background-color: rgba(16, 185, 129, 0.1);
+            color: #10b981;
+            border-color: rgba(16, 185, 129, 0.2);
+        }
+
+        .status-dot {
+            width: 6px;
+            height: 6px;
+            background-color: currentColor;
+            border-radius: 50%;
+        }
+
+        /* Main Container */
+        .swagger-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 0 2rem 4rem;
+        }
+
+        /* Swagger UI Overrides for Dark Mode */
+        .swagger-ui {
+            font-family: inherit;
+            color: var(--text-primary);
+        }
+
+        /* Hide Topbar */
+        .swagger-ui .topbar {
+            display: none;
+        }
+
+        /* General Text Colors */
+        .swagger-ui .info .title,
+        .swagger-ui .info h1,
+        .swagger-ui .info h2,
+        .swagger-ui .info h3,
+        .swagger-ui .info h4,
+        .swagger-ui .info h5,
+        .swagger-ui .info p,
+        .swagger-ui .info li,
+        .swagger-ui .scheme-container,
+        .swagger-ui section.models h4,
+        .swagger-ui section.models h5 {
+            color: var(--text-primary) !important;
+        }
+
+        .swagger-ui .info .title {
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+        }
+
+        /* Operations */
+        .swagger-ui .opblock {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            box-shadow: none;
+            /* Removed heavy shadow */
+            margin-bottom: 1rem;
+        }
+
+        .swagger-ui .opblock:hover {
+            border-color: var(--text-secondary);
+        }
+
+        .swagger-ui .opblock-summary {
+            border-bottom: 1px solid transparent;
+        }
+
+        .swagger-ui .opblock.is-open .opblock-summary {
+            border-bottom-color: var(--border-color);
+        }
+
+        .swagger-ui .opblock-summary-method {
+            border-radius: 4px;
+            font-weight: 700;
+            min-width: 80px;
+            text-shadow: none;
+        }
+
+        .swagger-ui .opblock-summary-path,
+        .swagger-ui .opblock-summary-description {
+            color: var(--text-primary) !important;
+        }
+
+        /* Models */
+        .swagger-ui section.models {
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            background: var(--bg-card);
+        }
+
+        .swagger-ui section.models .model-container {
+            background: transparent;
+        }
+
+        .swagger-ui .model-box {
+            background: transparent;
+        }
+
+        /* Inputs/Tables */
+        .swagger-ui input[type=email],
+        .swagger-ui input[type=password],
+        .swagger-ui input[type=search],
+        .swagger-ui input[type=text],
+        .swagger-ui textarea {
+            background: #0f1117;
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            border-radius: 4px;
+        }
+
+        .swagger-ui table thead tr th,
+        .swagger-ui table thead tr td,
+        .swagger-ui .parameters-col_description {
+            color: var(--text-primary) !important;
+        }
+
+        .swagger-ui .parameter__name {
+            color: var(--text-primary) !important;
+        }
+
+        .swagger-ui .parameter__type {
+            color: var(--text-secondary) !important;
+        }
+
+        /* Buttons */
+        .swagger-ui .btn {
+            box-shadow: none;
+            border-radius: 4px;
+        }
+
+        .swagger-ui .btn.authorize {
+            background-color: transparent;
+            color: var(--primary);
+            border-color: var(--primary);
+        }
+
+        .swagger-ui .btn.authorize:hover {
+            background-color: rgba(99, 102, 241, 0.1);
+        }
+
+        .swagger-ui .btn.authorize svg {
+            fill: var(--primary);
+        }
+
+        .swagger-ui .opblock-control-arrow {
+            fill: var(--text-secondary);
+        }
+
+        /* Expand/Collapse icons */
+        .swagger-ui .expand-methods svg,
+        .swagger-ui .expand-operation svg {
+            fill: var(--text-secondary) !important;
+        }
+    </style>
 </head>
 
 <body>
-    <p>Redirecting to API documentation...</p>
-    <p>If you are not redirected automatically, <a href="./swagger-custom.html">click here</a>.</p>
+
+    <header class="header">
+        <div class="header-content">
+            <div class="header-title-row">
+                <span class="logo-icon">🔐</span>
+                <h1 class="header-title">Auth Server API</h1>
+            </div>
+            <p class="header-subtitle">Production-ready Authentication Server with OAuth 2.0 Provider</p>
+
+            <div class="badges">
+                <div class="badge live">
+                    <span class="status-dot"></span>
+                    <span>Live</span>
+                </div>
+                <div class="badge">v1.0</div>
+                <div class="badge">Go + Gin</div>
+                <div class="badge">PostgreSQL + Redis</div>
+                <div class="badge">OAuth 2.0</div>
+                <div class="badge">JWT + MFA</div>
+            </div>
+        </div>
+    </header>
+
+    <main class="swagger-container">
+        <div id="swagger-ui"></div>
+    </main>
+
+    <script src="./swagger-ui-bundle.js"></script>
+    <script src="./swagger-ui-standalone-preset.js"></script>
+    <script>
+        window.onload = function () {
+            window.ui = SwaggerUIBundle({
+                url: "./doc.json",
+                dom_id: '#swagger-ui',
+                deepLinking: true,
+                presets: [
+                    SwaggerUIBundle.presets.apis,
+                    SwaggerUIStandalonePreset
+                ],
+                plugins: [
+                    SwaggerUIBundle.plugins.DownloadUrl
+                ],
+                layout: "BaseLayout",
+                defaultModelsExpandDepth: 1,
+                defaultModelExpandDepth: 1,
+                docExpansion: "list",
+                filter: true,
+                showRequestHeaders: true,
+                supportedSubmitMethods: ['get', 'post', 'put', 'delete', 'patch']
+            });
+        };
+    </script>
 </body>
 
 </html>
