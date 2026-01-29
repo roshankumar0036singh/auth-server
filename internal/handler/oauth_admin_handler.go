@@ -91,7 +91,7 @@ func (h *OAuthClientHandler) ListOAuthClients(c *gin.Context) {
 
 	clients, err := h.oauthProviderService.GetClientsByOwner(userID.(string))
 	if err != nil {
-		utils.ErrorResponse(c, "Failed to retrieve clients", err)
+		c.JSON(http.StatusInternalServerError, utils.ErrorResponse("Failed to retrieve clients", err))
 		return
 	}
 
