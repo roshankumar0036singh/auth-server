@@ -1,6 +1,8 @@
 package routes
 
 import (
+	"net/http"
+	
 	"github.com/gin-gonic/gin"
 	"github.com/go-redis/redis/v8"
 	"gorm.io/gorm"
@@ -10,10 +12,6 @@ import (
 	"github.com/roshankumar0036singh/auth-server/internal/middleware"
 	"github.com/roshankumar0036singh/auth-server/internal/repository"
 	"github.com/roshankumar0036singh/auth-server/internal/service"
-	
-	swaggerFiles "github.com/swaggo/files"
-	ginSwagger "github.com/swaggo/gin-swagger"
-	_ "github.com/roshankumar0036singh/auth-server/docs"
 )
 
 func SetupRoutes(router *gin.Engine, db *gorm.DB, redisClient *redis.Client, cfg *config.Config) {
@@ -71,9 +69,11 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, redisClient *redis.Client, cfg
 	router.Use(middleware.CORSMiddleware())
 	router.Use(middleware.SecurityMiddleware()) // Security headers
 	
-
-	// Swagger Documentation
-	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+	// Swagger Documentation (Custom UI)
+	router.Static("/swagger", "./docs")
+	router.GET("/", func(c *gin.Context) {
+		c.Redirect(http.StatusMovedPermanently, "/swagger/swagger-custom.html")
+	})
 
 	// Health check endpoint
 	router.GET("/health", func(c *gin.Context) {
