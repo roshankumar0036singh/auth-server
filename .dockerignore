@@ -7,7 +7,6 @@ server.exe
 *.dylib
 test/
 /tests
-/docs
 
 # IDEs
 .vscode/
