@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Error - Auth Server</title>
+    <style>
+        :root {
+            --bg: #0f172a;
+            --card-bg: #1e293b;
+            --text: #f8fafc;
+            --text-muted: #94a3b8;
+            --danger: #ef4444;
+            --border: #475569;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+        }
+
+        .error-card {
+            background-color: var(--card-bg);
+            padding: 2.5rem;
+            border-radius: 1rem;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
+            width: 100%;
+            max-width: 450px;
+            border: 1px solid var(--border);
+            text-align: center;
+        }
+
+        .icon {
+            font-size: 4rem;
+            color: var(--danger);
+            margin-bottom: 1.5rem;
+        }
+
+        h1 {
+            margin-top: 0;
+            font-size: 1.5rem;
+            margin-bottom: 1rem;
+        }
+
+        p {
+            color: var(--text-muted);
+            line-height: 1.5;
+            margin-bottom: 2rem;
+        }
+
+        .error-details {
+            background-color: #00000033;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            font-family: monospace;
+            font-size: 0.875rem;
+            color: #ef4444;
+            margin-bottom: 2rem;
+            word-break: break-all;
+        }
+
+        a.btn {
+            display: inline-block;
+            padding: 0.75rem 1.5rem;
+            background-color: #334155;
+            color: white;
+            text-decoration: none;
+            border-radius: 0.5rem;
+            font-weight: 600;
+            transition: background-color 0.2s;
+        }
+
+        a.btn:hover {
+            background-color: #475569;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="error-card">
+        <div class="icon">⚠️</div>
+        <h1>Something went wrong</h1>
+        <p>The request could not be processed due to the following error:</p>
+
+        <div class="error-details">
+            {{ .error }}
+        </div>
+
+        <a href="/" class="btn">Return Home</a>
+    </div>
+</body>
+
+</html>
