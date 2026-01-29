@@ -1,10 +1,11 @@
-package service
+package service_test
 
 import (
 	"testing"
 
 	"github.com/roshankumar0036singh/auth-server/internal/config"
 	"github.com/roshankumar0036singh/auth-server/internal/models"
+	"github.com/roshankumar0036singh/auth-server/internal/service"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -15,7 +16,7 @@ func TestTokenService_GenerateAccessToken(t *testing.T) {
 			RefreshSecret: "test-refresh-secret",
 		},
 	}
-	service := NewTokenService(cfg)
+	svc := service.NewTokenService(cfg)
 
 	user := &models.User{
 		ID:    "user-123",
@@ -23,12 +24,12 @@ func TestTokenService_GenerateAccessToken(t *testing.T) {
 		Role:  "user",
 	}
 
-	token, err := service.GenerateAccessToken(user)
+	token, err := svc.GenerateAccessToken(user)
 	assert.NoError(t, err)
 	assert.NotEmpty(t, token)
 
 	// Validate
-	claims, err := service.ValidateAccessToken(token)
+	claims, err := svc.ValidateAccessToken(token)
 	assert.NoError(t, err)
 	assert.Equal(t, user.ID, claims.UserID)
 	assert.Equal(t, user.Email, claims.Email)
@@ -42,7 +43,7 @@ func TestTokenService_GenerateRefreshToken(t *testing.T) {
 			RefreshSecret: "test-refresh-secret",
 		},
 	}
-	service := NewTokenService(cfg)
+	svc := service.NewTokenService(cfg)
 
 	user := &models.User{
 		ID:    "user-123",
@@ -50,7 +51,7 @@ func TestTokenService_GenerateRefreshToken(t *testing.T) {
 		Role:  "user",
 	}
 
-	token, err := service.GenerateRefreshToken(user)
+	token, err := svc.GenerateRefreshToken(user)
 	assert.NoError(t, err)
 	assert.NotEmpty(t, token)
 
@@ -60,9 +61,9 @@ func TestTokenService_GenerateRefreshToken(t *testing.T) {
 
 func TestTokenService_GenerateRandomString(t *testing.T) {
 	cfg := &config.Config{}
-	service := NewTokenService(cfg)
+	svc := service.NewTokenService(cfg)
 
-	str := service.GenerateRandomString(32)
+	str := svc.GenerateRandomString(32)
 	// Base64 encoding of 32 bytes result in 4*ceil(32/3) = 44 characters
 	assert.Greater(t, len(str), 32)
 	assert.Equal(t, 44, len(str))
