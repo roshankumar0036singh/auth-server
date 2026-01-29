@@ -6,15 +6,14 @@ import (
 	"log"
 	"net/http"
 	"net/url"
-	"os"
 )
 
 // Configuration
 // In a real app, these would come from environment variables
 const (
 	AuthServerURL = "https://auth-server-4nmm.onrender.com" // Replace with your Render URL
-	ClientID      = "YOUR_CLIENT_ID"                             // You'll get this after registering the client
-	ClientSecret  = "YOUR_CLIENT_SECRET"                         // You'll get this after registering the client
+	ClientID      = "Su7OtlYgm-NgQhg6BnlYJu1bBoZyNr8F"                             // You'll get this after registering the client
+	ClientSecret  = "h7AT7rlhO5T0QfeOFEm7VR9UVCb8ZkW2Eh4EqfqjMFD80ZLX"                         // You'll get this after registering the client
 	RedirectURI   = "http://localhost:3000/callback"
 	AppPort       = ":3000"
 )

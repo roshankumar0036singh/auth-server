@@ -68,7 +68,7 @@ func getAuthToken(c *gin.Context) string {
 }
 
 // Helper to set user info in context
-func setContextUser(c *gin.Context, claims *service.TokenClaims) {
+func setContextUser(c *gin.Context, claims *service.JWTClaims) {
 	c.Set("userID", claims.UserID)
 	c.Set("email", claims.Email)
 	c.Set("role", claims.Role)
