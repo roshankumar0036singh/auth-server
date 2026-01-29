@@ -255,6 +255,17 @@ auth-server/
 └── go.mod                       # Dependencies
 ```
 
+## 📚 API Documentation
+
+Full API documentation is available via Swagger UI:
+- **URL**: `http://localhost:8080/swagger/index.html`
+
+### Endpoints Overview
+- **Auth**: Register, Login, Refresh Token
+- **User**: Profile, Password Management
+- **Admin**: User Management (Lock/Unlock/Delete)
+- **MFA**: Enable, Verify, Login with MFA
+
 ## 🔧 Development
 
 ### Available Make Commands
