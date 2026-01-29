@@ -53,10 +53,6 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, redisClient *redis.Client, cfg
 	router.Use(middleware.CORSMiddleware())
 	router.Use(middleware.SecurityMiddleware()) // Security headers
 	
-	// Rate limiting (global)
-	// We apply it here to all routes. Alternatively, apply to specific groups.
-	// For now, global protection is safer.
-	router.Use(middleware.RateLimitMiddleware(cacheService, cfg))
 
 	// Swagger Documentation
 	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
@@ -71,6 +67,8 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, redisClient *redis.Client, cfg
 
 	// API routes
 	api := router.Group("/api")
+	// Apply rate limiting to API routes only (excludes Swagger/Health)
+	api.Use(middleware.RateLimitMiddleware(cacheService, cfg))
 	{
 		// Auth routes (public)
 		auth := api.Group("/auth")
