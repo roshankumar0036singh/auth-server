@@ -1,7 +1,7 @@
-# Authentication Server - Go + Gin ![Status](https://img.shields.io/badge/Status-Phase_4_Complete-green)
+# Authentication Server - Go + Gin ![Status](https://img.shields.io/badge/Status-Phase_5_Complete-green)
 
 A production-ready Authentication Server written in Go using the standard library approach (no framework overkill).
-**Currently completed Phase 4 (Security Enhancements).**
+**Currently completed Phase 5 (OAuth Integration).**
 featuring JWT-based authentication, OAuth integration, MFA, and RBAC.
 
 ## 🚀 Features
@@ -16,6 +16,13 @@ featuring JWT-based authentication, OAuth integration, MFA, and RBAC.
   - 🛡️ Account Locking (Brute-force protection)
   - 📝 Audit Logging (Critical action tracking)
   - 🔐 Enhanced Password Security (Complexity requirements)
+
+### Phase 5 - ✅ Complete
+- **Social Authentication (OAuth2)**
+  - 🌐 Google Sign-In
+  - 🐙 GitHub Sign-In
+  - 🔗 Account Linking (Auto-link by email)
+  - 🔒 Secure State Management (CSRF protection)
 
 ### Phase 4 - ✅ Complete
 - **Security Hardening**
@@ -199,6 +206,8 @@ Content-Type: application/json
 - `POST /api/auth/reset-password` - Reset password with token
 - `POST /api/auth/logout` - Logout (blacklist access token)
 - `GET /api/auth/audit-logs` - View security audit history
+- `GET /api/auth/google/login` - Initiate Google OAuth
+- `GET /api/auth/github/login` - Initiate GitHub OAuth
 ```
 
 ### Health Check

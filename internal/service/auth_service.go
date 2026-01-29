@@ -413,6 +413,79 @@ func (s *AuthService) Login(req *dto.LoginRequest, ipAddress, userAgent string) 
 	}, nil
 }
 
+// LoginWithOAuth handles login or registration via OAuth provider
+func (s *AuthService) LoginWithOAuth(email, oauthID, firstName, lastName, provider, ipAddress, userAgent string) (*dto.LoginResponse, error) {
+	ctx := context.Background()
+	user, err := s.userRepo.FindByEmail(email)
+	if err != nil {
+		// User does not exist, create new one
+		password := s.tokenService.GenerateRandomString(32)
+		hashedPassword, _ := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+		
+		user = &models.User{
+			Email:         email,
+			PasswordHash:  string(hashedPassword),
+			FirstName:     firstName,
+			LastName:      lastName,
+			OAuthProvider: provider,
+			OAuthID:       oauthID,
+			IsActive:      true,
+			EmailVerified: true, // Trusted from OAuth
+		}
+		
+		if err := s.userRepo.Create(user); err != nil {
+			return nil, errors.New("failed to create user")
+		}
+		
+		s.auditService.LogEvent(&user.ID, "USER_REGISTERED_OAUTH", "USER", user.ID, "", "", map[string]interface{}{"provider": provider})
+	} else {
+		// User exists, link account if not generic local
+		// For now simple logic: if email matches, we log them in and update OAuth info if missing
+		updates := make(map[string]interface{})
+		if user.OAuthID == "" {
+			updates["oauth_provider"] = provider
+			updates["oauth_id"] = oauthID
+			// Also mark email as verified if not already
+			if !user.EmailVerified {
+				updates["email_verified"] = true
+			}
+			s.userRepo.Update(user.ID, updates)
+			s.auditService.LogEvent(&user.ID, "ACCOUNT_LINKED_OAUTH", "USER", user.ID, "", "", map[string]interface{}{"provider": provider})
+		}
+	}
+
+	// Generate tokens
+	accessToken, err := s.tokenService.GenerateAccessToken(user)
+	if err != nil {
+		return nil, errors.New("failed to generate access token")
+	}
+
+	refreshTokenString, err := s.tokenService.GenerateRefreshToken(user)
+	if err != nil {
+		return nil, errors.New("failed to generate refresh token")
+	}
+
+	refreshToken := &models.RefreshToken{
+		UserID:    user.ID,
+		Token:     refreshTokenString,
+		ExpiresAt: time.Now().Add(7 * 24 * time.Hour), 
+		IPAddress: ipAddress,
+		UserAgent: userAgent,
+	}
+
+	if err := s.tokenRepo.CreateRefreshToken(refreshToken); err != nil {
+		return nil, errors.New("failed to store refresh token")
+	}
+
+	s.auditService.LogEvent(&user.ID, "USER_LOGIN_OAUTH", "USER", user.ID, ipAddress, userAgent, map[string]interface{}{"provider": provider})
+
+	return &dto.LoginResponse{
+		AccessToken:  accessToken,
+		RefreshToken: refreshTokenString,
+		User:         user.ToPublic(),
+	}, nil
+}
+
 func (s *AuthService) handleFailedLogin(user *models.User, email string, ctx context.Context) {
 	// Increment Redis counter (cheap, fast)
 	s.cacheService.IncrementLoginAttempts(ctx, email)

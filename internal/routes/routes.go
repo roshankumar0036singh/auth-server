@@ -25,6 +25,8 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, redisClient *redis.Client, cfg
 	cacheService := service.NewCacheService(redisClient)
 	emailService := service.NewEmailService(cfg)
 	auditService := service.NewAuditService(auditRepo)
+	oauthService := service.NewOAuthService(cfg)
+	
 	authService := service.NewAuthService(
 		userRepo,
 		tokenRepo,
@@ -38,7 +40,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, redisClient *redis.Client, cfg
 	)
 
 	// Initialize handlers
-	authHandler := handler.NewAuthHandler(authService)
+	authHandler := handler.NewAuthHandler(authService, oauthService)
 
 	// Apply global middleware
 	router.Use(middleware.CORSMiddleware())
@@ -71,6 +73,12 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, redisClient *redis.Client, cfg
 			auth.POST("/resend-verification", authHandler.ResendVerification)
 			auth.POST("/forgot-password", authHandler.ForgotPassword)
 			auth.POST("/reset-password", authHandler.ResetPassword)
+			
+			// OAuth Routes
+			auth.GET("/google/login", authHandler.GoogleLogin)
+			auth.GET("/google/callback", authHandler.GoogleCallback)
+			auth.GET("/github/login", authHandler.GitHubLogin)
+			auth.GET("/github/callback", authHandler.GitHubCallback)
 
 			// Protected routes
 			protected := auth.Group("")

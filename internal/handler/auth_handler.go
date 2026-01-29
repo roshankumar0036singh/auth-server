@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -11,11 +12,15 @@ import (
 )
 
 type AuthHandler struct {
-	authService *service.AuthService
+	authService  *service.AuthService
+	oauthService *service.OAuthService
 }
 
-func NewAuthHandler(authService *service.AuthService) *AuthHandler {
-	return &AuthHandler{authService: authService}
+func NewAuthHandler(authService *service.AuthService, oauthService *service.OAuthService) *AuthHandler {
+	return &AuthHandler{
+		authService:  authService,
+		oauthService: oauthService,
+	}
 }
 
 // Register handles user registration
@@ -475,4 +480,153 @@ func (h *AuthHandler) RevokeSession(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, utils.SuccessResponse("Session revoked successfully", nil))
+}
+
+// GoogleLogin initiates Google OAuth login
+// @Summary Login with Google
+// @Tags auth
+// @Router /api/auth/google/login [get]
+func (h *AuthHandler) GoogleLogin(c *gin.Context) {
+	state, err := h.oauthService.GenerateState()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, utils.ErrorResponse("Failed to generate state", err))
+		return
+	}
+
+	// Store state in cookie for verification
+	c.SetCookie("oauth_state", state, 3600, "/", "", false, true) // Secure should be true in prod
+
+	url := h.oauthService.GetGoogleAuthURL(state)
+	c.Redirect(http.StatusTemporaryRedirect, url)
+}
+
+// GoogleCallback handles Google OAuth callback
+// @Summary Google OAuth callback
+// @Tags auth
+// @Router /api/auth/google/callback [get]
+func (h *AuthHandler) GoogleCallback(c *gin.Context) {
+	state := c.Query("state")
+	code := c.Query("code")
+
+	// Verify state
+	cookieState, err := c.Cookie("oauth_state")
+	if err != nil || state != cookieState {
+		c.JSON(http.StatusBadRequest, utils.ErrorResponse("Invalid state parameter", nil))
+		return
+	}
+
+	// Clear cookie
+	c.SetCookie("oauth_state", "", -1, "/", "", false, true)
+
+	// Exchange code
+	token, err := h.oauthService.ExchangeGoogleCode(c.Request.Context(), code)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, utils.ErrorResponse("Failed to exchange token", err))
+		return
+	}
+
+	// Get user info
+	userInfo, err := h.oauthService.FetchGoogleUser(c.Request.Context(), token)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, utils.ErrorResponse("Failed to fetch user info", err))
+		return
+	}
+
+	email := userInfo["email"].(string)
+	firstName := userInfo["given_name"].(string)
+	lastName := ""
+	if val, ok := userInfo["family_name"].(string); ok {
+		lastName = val
+	}
+	oauthID := userInfo["id"].(string)
+
+	// Login or Register
+	ipAddress := c.ClientIP()
+	userAgent := c.GetHeader("User-Agent")
+	
+	loginResp, err := h.authService.LoginWithOAuth(email, oauthID, firstName, lastName, "google", ipAddress, userAgent)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, utils.ErrorResponse("Login failed", err))
+		return
+	}
+
+	// Redirect to frontend with tokens? Or return JSON?
+	// Usually callback redirects to frontend with query params or sets cookies
+	// For this API, let's return JSON if caller can handle it, but standard Browser flow needs redirect.
+	// We'll return JSON for now as per API design, but in real app we'd redirect to frontend app URL
+	c.JSON(http.StatusOK, utils.SuccessResponse("Login successful", loginResp))
+}
+
+// GitHubLogin initiates GitHub OAuth login
+// @Summary Login with GitHub
+// @Tags auth
+// @Router /api/auth/github/login [get]
+func (h *AuthHandler) GitHubLogin(c *gin.Context) {
+	state, err := h.oauthService.GenerateState()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, utils.ErrorResponse("Failed to generate state", err))
+		return
+	}
+
+	c.SetCookie("oauth_state", state, 3600, "/", "", false, true)
+
+	url := h.oauthService.GetGitHubAuthURL(state)
+	c.Redirect(http.StatusTemporaryRedirect, url)
+}
+
+// GitHubCallback handles GitHub OAuth callback
+// @Summary GitHub OAuth callback
+// @Tags auth
+// @Router /api/auth/github/callback [get]
+func (h *AuthHandler) GitHubCallback(c *gin.Context) {
+	state := c.Query("state")
+	code := c.Query("code")
+
+	cookieState, err := c.Cookie("oauth_state")
+	if err != nil || state != cookieState {
+		c.JSON(http.StatusBadRequest, utils.ErrorResponse("Invalid state parameter", nil))
+		return
+	}
+
+	c.SetCookie("oauth_state", "", -1, "/", "", false, true)
+
+	token, err := h.oauthService.ExchangeGitHubCode(c.Request.Context(), code)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, utils.ErrorResponse("Failed to exchange token", err))
+		return
+	}
+
+	userInfo, err := h.oauthService.FetchGitHubUser(c.Request.Context(), token)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, utils.ErrorResponse("Failed to fetch user info", err))
+		return
+	}
+
+	email := userInfo["email"].(string)
+	
+	// GitHub names are often one string "Name" or just login
+	firstName := ""
+	lastName := ""
+	if name, ok := userInfo["name"].(string); ok && name != "" {
+		parts := strings.SplitN(name, " ", 2)
+		firstName = parts[0]
+		if len(parts) > 1 {
+			lastName = parts[1]
+		}
+	} else {
+		firstName = userInfo["login"].(string)
+	}
+	
+	oauthID := fmt.Sprintf("%.0f", userInfo["id"].(float64)) // GitHub ID is number
+
+	ipAddress := c.ClientIP()
+	userAgent := c.GetHeader("User-Agent")
+	
+	loginResp, err := h.authService.LoginWithOAuth(email, oauthID, firstName, lastName, "github", ipAddress, userAgent)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, utils.ErrorResponse("Login failed", err))
+		return
+	}
+
+	c.JSON(http.StatusOK, utils.SuccessResponse("Login successful", loginResp))
 }
