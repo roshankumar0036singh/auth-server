@@ -1,5 +1,7 @@
 package utils
 
+import "github.com/gin-gonic/gin"
+
 // Response structures for consistent API responses
 
 type Response struct {
@@ -65,5 +67,27 @@ func ForbiddenResponse(message string) Response {
 	return Response{
 		Success: false,
 		Message: message,
+	}
+}
+
+// BadRequestResponse returns a 400 Bad Request response
+func BadRequestResponse(c interface{}, message string) {
+	// Type assertion to *gin.Context
+	if ctx, ok := c.(*gin.Context); ok {
+		ctx.JSON(400, Response{
+			Success: false,
+			Message: message,
+		})
+	}
+}
+
+// InternalServerErrorResponse returns a 500 Internal Server Error response
+func InternalServerErrorResponse(c interface{}, message string) {
+	// Type assertion to *gin.Context
+	if ctx, ok := c.(*gin.Context); ok {
+		ctx.JSON(500, Response{
+			Success: false,
+			Message: message,
+		})
 	}
 }

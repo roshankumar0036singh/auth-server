@@ -23,6 +23,12 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, redisClient *redis.Client, cfg
 	verificationRepo := repository.NewVerificationRepository(db)
 	passwordResetRepo := repository.NewPasswordResetRepository(db)
 	auditRepo := repository.NewAuditRepository(db)
+	
+	// OAuth Provider repositories
+	oauthClientRepo := repository.NewOAuthClientRepository(db)
+	oauthCodeRepo := repository.NewAuthorizationCodeRepository(db)
+	oauthTokenRepo := repository.NewOAuthTokenRepository(db)
+	userConsentRepo := repository.NewUserConsentRepository(db)
 
 	// Initialize services
 	tokenService := service.NewTokenService(cfg)
@@ -44,10 +50,21 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, redisClient *redis.Client, cfg
 		mfaService,
 		cfg,
 	)
+	
+	// OAuth Provider service
+	oauthProviderService := service.NewOAuthProviderService(
+		oauthClientRepo,
+		oauthCodeRepo,
+		oauthTokenRepo,
+		userConsentRepo,
+		tokenService,
+		cfg,
+	)
 
 	// Initialize handlers
 	authHandler := handler.NewAuthHandler(authService, oauthService)
 	adminHandler := handler.NewAdminHandler(authService)
+	oauthAdminHandler := handler.NewOAuthAdminHandler(oauthProviderService)
 
 	// Apply global middleware
 	router.Use(middleware.CORSMiddleware())
@@ -114,10 +131,19 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, redisClient *redis.Client, cfg
 		admin.Use(middleware.AuthMiddleware(tokenService))
 		admin.Use(middleware.RequireRole("admin"))
 		{
+			// User management
 			admin.GET("/users", adminHandler.GetUsers)
 			admin.POST("/users/:id/lock", adminHandler.LockUser)
 			admin.POST("/users/:id/unlock", adminHandler.UnlockUser)
 			admin.DELETE("/users/:id", adminHandler.DeleteUser)
+			
+			// OAuth client management
+			oauth := admin.Group("/oauth")
+			{
+				oauth.POST("/clients", oauthAdminHandler.CreateOAuthClient)
+				oauth.GET("/clients", oauthAdminHandler.ListOAuthClients)
+				oauth.DELETE("/clients/:id", oauthAdminHandler.DeleteOAuthClient)
+			}
 		}
 	}
 }
