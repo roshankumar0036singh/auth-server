@@ -6,6 +6,10 @@
   <img src="https://readme-typing-svg.herokuapp.com?font=JetBrains+Mono&weight=700&size=28&duration=2500&pause=1000&color=6366F1&center=true&vCenter=true&width=900&lines=Welcome+to+Auth+Server;Production-Ready+Go+Backend;Enterprise-Grade+JWT+%26+OAuth2;Built+with+Go+%2B+Gin+%2B+PostgreSQL;Your+Security+First+Microservice;Open+for+Collaborations!" alt="Typing SVG" />
 </p>
 
+<p align="center">
+  <img src="./docs/assets/banner.png" alt="Auth Server Banner" width="1000" />
+</p>
+
 <div align="center">
 
   <p>
