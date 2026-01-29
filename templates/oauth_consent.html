@@ -7,9 +7,7 @@
     <title>Sign in - Auth Server</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link
-        href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=Roboto:wght@400;500&display=swap"
-        rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500&display=swap" rel="stylesheet">
     <style>
         * {
             margin: 0;
@@ -18,72 +16,120 @@
         }
 
         body {
-            font-family: 'Roboto', 'Google Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+            font-family: 'Roboto', Arial, sans-serif;
             background: #202124;
             color: #e8eaed;
             min-height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
-            padding: 1rem;
+            padding: 20px;
         }
 
-        .consent-container {
+        .consent-card {
             background: #292a2d;
             border-radius: 8px;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3), 0 4px 8px 3px rgba(0, 0, 0, 0.15);
-            max-width: 450px;
-            width: 100%;
-            overflow: hidden;
+            box-shadow: 0 1px 3px 0 rgba(60, 64, 67, 0.3), 0 4px 8px 3px rgba(60, 64, 67, 0.15);
+            width: 450px;
+            max-width: 100%;
         }
 
         .header {
-            text-align: center;
-            padding: 48px 40px 36px;
-            border-bottom: 1px solid #3c4043;
+            padding: 48px 40px 0;
         }
 
-        .logo-container {
-            width: 96px;
-            height: 96px;
-            margin: 0 auto 24px;
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 24px;
+        }
+
+        .brand-icon {
+            width: 32px;
+            height: 32px;
             background: linear-gradient(135deg, #8ab4f8 0%, #aecbfa 100%);
-            border-radius: 50%;
+            border-radius: 8px;
             display: flex;
             align-items: center;
             justify-content: center;
-            box-shadow: 0 2px 8px rgba(138, 180, 248, 0.3);
+            font-size: 18px;
         }
 
-        .logo-icon {
-            font-size: 48px;
-            filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2));
+        .brand-name {
+            font-size: 18px;
+            font-weight: 500;
+            color: #e8eaed;
         }
 
         .header h1 {
-            font-family: 'Google Sans', sans-serif;
             font-size: 24px;
             font-weight: 400;
             color: #e8eaed;
             margin-bottom: 8px;
+            line-height: 1.3333;
             letter-spacing: 0;
         }
 
-        .header p {
-            font-size: 14px;
+        .header .subtitle {
+            font-size: 16px;
             color: #9aa0a6;
             font-weight: 400;
+            line-height: 1.5;
+            margin-bottom: 26px;
+        }
+
+        .app-info {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding: 12px 16px;
+            background: #3c4043;
+            border-radius: 8px;
+            margin-bottom: 24px;
+        }
+
+        .app-icon {
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            flex-shrink: 0;
+        }
+
+        .app-details {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .app-name {
+            font-size: 14px;
+            color: #e8eaed;
+            font-weight: 500;
+            margin-bottom: 2px;
+        }
+
+        .app-url {
+            font-size: 12px;
+            color: #9aa0a6;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
 
         .content {
-            padding: 24px 40px 36px;
+            padding: 0 40px 32px;
         }
 
-        .permission-header {
+        .section-title {
             font-size: 14px;
             color: #e8eaed;
-            margin-bottom: 16px;
             font-weight: 500;
+            margin-bottom: 8px;
         }
 
         .permission-list {
@@ -94,13 +140,8 @@
         .permission-item {
             display: flex;
             align-items: flex-start;
-            gap: 12px;
+            gap: 16px;
             padding: 12px 0;
-            border-bottom: 1px solid #3c4043;
-        }
-
-        .permission-item:last-child {
-            border-bottom: none;
         }
 
         .permission-icon {
@@ -120,27 +161,33 @@
             font-size: 14px;
             color: #e8eaed;
             line-height: 20px;
+            font-weight: 400;
         }
 
-        .info-box {
+        .divider {
+            height: 1px;
             background: #3c4043;
-            border-radius: 8px;
-            padding: 16px;
+            margin: 24px 0;
+        }
+
+        .info-section {
             margin-bottom: 24px;
         }
 
-        .info-box p {
+        .info-text {
             font-size: 12px;
             color: #9aa0a6;
             line-height: 16px;
+            margin-bottom: 8px;
         }
 
-        .info-box a {
+        .info-link {
             color: #8ab4f8;
             text-decoration: none;
+            font-size: 12px;
         }
 
-        .info-box a:hover {
+        .info-link:hover {
             text-decoration: underline;
         }
 
@@ -148,19 +195,21 @@
             display: flex;
             justify-content: flex-end;
             gap: 8px;
-            padding-top: 24px;
+            padding-top: 8px;
         }
 
         .btn {
-            font-family: 'Google Sans', sans-serif;
+            font-family: 'Roboto', Arial, sans-serif;
             font-size: 14px;
             font-weight: 500;
-            padding: 10px 24px;
+            padding: 8px 24px;
             border: none;
             border-radius: 4px;
             cursor: pointer;
-            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            transition: background 0.2s;
             letter-spacing: 0.25px;
+            height: 36px;
+            min-width: 80px;
         }
 
         .btn:focus {
@@ -176,10 +225,6 @@
             background: rgba(138, 180, 248, 0.08);
         }
 
-        .btn-text:active {
-            background: rgba(138, 180, 248, 0.16);
-        }
-
         .btn-primary {
             background: #8ab4f8;
             color: #202124;
@@ -187,67 +232,67 @@
 
         .btn-primary:hover {
             background: #aecbfa;
-            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 1px 3px 1px rgba(0, 0, 0, 0.15);
-        }
-
-        .btn-primary:active {
-            background: #669df6;
+            box-shadow: 0 1px 2px 0 rgba(60, 64, 67, 0.3), 0 1px 3px 1px rgba(60, 64, 67, 0.15);
         }
 
         .footer {
             padding: 0 40px 36px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .language-select {
+            background: transparent;
+            border: none;
+            color: #9aa0a6;
+            font-size: 12px;
+            cursor: pointer;
+            font-family: 'Roboto', Arial, sans-serif;
+        }
+
+        .language-select:focus {
+            outline: none;
         }
 
         .footer-links {
             display: flex;
-            justify-content: center;
-            gap: 24px;
+            gap: 27px;
             font-size: 12px;
         }
 
         .footer-links a {
-            color: #8ab4f8;
+            color: #9aa0a6;
             text-decoration: none;
         }
 
         .footer-links a:hover {
-            text-decoration: underline;
+            color: #e8eaed;
         }
 
-        .language-selector {
-            text-align: center;
-            margin-top: 16px;
-        }
+        @media (max-width: 500px) {
+            .consent-card {
+                width: 100%;
+            }
 
-        .language-selector select {
-            background: transparent;
-            border: 1px solid #5f6368;
-            border-radius: 4px;
-            color: #9aa0a6;
-            font-size: 12px;
-            padding: 4px 8px;
-            cursor: pointer;
-        }
-
-        .language-selector select:hover {
-            border-color: #8ab4f8;
-        }
-
-        @media (max-width: 480px) {
             .header {
-                padding: 32px 24px 24px;
+                padding: 40px 24px 0;
             }
 
             .content {
-                padding: 20px 24px 28px;
+                padding: 0 24px 24px;
             }
 
             .footer {
-                padding: 0 24px 28px;
+                padding: 0 24px 24px;
+                flex-direction: column;
+                gap: 16px;
+                align-items: flex-start;
             }
 
             .actions {
                 flex-direction: column-reverse;
+                width: 100%;
             }
 
             .btn {
@@ -258,20 +303,26 @@
 </head>
 
 <body>
-    <div class="consent-container">
+    <div class="consent-card">
         <div class="header">
-            <div class="logo-container">
-                <span class="logo-icon">🔐</span>
+            <div class="brand">
+                <div class="brand-icon">🔐</div>
+                <div class="brand-name">Auth Server</div>
             </div>
-            <h1>{{ .ClientName }}</h1>
-            <p>wants to access your Auth Server Account</p>
+
+            <h1>{{ .ClientName }} wants to access your account</h1>
+            <p class="subtitle">This will allow {{ .ClientName }} to:</p>
+
+            <div class="app-info">
+                <div class="app-icon">�</div>
+                <div class="app-details">
+                    <div class="app-name">{{ .ClientName }}</div>
+                    <div class="app-url">{{ .RedirectURI }}</div>
+                </div>
+            </div>
         </div>
 
         <div class="content">
-            <div class="permission-header">
-                This will allow {{ .ClientName }} to:
-            </div>
-
             <ul class="permission-list">
                 {{ range .Scopes }}
                 <li class="permission-item">
@@ -285,11 +336,17 @@
                 {{ end }}
             </ul>
 
-            <div class="info-box">
-                <p>
-                    Make sure you trust {{ .ClientName }}. You may be sharing sensitive info with this site or app.
-                    <a href="#">Learn about how {{ .ClientName }} will handle your data</a>
+            <div class="divider"></div>
+
+            <div class="info-section">
+                <p class="info-text">
+                    Make sure you trust {{ .ClientName }}
                 </p>
+                <p class="info-text">
+                    You may be sharing sensitive info with this site or app. You can always see or remove access in your
+                    <a href="#" class="info-link">Auth Server Account</a>.
+                </p>
+                <a href="#" class="info-link">Learn about how {{ .ClientName }} will handle your data</a>
             </div>
 
             <form method="POST" action="/oauth/authorize">
@@ -310,14 +367,13 @@
         </div>
 
         <div class="footer">
+            <select class="language-select">
+                <option>English (United States)</option>
+            </select>
             <div class="footer-links">
-                <a href="#">Privacy Policy</a>
-                <a href="#">Terms of Service</a>
-            </div>
-            <div class="language-selector">
-                <select>
-                    <option>English (United States)</option>
-                </select>
+                <a href="#">Help</a>
+                <a href="#">Privacy</a>
+                <a href="#">Terms</a>
             </div>
         </div>
     </div>
