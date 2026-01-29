@@ -13,7 +13,7 @@ func SecurityMiddleware() gin.HandlerFunc {
 		FrameDeny:             true,
 		ContentTypeNosniff:    true,
 		BrowserXssFilter:      true,
-		ContentSecurityPolicy: "default-src 'self'",
+		ContentSecurityPolicy: "default-src 'self'; script-src 'self' 'unsafe-inline' https://unpkg.com; style-src 'self' 'unsafe-inline' https://unpkg.com; img-src 'self' data: https:;",
 		ReferrerPolicy:        "strict-origin-when-cross-origin",
 	})
 }
