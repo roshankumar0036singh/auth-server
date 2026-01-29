@@ -69,10 +69,11 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, redisClient *redis.Client, cfg
 	router.Use(middleware.CORSMiddleware())
 	router.Use(middleware.SecurityMiddleware()) // Security headers
 	
+	
 	// Swagger Documentation (Custom UI)
 	router.Static("/swagger", "./docs")
 	router.GET("/", func(c *gin.Context) {
-		c.Redirect(http.StatusMovedPermanently, "/swagger/swagger-custom.html")
+		c.Redirect(http.StatusMovedPermanently, "/swagger/")
 	})
 
 	// Health check endpoint
