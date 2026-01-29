@@ -258,6 +258,25 @@ func (s *OAuthProviderService) SaveConsent(userID, clientID string, scopes []str
 	return s.consentRepo.Create(consent)
 }
 
+// GetClientsByOwner returns all OAuth clients owned by a user
+func (s *OAuthProviderService) GetClientsByOwner(ownerID string) ([]models.OAuthClient, error) {
+	return s.clientRepo.FindByOwner(ownerID)
+}
+
+// DeleteClient deletes an OAuth client if owned by the user
+func (s *OAuthProviderService) DeleteClient(clientID, ownerID string) error {
+	client, err := s.clientRepo.FindByID(clientID)
+	if err != nil {
+		return errors.New("client not found")
+	}
+
+	if client.OwnerID != ownerID {
+		return errors.New("unauthorized to delete this client")
+	}
+
+	return s.clientRepo.Delete(clientID)
+}
+
 // ParseScopes parses a space-separated scope string
 func ParseScopes(scopeString string) []string {
 	if scopeString == "" {

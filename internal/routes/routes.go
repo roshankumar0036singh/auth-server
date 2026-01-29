@@ -62,7 +62,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, redisClient *redis.Client, cfg
 	// Initialize handlers
 	authHandler := handler.NewAuthHandler(authService, oauthService)
 	adminHandler := handler.NewAdminHandler(authService)
-	oauthAdminHandler := handler.NewOAuthAdminHandler(oauthProviderService)
+	oauthClientHandler := handler.NewOAuthClientHandler(oauthProviderService)
 	oauthHandler := handler.NewOAuthHandler(oauthProviderService)
 
 	// Apply global middleware
@@ -131,6 +131,14 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, redisClient *redis.Client, cfg
 				// MFA Routes (Protected)
 				protected.POST("/mfa/enable", authHandler.EnableMFA)
 				protected.POST("/mfa/verify", authHandler.VerifyMFA)
+
+				// OAuth Client Management (Protected)
+				oauthClients := protected.Group("/oauth/clients")
+				{
+					oauthClients.POST("", oauthClientHandler.CreateOAuthClient)
+					oauthClients.GET("", oauthClientHandler.ListOAuthClients)
+					oauthClients.DELETE("/:id", oauthClientHandler.DeleteOAuthClient)
+				}
 			}
 		}
 
@@ -144,14 +152,6 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, redisClient *redis.Client, cfg
 			admin.POST("/users/:id/lock", adminHandler.LockUser)
 			admin.POST("/users/:id/unlock", adminHandler.UnlockUser)
 			admin.DELETE("/users/:id", adminHandler.DeleteUser)
-			
-			// OAuth client management
-			oauth := admin.Group("/oauth")
-			{
-				oauth.POST("/clients", oauthAdminHandler.CreateOAuthClient)
-				oauth.GET("/clients", oauthAdminHandler.ListOAuthClients)
-				oauth.DELETE("/clients/:id", oauthAdminHandler.DeleteOAuthClient)
-			}
 		}
 	}
 }
