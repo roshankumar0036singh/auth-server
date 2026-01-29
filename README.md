@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  <img src="./docs/assets/banner.png" alt="Auth Server Banner" width="1000" height="480"/>
+  <img src="./docs/assets/banner.png" alt="Auth Server Banner" width="1000" height="380"/>
 </p>
 
 <div align="center">
