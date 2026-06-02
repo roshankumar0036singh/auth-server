@@ -73,3 +73,19 @@ func (r *UserRepository) EmailExists(email string) (bool, error) {
 	err := r.db.Model(&models.User{}).Where("email = ?", email).Count(&count).Error
 	return count > 0, err
 }
+
+// FindAll returns a slice of users with pagination and total count
+func (r *UserRepository) FindAll(limit, offset int) ([]models.User, int64, error) {
+	var users []models.User
+	var total int64
+
+	if err := r.db.Model(&models.User{}).Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	if err := r.db.Limit(limit).Offset(offset).Order("created_at desc").Find(&users).Error; err != nil {
+		return nil, 0, err
+	}
+
+	return users, total, nil
+}

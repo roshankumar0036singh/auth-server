@@ -747,6 +747,21 @@ func (s *AuthService) GetUserByID(userID string) (*models.User, error) {
 	return user, nil
 }
 
+// GetAllUsers retrieves a list of users with pagination
+func (s *AuthService) GetAllUsers(limit, offset int) ([]*models.PublicUser, int64, error) {
+	users, total, err := s.userRepo.FindAll(limit, offset)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	publicUsers := make([]*models.PublicUser, len(users))
+	for i, u := range users {
+		publicUsers[i] = u.ToPublic()
+	}
+
+	return publicUsers, total, nil
+}
+
 // GetUserSessions retrieves all active sessions for a user
 func (s *AuthService) GetUserSessions(userID string) ([]models.RefreshToken, error) {
 	tokens, err := s.tokenRepo.FindUserRefreshTokens(userID)

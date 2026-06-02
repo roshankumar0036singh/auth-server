@@ -2,6 +2,7 @@ package handler
 
 import (
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/roshankumar0036singh/auth-server/internal/service"
@@ -26,9 +27,36 @@ func NewAdminHandler(authService *service.AuthService) *AdminHandler {
 // @Success 200 {object} utils.Response
 // @Router /api/admin/users [get]
 func (h *AdminHandler) GetUsers(c *gin.Context) {
-	// TODO: Implement GetAllUsers in AuthService/UserRepository with pagination
-	// For now, returning placeholder
-	c.JSON(http.StatusOK, utils.SuccessResponse("List of users", []string{"user1", "user2"}))
+	limitStr := c.DefaultQuery("limit", "10")
+	offsetStr := c.DefaultQuery("offset", "0")
+
+	limit, err := strconv.Atoi(limitStr)
+	if err != nil || limit <= 0 {
+		limit = 10
+	}
+	if limit > 100 {
+		limit = 100
+	}
+
+	offset, err := strconv.Atoi(offsetStr)
+	if err != nil || offset < 0 {
+		offset = 0
+	}
+
+	users, total, err := h.authService.GetAllUsers(limit, offset)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, utils.ErrorResponse("Failed to fetch users", err))
+		return
+	}
+
+	response := gin.H{
+		"users":  users,
+		"total":  total,
+		"limit":  limit,
+		"offset": offset,
+	}
+
+	c.JSON(http.StatusOK, utils.SuccessResponse("List of users", response))
 }
 
 // LockUser locks a user account
