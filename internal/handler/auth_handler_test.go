@@ -8,8 +8,11 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
+	"github.com/roshankumar0036singh/auth-server/internal/config"
 	"github.com/roshankumar0036singh/auth-server/internal/dto"
 	"github.com/roshankumar0036singh/auth-server/internal/handler"
+	"github.com/roshankumar0036singh/auth-server/internal/middleware"
+	"github.com/roshankumar0036singh/auth-server/internal/service"
 	"github.com/roshankumar0036singh/auth-server/internal/testutils"
 	"github.com/stretchr/testify/assert"
 )
@@ -94,4 +97,78 @@ func TestAuthHandler_Login(t *testing.T) {
 	assert.NotEmpty(t, data["accessToken"])
 }
 
-// TODO: Add tests for Protected Routes using middleware
+func TestAuthHandler_ProtectedRoutes(t *testing.T) {
+	// Custom setup for protected route testing middleware
+	authService, _, mr := testutils.SetupIntegrationTest(t)
+	
+	authHandler := handler.NewAuthHandler(authService, nil)
+	cfg := &config.Config{JWT: config.JWTConfig{AccessSecret: "secret"}}
+	tokenService := service.NewTokenService(cfg)
+	
+	t.Cleanup(func() { mr.Close() })
+
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	r.Use(middleware.AuthMiddleware(tokenService))
+	r.GET("/api/auth/me", authHandler.GetMe)
+
+	// Register user
+	regReq := &dto.RegisterRequest{Email: "protect_me@example.com", Password: "Password123!", FirstName: "Me", LastName: "Test"}
+	user, err := authService.Register(regReq)
+	assert.NoError(t, err)
+	
+	// Generate Token
+	validToken, _ := tokenService.GenerateAccessToken(user)
+
+	tests := []struct {
+		name         string
+		token        string
+		expectedCode int
+		expectedMsg  string
+	}{
+		{
+			name:         "Missing Token",
+			token:        "",
+			expectedCode: http.StatusUnauthorized,
+			expectedMsg:  "Authentication required",
+		},
+		{
+			name:         "Invalid Token",
+			token:        "invalid.token.here",
+			expectedCode: http.StatusUnauthorized,
+			expectedMsg:  "Invalid or expired token",
+		},
+		{
+			name:         "Valid Token",
+			token:        validToken,
+			expectedCode: http.StatusOK,
+			expectedMsg:  "", 
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			req, _ := http.NewRequest(http.MethodGet, "/api/auth/me", nil)
+			if tc.token != "" {
+				req.Header.Set("Authorization", "Bearer "+tc.token)
+			}
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
+
+			assert.Equal(t, tc.expectedCode, w.Code)
+			
+			var resp map[string]interface{}
+			err := json.Unmarshal(w.Body.Bytes(), &resp)
+			assert.NoError(t, err)
+
+			if tc.expectedCode == http.StatusUnauthorized {
+				assert.False(t, resp["success"].(bool))
+				assert.Equal(t, tc.expectedMsg, resp["message"])
+			} else {
+				assert.True(t, resp["success"].(bool))
+				data := resp["data"].(map[string]interface{})
+				assert.Equal(t, "protect_me@example.com", data["email"])
+			}
+		})
+	}
+}
