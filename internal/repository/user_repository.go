@@ -83,7 +83,7 @@ func (r *UserRepository) FindAll(limit, offset int) ([]models.User, int64, error
 		return nil, 0, err
 	}
 
-	if err := r.db.Limit(limit).Offset(offset).Order("created_at desc").Find(&users).Error; err != nil {
+	if err := r.db.Limit(limit).Offset(offset).Order("created_at desc, id desc").Find(&users).Error; err != nil {
 		return nil, 0, err
 	}
 

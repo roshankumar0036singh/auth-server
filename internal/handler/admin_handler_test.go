@@ -1,6 +1,7 @@
 package handler_test
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -28,6 +29,7 @@ func TestAdminHandler_GetUsers(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
 	r.Use(middleware.AuthMiddleware(tokenService))
+	r.Use(middleware.RequireRole("admin"))
 	r.GET("/api/admin/users", adminHandler.GetUsers)
 
 	// Create an admin user to generate tokens
@@ -57,10 +59,12 @@ func TestAdminHandler_GetUsers(t *testing.T) {
 	}
 
 	// Generate Admin token
-	token, _ := tokenService.GenerateAccessToken(adminUser)
+	token, err := tokenService.GenerateAccessToken(adminUser)
+	assert.NoError(t, err)
+	assert.NotEmpty(t, token)
 
 	t.Run("Default Pagination (limit=10, offset=0)", func(t *testing.T) {
-		req, _ := http.NewRequest(http.MethodGet, "/api/admin/users", nil)
+		req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, "/api/admin/users", nil)
 		req.Header.Set("Authorization", "Bearer "+token)
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
@@ -83,7 +87,7 @@ func TestAdminHandler_GetUsers(t *testing.T) {
 	})
 
 	t.Run("Custom Pagination (limit=5, offset=12)", func(t *testing.T) {
-		req, _ := http.NewRequest(http.MethodGet, "/api/admin/users?limit=5&offset=12", nil)
+		req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, "/api/admin/users?limit=5&offset=12", nil)
 		req.Header.Set("Authorization", "Bearer "+token)
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
@@ -104,7 +108,7 @@ func TestAdminHandler_GetUsers(t *testing.T) {
 	})
 
 	t.Run("Invalid Parameters should fallback to defaults", func(t *testing.T) {
-		req, _ := http.NewRequest(http.MethodGet, "/api/admin/users?limit=-5&offset=-2", nil)
+		req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, "/api/admin/users?limit=-5&offset=-2", nil)
 		req.Header.Set("Authorization", "Bearer "+token)
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
@@ -121,7 +125,7 @@ func TestAdminHandler_GetUsers(t *testing.T) {
 	})
 
 	t.Run("Limit Capped at 100", func(t *testing.T) {
-		req, _ := http.NewRequest(http.MethodGet, "/api/admin/users?limit=200", nil)
+		req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, "/api/admin/users?limit=200", nil)
 		req.Header.Set("Authorization", "Bearer "+token)
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
@@ -134,5 +138,27 @@ func TestAdminHandler_GetUsers(t *testing.T) {
 
 		data := resp["data"].(map[string]interface{})
 		assert.Equal(t, float64(100), data["limit"])
+	})
+
+	t.Run("Non-Admin User should get 403 Forbidden", func(t *testing.T) {
+		nonAdminReq := &dto.RegisterRequest{
+			Email:     "regular@example.com",
+			Password:  "Password123!",
+			FirstName: "Regular",
+			LastName:  "User",
+		}
+		nonAdminUser, err := authService.Register(nonAdminReq)
+		assert.NoError(t, err)
+
+		nonAdminToken, err := tokenService.GenerateAccessToken(nonAdminUser)
+		assert.NoError(t, err)
+		assert.NotEmpty(t, nonAdminToken)
+
+		req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, "/api/admin/users", nil)
+		req.Header.Set("Authorization", "Bearer "+nonAdminToken)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusForbidden, w.Code)
 	})
 }

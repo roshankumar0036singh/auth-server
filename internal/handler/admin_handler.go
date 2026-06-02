@@ -19,11 +19,13 @@ func NewAdminHandler(authService *service.AuthService) *AdminHandler {
 	}
 }
 
-// GetUsers lists all users (Note: Pagination should be added for production)
+// GetUsers lists all users
 // @Summary List all users
 // @Tags admin
 // @Security BearerAuth
 // @Produce json
+// @Param limit query int false "Maximum number of users to return" default(10)
+// @Param offset query int false "Number of users to skip" default(0)
 // @Success 200 {object} utils.Response
 // @Router /api/admin/users [get]
 func (h *AdminHandler) GetUsers(c *gin.Context) {
