@@ -592,7 +592,7 @@ func (s *AuthService) LoginWithOAuth(email, oauthID, firstName, lastName, provid
 		return nil, errors.New("failed to generate access token")
 	}
 
-	s.auditService.LogEvent(&user.ID, "USER_LOGIN_Success_MFA", "USER", user.ID, ipAddress, userAgent, nil)
+	s.auditService.LogEvent(&user.ID, "USER_LOGIN_SUCCESS_OAUTH", "USER", user.ID, ipAddress, userAgent, nil)
 
 	return &dto.LoginResponse{
 		AccessToken:  accessToken,
