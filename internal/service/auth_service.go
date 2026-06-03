@@ -675,7 +675,7 @@ func (s *AuthService) RefreshAccessToken(refreshTokenString string, ipAddress, u
 		IPAddress: ipAddress,
 		UserAgent: userAgent,
 	}
-    
+
 	// Create new refresh token
 	if err := s.tokenRepo.CreateRefreshToken(newRefreshToken); err != nil {
 		return nil, errors.New("failed to store new refresh token")
@@ -683,6 +683,10 @@ func (s *AuthService) RefreshAccessToken(refreshTokenString string, ipAddress, u
 
 	// Revoke old refresh token
 	if err := s.tokenRepo.RevokeRefreshToken(refreshTokenString); err != nil {
+		// Rollback: remove the newly created token to avoid inconsistent state
+		if rollbackErr := s.tokenRepo.RevokeRefreshTokenByID(newRefreshToken.ID); rollbackErr != nil {
+			log.Printf("Warning: failed to rollback new refresh token %s: %v", newRefreshToken.ID, rollbackErr)
+		}
 		return nil, errors.New("failed to revoke old refresh token")
 	}
 
