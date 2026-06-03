@@ -667,11 +667,6 @@ func (s *AuthService) RefreshAccessToken(refreshTokenString string, ipAddress, u
 		return nil, errors.New("failed to generate refresh token")
 	}
 
-	// Revoke old refresh token
-	if err := s.tokenRepo.RevokeRefreshToken(refreshTokenString); err != nil {
-		log.Printf("Warning: Failed to revoke old refresh token: %v", err)
-	}
-
 	// Store new refresh token
 	newRefreshToken := &models.RefreshToken{
 		UserID:    user.ID,
@@ -680,9 +675,15 @@ func (s *AuthService) RefreshAccessToken(refreshTokenString string, ipAddress, u
 		IPAddress: ipAddress,
 		UserAgent: userAgent,
 	}
-
+    
+	// Create new refresh token
 	if err := s.tokenRepo.CreateRefreshToken(newRefreshToken); err != nil {
-		log.Printf("Warning: Failed to store new refresh token: %v", err)
+		return nil, errors.New("failed to store new refresh token")
+	}
+
+	// Revoke old refresh token
+	if err := s.tokenRepo.RevokeRefreshToken(refreshTokenString); err != nil {
+		return nil, errors.New("failed to revoke old refresh token")
 	}
 
 	// Generate new access token
