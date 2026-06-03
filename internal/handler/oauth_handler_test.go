@@ -58,14 +58,14 @@ func setupOAuthUserInfoRouter(t *testing.T) (*gin.Engine, *repository.UserReposi
 	return r, userRepo, tokenRepo
 }
 
-func createOAuthAccessToken(t *testing.T, tokenRepo *repository.OAuthTokenRepository, userID string) string {
+func createOAuthAccessToken(t *testing.T, tokenRepo *repository.OAuthTokenRepository, userID string, scopes []string) string {
 	token := "oauth-token-" + uuid.NewString()
 	err := tokenRepo.Create(&models.OAuthAccessToken{
 		ID:        uuid.NewString(),
 		Token:     token,
 		ClientID:  uuid.NewString(),
 		UserID:    userID,
-		Scopes:    pq.StringArray{"read:profile", "read:email"},
+		Scopes:    pq.StringArray(scopes),
 		ExpiresAt: time.Now().Add(time.Hour),
 	})
 	require.NoError(t, err)
@@ -93,7 +93,7 @@ func TestOAuthHandler_UserInfoReturnsUserFields(t *testing.T) {
 	}
 	require.NoError(t, userRepo.Create(user))
 
-	token := createOAuthAccessToken(t, tokenRepo, user.ID)
+	token := createOAuthAccessToken(t, tokenRepo, user.ID, []string{"read:profile", "read:email"})
 	w := performUserInfoRequest(r, token)
 
 	assert.Equal(t, http.StatusOK, w.Code)
@@ -110,10 +110,102 @@ func TestOAuthHandler_UserInfoReturnsUserFields(t *testing.T) {
 	assert.ElementsMatch(t, []interface{}{"read:profile", "read:email"}, response["scopes"])
 }
 
+func TestOAuthHandler_UserInfoOmitsEmailFieldsWithoutEmailScope(t *testing.T) {
+	r, userRepo, tokenRepo := setupOAuthUserInfoRouter(t)
+
+	user := &models.User{
+		Email:         "oauth-profile@example.com",
+		PasswordHash:  "hash",
+		FirstName:     "Profile",
+		LastName:      "Only",
+		EmailVerified: true,
+		ProfileImage:  "https://example.com/profile.png",
+	}
+	require.NoError(t, userRepo.Create(user))
+
+	token := createOAuthAccessToken(t, tokenRepo, user.ID, []string{"read:profile"})
+	w := performUserInfoRequest(r, token)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var response map[string]interface{}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
+	assert.Equal(t, user.ID, response["sub"])
+	assert.Equal(t, "Profile Only", response["name"])
+	assert.Equal(t, user.FirstName, response["given_name"])
+	assert.Equal(t, user.LastName, response["family_name"])
+	assert.Equal(t, user.ProfileImage, response["picture"])
+	assert.NotContains(t, response, "email")
+	assert.NotContains(t, response, "email_verified")
+	assert.ElementsMatch(t, []interface{}{"read:profile"}, response["scopes"])
+}
+
+func TestOAuthHandler_UserInfoOmitsProfileFieldsWithoutProfileScope(t *testing.T) {
+	r, userRepo, tokenRepo := setupOAuthUserInfoRouter(t)
+
+	user := &models.User{
+		Email:         "oauth-email@example.com",
+		PasswordHash:  "hash",
+		FirstName:     "Email",
+		LastName:      "Only",
+		EmailVerified: true,
+		ProfileImage:  "https://example.com/email.png",
+	}
+	require.NoError(t, userRepo.Create(user))
+
+	token := createOAuthAccessToken(t, tokenRepo, user.ID, []string{"read:email"})
+	w := performUserInfoRequest(r, token)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var response map[string]interface{}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
+	assert.Equal(t, user.ID, response["sub"])
+	assert.Equal(t, user.Email, response["email"])
+	assert.Equal(t, true, response["email_verified"])
+	assert.NotContains(t, response, "name")
+	assert.NotContains(t, response, "given_name")
+	assert.NotContains(t, response, "family_name")
+	assert.NotContains(t, response, "picture")
+	assert.ElementsMatch(t, []interface{}{"read:email"}, response["scopes"])
+}
+
+func TestOAuthHandler_UserInfoReturnsOnlyBaseFieldsWithoutScopes(t *testing.T) {
+	r, userRepo, tokenRepo := setupOAuthUserInfoRouter(t)
+
+	user := &models.User{
+		Email:         "oauth-base@example.com",
+		PasswordHash:  "hash",
+		FirstName:     "Base",
+		LastName:      "Only",
+		EmailVerified: true,
+		ProfileImage:  "https://example.com/base.png",
+	}
+	require.NoError(t, userRepo.Create(user))
+
+	token := createOAuthAccessToken(t, tokenRepo, user.ID, []string{})
+	w := performUserInfoRequest(r, token)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var response map[string]interface{}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
+	assert.Equal(t, user.ID, response["sub"])
+	assert.Contains(t, response, "scopes")
+	assert.Empty(t, response["scopes"])
+	assert.Len(t, response, 2)
+	assert.NotContains(t, response, "email")
+	assert.NotContains(t, response, "email_verified")
+	assert.NotContains(t, response, "name")
+	assert.NotContains(t, response, "given_name")
+	assert.NotContains(t, response, "family_name")
+	assert.NotContains(t, response, "picture")
+}
+
 func TestOAuthHandler_UserInfoHandlesMissingUser(t *testing.T) {
 	r, _, tokenRepo := setupOAuthUserInfoRouter(t)
 
-	token := createOAuthAccessToken(t, tokenRepo, uuid.NewString())
+	token := createOAuthAccessToken(t, tokenRepo, uuid.NewString(), []string{"read:profile", "read:email"})
 	w := performUserInfoRequest(r, token)
 
 	assert.Equal(t, http.StatusNotFound, w.Code)
