@@ -108,12 +108,12 @@ func (h *OAuthHandler) Authorize(c *gin.Context) {
 	}
 
 	c.HTML(http.StatusOK, "oauth_consent.html", gin.H{
-		"ClientName":   client.Name,
-		"ClientID":     clientID,
-		"RedirectURI":  redirectURI,
-		"Scope":        scope,
-		"Scopes":       scopeDescriptions,
-		"State":        state,
+		"ClientName":  client.Name,
+		"ClientID":    clientID,
+		"RedirectURI": redirectURI,
+		"Scope":       scope,
+		"Scopes":      scopeDescriptions,
+		"State":       state,
 	})
 }
 

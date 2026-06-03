@@ -107,7 +107,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, redisClient *redis.Client, cfg
 			auth.POST("/resend-verification", authHandler.ResendVerification)
 			auth.POST("/forgot-password", authHandler.ForgotPassword)
 			auth.POST("/reset-password", authHandler.ResetPassword)
-			
+
 			// OAuth Routes
 			auth.GET("/google/login", authHandler.GoogleLogin)
 			auth.GET("/google/callback", authHandler.GoogleCallback)

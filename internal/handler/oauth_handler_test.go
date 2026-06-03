@@ -24,13 +24,19 @@ func setupOAuthUserInfoRouter(t *testing.T) (*gin.Engine, *repository.UserReposi
 	_, db, mr := testutils.SetupIntegrationTest(t)
 	t.Cleanup(func() { mr.Close() })
 
-	err := db.AutoMigrate(
-		&models.OAuthClient{},
-		&models.AuthorizationCode{},
-		&models.OAuthAccessToken{},
-		&models.UserConsent{},
-	)
+	err := db.Exec(`
+		CREATE TABLE IF NOT EXISTS oauth_access_tokens (
+			id text PRIMARY KEY,
+			token text NOT NULL UNIQUE,
+			client_id text NOT NULL,
+			user_id text NOT NULL,
+			scopes text,
+			expires_at datetime,
+			created_at datetime
+		)
+	`).Error
 	require.NoError(t, err)
+	require.NoError(t, db.Exec("DELETE FROM oauth_access_tokens").Error)
 
 	userRepo := repository.NewUserRepository(db)
 	tokenRepo := repository.NewOAuthTokenRepository(db)
