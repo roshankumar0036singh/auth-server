@@ -443,6 +443,9 @@ func (h *AuthHandler) GetSessions(c *gin.Context) {
 		return
 	}
 
+	currentSessionID, _ := c.Get("sessionID")
+	currentID, _ := currentSessionID.(string)
+
 	// Convert to response format
 	sessionResponses := make([]dto.SessionResponse, len(sessions))
 	for i, session := range sessions {
@@ -452,7 +455,7 @@ func (h *AuthHandler) GetSessions(c *gin.Context) {
 			UserAgent: session.UserAgent,
 			CreatedAt: session.CreatedAt.Format("2006-01-02 15:04:05"),
 			ExpiresAt: session.ExpiresAt.Format("2006-01-02 15:04:05"),
-			IsCurrent: false, // TODO: Determine if this is the current session
+			IsCurrent: session.ID == currentID, // TODO: Determine if this is the current session
 		}
 	}
 
@@ -552,7 +555,7 @@ func (h *AuthHandler) GoogleCallback(c *gin.Context) {
 	// Login or Register
 	ipAddress := c.ClientIP()
 	userAgent := c.GetHeader("User-Agent")
-	
+
 	loginResp, err := h.authService.LoginWithOAuth(email, oauthID, firstName, lastName, "google", ipAddress, userAgent)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, utils.ErrorResponse("Login failed", err))
@@ -612,7 +615,7 @@ func (h *AuthHandler) GitHubCallback(c *gin.Context) {
 	}
 
 	email := userInfo["email"].(string)
-	
+
 	// GitHub names are often one string "Name" or just login
 	firstName := ""
 	lastName := ""
@@ -625,12 +628,12 @@ func (h *AuthHandler) GitHubCallback(c *gin.Context) {
 	} else {
 		firstName = userInfo["login"].(string)
 	}
-	
+
 	oauthID := fmt.Sprintf("%.0f", userInfo["id"].(float64)) // GitHub ID is number
 
 	ipAddress := c.ClientIP()
 	userAgent := c.GetHeader("User-Agent")
-	
+
 	loginResp, err := h.authService.LoginWithOAuth(email, oauthID, firstName, lastName, "github", ipAddress, userAgent)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, utils.ErrorResponse("Login failed", err))

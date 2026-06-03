@@ -9,6 +9,8 @@ import (
 
 func InitRedis(cfg *Config) *redis.Client {
 	ctx := context.Background() // Local context variable
+
+	log.Println("REDIS_URL =", cfg.Redis.URL)
 	
 	opt, err := redis.ParseURL(cfg.Redis.URL)
 	if err != nil {
