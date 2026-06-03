@@ -3,6 +3,7 @@ package handler
 import (
 	"net/http"
 	"net/url"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/roshankumar0036singh/auth-server/internal/service"
@@ -199,7 +200,7 @@ func (h *OAuthHandler) Token(c *gin.Context) {
 		"access_token": accessToken.Token,
 		"token_type":   "Bearer",
 		"expires_in":   3600, // 1 hour
-		"scope":        service.ParseScopes(string(accessToken.Scopes[0])), // TODO: Join scopes properly
+		"scope":        strings.Join(accessToken.Scopes," "),
 	})
 }
 
