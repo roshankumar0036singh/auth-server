@@ -167,7 +167,6 @@ func TestAuthHandler_GetSessions_CurrentSessionFlag(t *testing.T) {
 
 	data := resp["data"].([]interface{})
 
-
 	foundExpectedSession := false
 
 	for _, item := range data {
@@ -185,4 +184,71 @@ func TestAuthHandler_GetSessions_CurrentSessionFlag(t *testing.T) {
 	assert.True(t, foundExpectedSession, "expected session ID not found in response")
 
 	assert.True(t, foundExpectedSession, "expected one session to be marked as current")
+}
+
+func TestAuthHandler_GetSessions_NoSessionIDInContext(t *testing.T) {
+	authService, _, mr := testutils.SetupIntegrationTest(t)
+	defer mr.Close()
+
+	authHandler := handler.NewAuthHandler(authService, nil)
+
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+
+	// Register user
+	regReq := &dto.RegisterRequest{
+		Email:     "nosession@example.com",
+		Password:  "Password123!",
+		FirstName: "No",
+		LastName:  "Session",
+	}
+
+	user, err := authService.Register(regReq)
+	assert.NoError(t, err)
+
+	userID := user.ID
+
+	// Intentionally set only userID, not sessionID
+	r.GET("/api/auth/sessions", func(c *gin.Context) {
+		c.Set("userID", userID)
+		authHandler.GetSessions(c)
+	})
+
+	// Create a session
+	_, err = authService.Login(
+		&dto.LoginRequest{
+			Email:    regReq.Email,
+			Password: regReq.Password,
+		},
+		"127.0.0.1",
+		"test-agent",
+	)
+	assert.NoError(t, err)
+
+	req, _ := http.NewRequest(
+		http.MethodGet,
+		"/api/auth/sessions",
+		nil,
+	)
+
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var resp map[string]interface{}
+	err = json.Unmarshal(w.Body.Bytes(), &resp)
+	assert.NoError(t, err)
+
+	data := resp["data"].([]interface{})
+
+	for _, item := range data {
+		session := item.(map[string]interface{})
+
+		assert.False(
+			t,
+			session["isCurrent"].(bool),
+			"expected no session to be marked current when sessionID is missing",
+		)
+	}
 }
