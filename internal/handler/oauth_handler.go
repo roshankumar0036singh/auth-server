@@ -18,6 +18,10 @@ type OAuthHandler struct {
 }
 
 func NewOAuthHandler(oauthProviderService *service.OAuthProviderService, userRepo *repository.UserRepository) *OAuthHandler {
+	if userRepo == nil {
+		panic("oauth handler requires user repository")
+	}
+
 	return &OAuthHandler{
 		oauthProviderService: oauthProviderService,
 		userRepo:             userRepo,

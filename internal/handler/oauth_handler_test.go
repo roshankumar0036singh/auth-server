@@ -65,6 +65,12 @@ func performUserInfoRequest(r *gin.Engine, token string) *httptest.ResponseRecor
 	return w
 }
 
+func TestNewOAuthHandlerPanicsWithoutUserRepository(t *testing.T) {
+	require.Panics(t, func() {
+		handler.NewOAuthHandler(nil, nil)
+	})
+}
+
 func TestOAuthHandler_UserInfoReturnsUserFields(t *testing.T) {
 	r, userRepo, tokenRepo := setupOAuthUserInfoRouter(t)
 
