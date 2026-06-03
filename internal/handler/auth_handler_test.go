@@ -139,6 +139,8 @@ func TestAuthHandler_GetSessions_CurrentSessionFlag(t *testing.T) {
 		"test-agent",
 	)
 
+	assert.NoError(t, err)
+
 	claims, err := tokenService.ValidateAccessToken(loginResp.AccessToken)
 	assert.NoError(t, err)
 
