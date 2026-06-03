@@ -66,9 +66,36 @@ func performUserInfoRequest(r *gin.Engine, token string) *httptest.ResponseRecor
 }
 
 func TestNewOAuthHandlerPanicsWithoutUserRepository(t *testing.T) {
+	_, db, mr := testutils.SetupIntegrationTest(t)
+	t.Cleanup(func() { mr.Close() })
+
+	tokenRepo := repository.NewOAuthTokenRepository(db)
+	oauthProviderService := service.NewOAuthProviderService(
+		repository.NewOAuthClientRepository(db),
+		repository.NewAuthorizationCodeRepository(db),
+		tokenRepo,
+		repository.NewUserConsentRepository(db),
+		service.NewTokenService(&config.Config{
+			JWT: config.JWTConfig{AccessSecret: "secret", RefreshSecret: "refresh"},
+		}),
+		&config.Config{},
+	)
+
 	require.Panics(t, func() {
-		handler.NewOAuthHandler(nil, nil)
+		handler.NewOAuthHandler(oauthProviderService, nil)
 	})
+}
+
+func TestOAuthAccessTokenScopesSerializeAsJSONInSQLite(t *testing.T) {
+	_, db, mr := testutils.SetupIntegrationTest(t)
+	t.Cleanup(func() { mr.Close() })
+
+	tokenRepo := repository.NewOAuthTokenRepository(db)
+	token := createOAuthAccessToken(t, tokenRepo, uuid.NewString(), []string{"read:profile", "read:email"})
+
+	var storedScopes string
+	require.NoError(t, db.Table("oauth_access_tokens").Select("scopes").Where("token = ?", token).Scan(&storedScopes).Error)
+	assert.JSONEq(t, `["read:profile","read:email"]`, storedScopes)
 }
 
 func TestOAuthHandler_UserInfoReturnsUserFields(t *testing.T) {
