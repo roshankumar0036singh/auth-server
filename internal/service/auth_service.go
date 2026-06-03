@@ -310,7 +310,10 @@ func (s *AuthService) VerifyLoginMFA(email, code, ipAddress, userAgent string) (
 	if err != nil {
 		return nil, errors.New("failed to generate refresh token")
 	}
-	expiry, _ := time.ParseDuration(s.config.JWT.RefreshExpiry)
+	expiry, err := time.ParseDuration(s.config.JWT.RefreshExpiry)
+	if err != nil || expiry == 0 {
+		expiry = 7 * 24 * time.Hour
+}
 	refreshToken := &models.RefreshToken{
 		UserID:    user.ID,
 		Token:     refreshTokenString,
@@ -503,7 +506,10 @@ func (s *AuthService) Login(req *dto.LoginRequest, ipAddress, userAgent string) 
 	}
 
 	// Store refresh token
-	expiry, _ := time.ParseDuration(s.config.JWT.RefreshExpiry)
+	expiry, err := time.ParseDuration(s.config.JWT.RefreshExpiry)
+	if err != nil || expiry == 0 {
+		expiry = 7 * 24 * time.Hour
+}
 
 	refreshToken := &models.RefreshToken{
 	UserID:    user.ID,
@@ -583,8 +589,11 @@ func (s *AuthService) LoginWithOAuth(email, oauthID, firstName, lastName, provid
 		return nil, errors.New("failed to generate refresh token")
 	}
 
-	expiry, _ := time.ParseDuration(s.config.JWT.RefreshExpiry)
-
+	
+	expiry, err := time.ParseDuration(s.config.JWT.RefreshExpiry)
+	if err != nil || expiry == 0 {
+		expiry = 7 * 24 * time.Hour
+}
 	refreshToken := &models.RefreshToken{
 		UserID:    user.ID,
 		Token:     refreshTokenString,
@@ -684,7 +693,10 @@ func (s *AuthService) RefreshAccessToken(refreshTokenString string, ipAddress, u
 	}
 
 	// Store new refresh token
-	expiry, _ := time.ParseDuration(s.config.JWT.RefreshExpiry)
+	expiry, err := time.ParseDuration(s.config.JWT.RefreshExpiry)
+	if err != nil || expiry == 0 {
+		expiry = 7 * 24 * time.Hour
+}
 
 	newRefreshToken := &models.RefreshToken{
 		UserID:    user.ID,
