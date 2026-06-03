@@ -2,7 +2,7 @@ package routes
 
 import (
 	"net/http"
-	
+
 	"github.com/gin-gonic/gin"
 	"github.com/go-redis/redis/v8"
 	"gorm.io/gorm"
@@ -21,7 +21,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, redisClient *redis.Client, cfg
 	verificationRepo := repository.NewVerificationRepository(db)
 	passwordResetRepo := repository.NewPasswordResetRepository(db)
 	auditRepo := repository.NewAuditRepository(db)
-	
+
 	// OAuth Provider repositories
 	oauthClientRepo := repository.NewOAuthClientRepository(db)
 	oauthCodeRepo := repository.NewAuthorizationCodeRepository(db)
@@ -35,7 +35,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, redisClient *redis.Client, cfg
 	auditService := service.NewAuditService(auditRepo)
 	oauthService := service.NewOAuthService(cfg)
 	mfaService := service.NewMFAService(cfg)
-	
+
 	authService := service.NewAuthService(
 		userRepo,
 		tokenRepo,
@@ -48,7 +48,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, redisClient *redis.Client, cfg
 		mfaService,
 		cfg,
 	)
-	
+
 	// OAuth Provider service
 	oauthProviderService := service.NewOAuthProviderService(
 		oauthClientRepo,
@@ -63,13 +63,12 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, redisClient *redis.Client, cfg
 	authHandler := handler.NewAuthHandler(authService, oauthService)
 	adminHandler := handler.NewAdminHandler(authService)
 	oauthClientHandler := handler.NewOAuthClientHandler(oauthProviderService)
-	oauthHandler := handler.NewOAuthHandler(oauthProviderService)
+	oauthHandler := handler.NewOAuthHandler(oauthProviderService, userRepo)
 
 	// Apply global middleware
 	router.Use(middleware.CORSMiddleware())
 	router.Use(middleware.SecurityMiddleware()) // Security headers
-	
-	
+
 	// Swagger Documentation (Custom UI)
 	router.Static("/swagger", "./docs")
 	router.GET("/", func(c *gin.Context) {
@@ -83,7 +82,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, redisClient *redis.Client, cfg
 			"message": "Auth server is running",
 		})
 	})
-	
+
 	// OAuth 2.0 Provider endpoints
 	router.GET("/oauth/authorize", middleware.OptionalAuthMiddleware(tokenService), oauthHandler.Authorize)
 	router.POST("/oauth/authorize", middleware.AuthMiddleware(tokenService), oauthHandler.AuthorizePost)
@@ -128,7 +127,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, redisClient *redis.Client, cfg
 				protected.POST("/password", authHandler.ChangePassword)
 				protected.DELETE("/me", authHandler.DeleteAccount)
 				protected.GET("/audit-logs", authHandler.GetAuditLogs)
-				
+
 				// MFA Routes (Protected)
 				protected.POST("/mfa/enable", authHandler.EnableMFA)
 				protected.POST("/mfa/verify", authHandler.VerifyMFA)

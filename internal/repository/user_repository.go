@@ -2,9 +2,12 @@ package repository
 
 import (
 	"errors"
+
 	"github.com/roshankumar0036singh/auth-server/internal/models"
 	"gorm.io/gorm"
 )
+
+var ErrUserNotFound = errors.New("user not found")
 
 type UserRepository struct {
 	db *gorm.DB
@@ -19,7 +22,7 @@ func (r *UserRepository) FindByID(id string) (*models.User, error) {
 	var user models.User
 	if err := r.db.First(&user, "id = ?", id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, errors.New("user not found")
+			return nil, ErrUserNotFound
 		}
 		return nil, err
 	}
@@ -31,7 +34,7 @@ func (r *UserRepository) FindByEmail(email string) (*models.User, error) {
 	var user models.User
 	if err := r.db.Where("email = ?", email).First(&user).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, errors.New("user not found")
+			return nil, ErrUserNotFound
 		}
 		return nil, err
 	}
@@ -50,7 +53,7 @@ func (r *UserRepository) Update(id string, updates map[string]interface{}) error
 		return result.Error
 	}
 	if result.RowsAffected == 0 {
-		return errors.New("user not found")
+		return ErrUserNotFound
 	}
 	return nil
 }
@@ -62,7 +65,7 @@ func (r *UserRepository) Delete(id string) error {
 		return result.Error
 	}
 	if result.RowsAffected == 0 {
-		return errors.New("user not found")
+		return ErrUserNotFound
 	}
 	return nil
 }
