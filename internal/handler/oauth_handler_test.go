@@ -259,3 +259,44 @@ func TestOAuthHandler_UserInfoHandlesMissingUser(t *testing.T) {
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
 	assert.Equal(t, "user_not_found", response["error"])
 }
+
+func TestOAuthHandler_UserInfoReturnsMissingTokenWhenNoHeader(t *testing.T) {
+	r, _, _ := setupOAuthUserInfoRouter(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/oauth/userinfo", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+
+	var response map[string]interface{}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
+	assert.Equal(t, "missing_token", response["error"])
+}
+
+func TestOAuthHandler_UserInfoReturnsErrorForInvalidTokenFormat(t *testing.T) {
+	r, _, _ := setupOAuthUserInfoRouter(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/oauth/userinfo", nil)
+	req.Header.Set("Authorization", "InvalidFormatToken")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+
+	var response map[string]interface{}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
+	assert.Equal(t, "invalid_token_format", response["error"])
+}
+
+func TestOAuthHandler_UserInfoReturnsErrorForInvalidToken(t *testing.T) {
+	r, _, _ := setupOAuthUserInfoRouter(t)
+
+	w := performUserInfoRequest(r, "this-is-a-fake-token")
+
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+
+	var response map[string]interface{}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
+	assert.NotEmpty(t, response["error"])
+}
