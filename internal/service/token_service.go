@@ -27,7 +27,12 @@ type JWTClaims struct {
 
 // GenerateAccessToken generates a new JWT access token
 func (s *TokenService) GenerateAccessToken(user *models.User) (string, error) {
-	expirationTime := time.Now().Add(15 * time.Minute) // 15 minutes
+	return s.GenerateTokenWithExpiry(user, 15*time.Minute)
+}
+
+// GenerateTokenWithExpiry generates a JWT access token with a custom expiration duration
+func (s *TokenService) GenerateTokenWithExpiry(user *models.User, duration time.Duration) (string, error) {
+	expirationTime := time.Now().Add(duration)
 
 	claims := &JWTClaims{
 		UserID: user.ID,

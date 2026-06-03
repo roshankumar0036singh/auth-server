@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/roshankumar0036singh/auth-server/internal/config"
@@ -102,7 +103,7 @@ func TestAuthHandler_ProtectedRoutes(t *testing.T) {
 	authService, _, mr := testutils.SetupIntegrationTest(t)
 	
 	authHandler := handler.NewAuthHandler(authService, nil)
-	cfg := &config.Config{JWT: config.JWTConfig{AccessSecret: "secret"}}
+	cfg := &config.Config{JWT: config.JWTConfig{AccessSecret: testutils.TestJWTSecret}}
 	tokenService := service.NewTokenService(cfg)
 	
 	t.Cleanup(func() { mr.Close() })
@@ -115,10 +116,19 @@ func TestAuthHandler_ProtectedRoutes(t *testing.T) {
 	// Register user
 	regReq := &dto.RegisterRequest{Email: "protect_me@example.com", Password: "Password123!", FirstName: "Me", LastName: "Test"}
 	user, err := authService.Register(regReq)
-	assert.NoError(t, err)
+	if err != nil {
+		t.Fatalf("failed to register user: %v", err)
+	}
 	
 	// Generate Token
-	validToken, _ := tokenService.GenerateAccessToken(user)
+	validToken, err := tokenService.GenerateAccessToken(user)
+	if err != nil {
+		t.Fatalf("failed to generate token: %v", err)
+	}
+	expiredToken, err := tokenService.GenerateTokenWithExpiry(user, -15*time.Minute)
+	if err != nil {
+		t.Fatalf("failed to generate expired token: %v", err)
+	}
 
 	tests := []struct {
 		name         string
@@ -139,10 +149,16 @@ func TestAuthHandler_ProtectedRoutes(t *testing.T) {
 			expectedMsg:  "Invalid or expired token",
 		},
 		{
+			name:         "Expired Token",
+			token:        expiredToken,
+			expectedCode: http.StatusUnauthorized,
+			expectedMsg:  "Invalid or expired token",
+		},
+		{
 			name:         "Valid Token",
 			token:        validToken,
 			expectedCode: http.StatusOK,
-			expectedMsg:  "", 
+			expectedMsg:  "User retrieved successfully", 
 		},
 	}
 
@@ -161,13 +177,19 @@ func TestAuthHandler_ProtectedRoutes(t *testing.T) {
 			err := json.Unmarshal(w.Body.Bytes(), &resp)
 			assert.NoError(t, err)
 
+			// Safely verify message
+			msg, msgOk := resp["message"].(string)
+			assert.True(t, msgOk, "expected message field to be a string")
+			assert.Equal(t, tc.expectedMsg, msg)
+
 			if tc.expectedCode == http.StatusUnauthorized {
-				assert.False(t, resp["success"].(bool))
-				assert.Equal(t, tc.expectedMsg, resp["message"])
+				assert.Equal(t, false, resp["success"])
 			} else {
-				assert.True(t, resp["success"].(bool))
-				data := resp["data"].(map[string]interface{})
-				assert.Equal(t, "protect_me@example.com", data["email"])
+				assert.Equal(t, true, resp["success"])
+				data, ok := resp["data"].(map[string]interface{})
+				if assert.True(t, ok, "expected data object in response") {
+					assert.Equal(t, "protect_me@example.com", data["email"])
+				}
 			}
 		})
 	}

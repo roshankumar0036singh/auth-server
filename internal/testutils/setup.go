@@ -2,10 +2,12 @@ package testutils
 
 import (
 	"testing"
+	"time"
 
 	"github.com/alicebob/miniredis/v2"
-	"github.com/go-redis/redis/v8"
 	"github.com/glebarez/sqlite"
+	"github.com/go-redis/redis/v8"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/roshankumar0036singh/auth-server/internal/config"
 	"github.com/roshankumar0036singh/auth-server/internal/models"
 	"github.com/roshankumar0036singh/auth-server/internal/repository"
@@ -13,6 +15,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"gorm.io/gorm"
 )
+
+const TestJWTSecret = "secret"
 
 // MockEmailSender
 type MockEmailSender struct {
@@ -67,7 +71,7 @@ func SetupIntegrationTest(t *testing.T) (*service.AuthService, *gorm.DB, *minire
 
 	// 4. Services
 	cfg := &config.Config{
-		JWT: config.JWTConfig{AccessSecret: "secret", RefreshSecret: "refresh"},
+		JWT: config.JWTConfig{AccessSecret: TestJWTSecret, RefreshSecret: "refresh"},
 		Security: config.SecurityConfig{RateLimitMax: 10, RateLimitWindow: 60}, 
 		App: config.AppConfig{URL: "http://localhost"},
 	}
