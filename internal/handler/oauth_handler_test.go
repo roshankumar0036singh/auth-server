@@ -9,7 +9,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"github.com/lib/pq"
 	"github.com/roshankumar0036singh/auth-server/internal/config"
 	"github.com/roshankumar0036singh/auth-server/internal/handler"
 	"github.com/roshankumar0036singh/auth-server/internal/models"
@@ -51,7 +50,7 @@ func createOAuthAccessToken(t *testing.T, tokenRepo *repository.OAuthTokenReposi
 		Token:     token,
 		ClientID:  uuid.NewString(),
 		UserID:    userID,
-		Scopes:    pq.StringArray(scopes),
+		Scopes:    models.StringArray(scopes),
 		ExpiresAt: time.Now().Add(time.Hour),
 	})
 	require.NoError(t, err)
@@ -154,6 +153,31 @@ func TestOAuthHandler_UserInfoOmitsProfileFieldsWithoutProfileScope(t *testing.T
 	assert.NotContains(t, response, "family_name")
 	assert.NotContains(t, response, "picture")
 	assert.ElementsMatch(t, []interface{}{"read:email"}, response["scopes"])
+}
+
+func TestOAuthHandler_UserInfoKeepsEmailVerifiedWhenEmailIsEmpty(t *testing.T) {
+	r, userRepo, tokenRepo := setupOAuthUserInfoRouter(t)
+
+	user := &models.User{
+		PasswordHash:        "hash",
+		FirstName:           "Email",
+		LastName:            "Verified",
+		EmailVerified:       true,
+		OAuthProvider:       "local",
+		FailedLoginAttempts: 0,
+	}
+	require.NoError(t, userRepo.Create(user))
+
+	token := createOAuthAccessToken(t, tokenRepo, user.ID, []string{"read:email"})
+	w := performUserInfoRequest(r, token)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var response map[string]interface{}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
+	assert.Equal(t, user.ID, response["sub"])
+	assert.NotContains(t, response, "email")
+	assert.Equal(t, true, response["email_verified"])
 }
 
 func TestOAuthHandler_UserInfoReturnsOnlyBaseFieldsWithoutScopes(t *testing.T) {

@@ -279,8 +279,8 @@ func (h *OAuthHandler) UserInfo(c *gin.Context) {
 	if slices.Contains(accessToken.Scopes, "read:email") {
 		if user.Email != "" {
 			response["email"] = user.Email
-			response["email_verified"] = user.EmailVerified
 		}
+		response["email_verified"] = user.EmailVerified
 	}
 
 	c.JSON(http.StatusOK, response)

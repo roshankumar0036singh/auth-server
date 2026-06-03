@@ -16,12 +16,12 @@ import (
 )
 
 type OAuthProviderService struct {
-	clientRepo    *repository.OAuthClientRepository
-	codeRepo      *repository.AuthorizationCodeRepository
-	tokenRepo     *repository.OAuthTokenRepository
-	consentRepo   *repository.UserConsentRepository
-	tokenService  *TokenService
-	cfg           *config.Config
+	clientRepo   *repository.OAuthClientRepository
+	codeRepo     *repository.AuthorizationCodeRepository
+	tokenRepo    *repository.OAuthTokenRepository
+	consentRepo  *repository.UserConsentRepository
+	tokenService *TokenService
+	cfg          *config.Config
 }
 
 func NewOAuthProviderService(
@@ -202,7 +202,7 @@ func (s *OAuthProviderService) ExchangeCodeForToken(code, clientID, redirectURI 
 		Token:     tokenString,
 		ClientID:  authCode.ClientID,
 		UserID:    authCode.UserID,
-		Scopes:    authCode.Scopes,
+		Scopes:    models.StringArray(authCode.Scopes),
 		ExpiresAt: time.Now().Add(1 * time.Hour), // 1 hour
 	}
 
@@ -307,4 +307,3 @@ func generateRandomString(length int) (string, error) {
 	}
 	return base64.URLEncoding.EncodeToString(bytes)[:length], nil
 }
-

@@ -47,19 +47,8 @@ func SetupIntegrationTest(t *testing.T) (*service.AuthService, *gorm.DB, *minire
 		&models.VerificationToken{},
 		&models.PasswordResetToken{},
 		&models.AuditLog{},
+		&models.OAuthAccessToken{},
 	)
-	assert.NoError(t, err)
-	err = db.Exec(`
-		CREATE TABLE IF NOT EXISTS oauth_access_tokens (
-			id text PRIMARY KEY,
-			token text NOT NULL UNIQUE,
-			client_id text NOT NULL,
-			user_id text NOT NULL,
-			scopes text,
-			expires_at datetime,
-			created_at datetime
-		)
-	`).Error
 	assert.NoError(t, err)
 	assert.NoError(t, db.Exec("DELETE FROM oauth_access_tokens").Error)
 
