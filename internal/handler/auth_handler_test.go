@@ -21,9 +21,9 @@ func SetupRouter(t *testing.T) (*gin.Engine, *handler.AuthHandler) {
 	authService, _, mr := testutils.SetupIntegrationTest(t)
 	// mock OAuth service or pass nil if not needed for these tests
 	authHandler := handler.NewAuthHandler(authService, nil)
-	
+
 	t.Cleanup(func() { mr.Close() }) // Ensure mr is closed after tests in this Setup config
-	
+
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
 	r.Use(gin.Recovery())
@@ -32,7 +32,6 @@ func SetupRouter(t *testing.T) (*gin.Engine, *handler.AuthHandler) {
 	// For testing, we just register what we need
 	return r, authHandler
 }
-
 
 func TestAuthHandler_Register(t *testing.T) {
 	r, h := SetupRouter(t)
@@ -127,7 +126,7 @@ func TestAuthHandler_GetSessions_CurrentSessionFlag(t *testing.T) {
 		LastName:  "Test",
 	}
 
-	user, err := authService.Register(regReq)
+	_, err := authService.Register(regReq)
 	assert.NoError(t, err)
 
 	// Create a session via login
@@ -139,7 +138,11 @@ func TestAuthHandler_GetSessions_CurrentSessionFlag(t *testing.T) {
 		"127.0.0.1",
 		"test-agent",
 	)
+
+	claims, err := tokenService.ValidateAccessToken(loginResp.AccessToken)
 	assert.NoError(t, err)
+
+	expectedSessionID := claims.SessionID
 
 	// Call sessions endpoint using the access token
 	req, _ := http.NewRequest(
@@ -164,18 +167,22 @@ func TestAuthHandler_GetSessions_CurrentSessionFlag(t *testing.T) {
 
 	data := resp["data"].([]interface{})
 
-	foundCurrent := false
+
+	foundExpectedSession := false
 
 	for _, item := range data {
 		session := item.(map[string]interface{})
 
-		if isCurrent, ok := session["isCurrent"].(bool); ok && isCurrent {
-			foundCurrent = true
-			break
+		sessionID := session["id"].(string)
+		isCurrent := session["isCurrent"].(bool)
+
+		if sessionID == expectedSessionID {
+			assert.True(t, isCurrent, "expected session used by request token to be current")
+			foundExpectedSession = true
 		}
 	}
 
-	assert.True(t, foundCurrent, "expected one session to be marked as current")
+	assert.True(t, foundExpectedSession, "expected session ID not found in response")
 
-	_ = user
+	assert.True(t, foundExpectedSession, "expected one session to be marked as current")
 }
