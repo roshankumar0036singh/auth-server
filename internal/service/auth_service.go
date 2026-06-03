@@ -310,11 +310,11 @@ func (s *AuthService) VerifyLoginMFA(email, code, ipAddress, userAgent string) (
 	if err != nil {
 		return nil, errors.New("failed to generate refresh token")
 	}
-
+	expiry, _ := time.ParseDuration(s.config.JWT.RefreshExpiry)
 	refreshToken := &models.RefreshToken{
 		UserID:    user.ID,
 		Token:     refreshTokenString,
-		ExpiresAt: time.Now().Add(7 * 24 * time.Hour), 
+		ExpiresAt: time.Now().Add(expiry),
 		IPAddress: ipAddress,
 		UserAgent: userAgent,
 	}
@@ -503,13 +503,15 @@ func (s *AuthService) Login(req *dto.LoginRequest, ipAddress, userAgent string) 
 	}
 
 	// Store refresh token
+	expiry, _ := time.ParseDuration(s.config.JWT.RefreshExpiry)
+
 	refreshToken := &models.RefreshToken{
-		UserID:    user.ID,
-		Token:     refreshTokenString,
-		ExpiresAt: time.Now().Add(7 * 24 * time.Hour), // TODO: Align with config
-		IPAddress: ipAddress,
-		UserAgent: userAgent,
-	}
+	UserID:    user.ID,
+	Token:     refreshTokenString,
+	ExpiresAt: time.Now().Add(expiry),
+	IPAddress: ipAddress,
+	UserAgent: userAgent,
+}
 
 	if err := s.tokenRepo.CreateRefreshToken(refreshToken); err != nil {
 		return nil, errors.New("failed to store refresh token")
@@ -581,13 +583,15 @@ func (s *AuthService) LoginWithOAuth(email, oauthID, firstName, lastName, provid
 		return nil, errors.New("failed to generate refresh token")
 	}
 
+	expiry, _ := time.ParseDuration(s.config.JWT.RefreshExpiry)
+
 	refreshToken := &models.RefreshToken{
 		UserID:    user.ID,
 		Token:     refreshTokenString,
-		ExpiresAt: time.Now().Add(7 * 24 * time.Hour), 
+		ExpiresAt: time.Now().Add(expiry),
 		IPAddress: ipAddress,
 		UserAgent: userAgent,
-	}
+}
 
 	if err := s.tokenRepo.CreateRefreshToken(refreshToken); err != nil {
 		return nil, errors.New("failed to store refresh token")
@@ -680,10 +684,12 @@ func (s *AuthService) RefreshAccessToken(refreshTokenString string, ipAddress, u
 	}
 
 	// Store new refresh token
+	expiry, _ := time.ParseDuration(s.config.JWT.RefreshExpiry)
+
 	newRefreshToken := &models.RefreshToken{
 		UserID:    user.ID,
 		Token:     newRefreshTokenString,
-		ExpiresAt: time.Now().Add(7 * 24 * time.Hour),
+		ExpiresAt: time.Now().Add(expiry),
 		IPAddress: ipAddress,
 		UserAgent: userAgent,
 	}
