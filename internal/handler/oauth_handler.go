@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -259,30 +260,30 @@ func (h *OAuthHandler) UserInfo(c *gin.Context) {
 		"scopes": accessToken.Scopes,
 	}
 
-	if hasScope(accessToken.Scopes, "read:profile") {
-		response["name"] = strings.TrimSpace(user.FirstName + " " + user.LastName)
-		response["given_name"] = user.FirstName
-		response["family_name"] = user.LastName
+	if slices.Contains(accessToken.Scopes, "read:profile") {
+		name := strings.TrimSpace(user.FirstName + " " + user.LastName)
+		if name != "" {
+			response["name"] = name
+		}
+		if user.FirstName != "" {
+			response["given_name"] = user.FirstName
+		}
+		if user.LastName != "" {
+			response["family_name"] = user.LastName
+		}
 		if user.ProfileImage != "" {
 			response["picture"] = user.ProfileImage
 		}
 	}
 
-	if hasScope(accessToken.Scopes, "read:email") {
-		response["email"] = user.Email
-		response["email_verified"] = user.EmailVerified
+	if slices.Contains(accessToken.Scopes, "read:email") {
+		if user.Email != "" {
+			response["email"] = user.Email
+			response["email_verified"] = user.EmailVerified
+		}
 	}
 
 	c.JSON(http.StatusOK, response)
-}
-
-func hasScope(scopes []string, scope string) bool {
-	for _, value := range scopes {
-		if value == scope {
-			return true
-		}
-	}
-	return false
 }
 
 func redirectWithCode(c *gin.Context, redirectURI, code, state string) {

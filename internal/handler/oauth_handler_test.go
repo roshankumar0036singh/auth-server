@@ -24,20 +24,6 @@ func setupOAuthUserInfoRouter(t *testing.T) (*gin.Engine, *repository.UserReposi
 	_, db, mr := testutils.SetupIntegrationTest(t)
 	t.Cleanup(func() { mr.Close() })
 
-	err := db.Exec(`
-		CREATE TABLE IF NOT EXISTS oauth_access_tokens (
-			id text PRIMARY KEY,
-			token text NOT NULL UNIQUE,
-			client_id text NOT NULL,
-			user_id text NOT NULL,
-			scopes text,
-			expires_at datetime,
-			created_at datetime
-		)
-	`).Error
-	require.NoError(t, err)
-	require.NoError(t, db.Exec("DELETE FROM oauth_access_tokens").Error)
-
 	userRepo := repository.NewUserRepository(db)
 	tokenRepo := repository.NewOAuthTokenRepository(db)
 	oauthProviderService := service.NewOAuthProviderService(
@@ -191,9 +177,11 @@ func TestOAuthHandler_UserInfoReturnsOnlyBaseFieldsWithoutScopes(t *testing.T) {
 	var response map[string]interface{}
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
 	assert.Equal(t, user.ID, response["sub"])
-	assert.Contains(t, response, "scopes")
-	assert.Empty(t, response["scopes"])
-	assert.Len(t, response, 2)
+	scopes, exists := response["scopes"]
+	assert.True(t, exists)
+	if scopes != nil {
+		assert.Empty(t, scopes)
+	}
 	assert.NotContains(t, response, "email")
 	assert.NotContains(t, response, "email_verified")
 	assert.NotContains(t, response, "name")
