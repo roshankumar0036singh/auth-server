@@ -44,10 +44,6 @@ Installation commands resolve the published package. This reference follows the 
 
 This guide documents the public contract exported by the TypeScript SDK in this repository.
 
-> [!WARNING]
-> The current SDK and Go server source do not use the same JSON field casing in several places. The SDK sends or expects fields such as `access_token`, `refresh_token`, `first_name`, and `qr_code`, while the server currently uses fields such as `accessToken`, `refreshToken`, `firstName`, and `qrCodeUrl`. Login, refresh, registration, profile updates, password changes, sessions, audit logs, and MFA responses can therefore require contract alignment before this checkout works end to end.
-> `loginWithGoogle()` and `loginWithGitHub()` redirect to the server's social-login flow. The current server callback returns a JSON login response; it does not redirect back to the frontend or call `setSession()` automatically.
-
 Validate the deployed API contract before using the SDK in production. See the [OpenAPI specification](../swagger.yaml), [SDK types](../../clients/ts/src/types.ts), and [server DTOs](../../internal/dto/auth_dto.go) when aligning an integration.
 
 ## Installation
