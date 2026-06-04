@@ -15,6 +15,14 @@ import (
 	"github.com/roshankumar0036singh/auth-server/internal/utils"
 )
 
+var (
+	ErrUserNotFound      = errors.New("user not found")
+    ErrSelfLock          = errors.New("admin cannot lock their own account")
+    ErrAdminLock         = errors.New("admin accounts cannot be locked")
+    ErrAlreadyLocked     = errors.New("account is already locked")
+    ErrNotLocked         = errors.New("account is not locked")
+)
+
 type AuthService struct {
 	userRepo          *repository.UserRepository
 	tokenRepo         *repository.TokenRepository
@@ -771,6 +779,57 @@ func (s *AuthService) RevokeSession(userID, tokenID string) error {
 	if err := s.tokenRepo.RevokeRefreshTokenByID(tokenID); err != nil {
 		return errors.New("failed to revoke session")
 	}
+
+	return nil
+}
+
+func(s *AuthService) LockUser(userId , adminId, ipAddress, userAgent string) error {
+	if userId == adminId {
+		return ErrSelfLock
+	}
+
+	user, err := s.userRepo.FindByID(userId)
+	if err != nil {
+		return ErrUserNotFound
+	}
+
+	if user.Role == "admin" {
+		return ErrAdminLock
+	}
+
+	if user.LockedUntil != nil && time.Now().Before(*user.LockedUntil) {
+		return ErrAlreadyLocked
+	}
+
+	// effectively until manually unlocked
+	lockedUntil := time.Now().AddDate(100, 0, 0)
+
+	if err := s.userRepo.Update(userId,map[string]interface{}{"locked_until": lockedUntil}); err != nil{
+		return errors.New("failed to lock user")
+	}
+
+	if err := s.tokenRepo.RevokeAllUserTokens(userId); err != nil {
+	    return err
+	}
+	s.auditService.LogEvent(&userId, "USER_LOCKED", "USER", userId, ipAddress, userAgent, map[string]interface{}{"locked_until": lockedUntil})
+	return nil
+}
+
+func (s *AuthService) UnlockUser(userId, adminId, ipAddress, userAgent string) error {
+	user,err := s.userRepo.FindByID(userId)
+	if err != nil {
+		 return ErrUserNotFound
+	}
+
+	if user.LockedUntil == nil || !time.Now().Before(*user.LockedUntil){
+		 return ErrNotLocked
+	}
+
+	if err := s.userRepo.Update(userId,map[string]interface{}{"locked_until": nil, "failed_login_attempts": 0}); err != nil{
+	return errors.New("failed to unlock user")
+	}
+
+	s.auditService.LogEvent(&userId, "USER_UNLOCKED", "USER", userId, ipAddress, userAgent, map[string]interface{}{"locked_until": nil})
 
 	return nil
 }

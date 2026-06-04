@@ -39,21 +39,59 @@ func (h *AdminHandler) GetUsers(c *gin.Context) {
 // @Success 200 {object} utils.Response
 // @Router /api/admin/users/{id}/lock [post]
 func (h *AdminHandler) LockUser(c *gin.Context) {
+	adminId := c.GetString("userID") 
 	userID := c.Param("id")
-	// TODO: Implement LockUser in AuthService
+	ipAddress := c.ClientIP()
+	userAgent := c.GetHeader("User-Agent")
+	if err := h.authService.LockUser(userID,adminId, ipAddress, userAgent); err != nil {
+		switch err {
+		case service.ErrUserNotFound:
+			c.JSON(http.StatusNotFound,
+				utils.ErrorResponse("User not found", err))
+		case service.ErrSelfLock:
+			c.JSON(http.StatusBadRequest,
+				utils.ErrorResponse("Cannot lock your own account", err))
+		case service.ErrAdminLock:
+			c.JSON(http.StatusForbidden,
+				utils.ErrorResponse("Admin accounts cannot be locked", err))
+		case service.ErrAlreadyLocked:
+			c.JSON(http.StatusConflict,
+				utils.ErrorResponse("Account is already locked", err))
+		default:
+			c.JSON(http.StatusInternalServerError,
+				utils.ErrorResponse("Failed to lock user", err))
+		}
+		return
+	}
 	c.JSON(http.StatusOK, utils.SuccessResponse("User locked successfully", map[string]string{"userID": userID}))
 }
 
 // UnlockUser unlocks a user account
-// @Summary Unlock user
+// @Summary Unlock user     
 // @Tags admin
 // @Security BearerAuth
 // @Param id path string true "User ID"
 // @Success 200 {object} utils.Response
 // @Router /api/admin/users/{id}/unlock [post]
 func (h *AdminHandler) UnlockUser(c *gin.Context) {
+	adminId := c.GetString("userID")
 	userID := c.Param("id")
-	// TODO: Implement UnlockUser in AuthService
+	ipAddress := c.ClientIP()
+	userAgent := c.GetHeader("User-Agent")
+	if err := h.authService.UnlockUser(userID, adminId, ipAddress, userAgent); err != nil {
+	switch err {
+	case service.ErrUserNotFound:
+		c.JSON(http.StatusNotFound,
+			utils.ErrorResponse("User not found", err))
+	case service.ErrNotLocked:
+		c.JSON(http.StatusBadRequest,
+			utils.ErrorResponse("Account is not locked", err))
+	default:
+		c.JSON(http.StatusInternalServerError,
+			utils.ErrorResponse("Failed to unlock user", err))
+	}
+	return
+	}
 	c.JSON(http.StatusOK, utils.SuccessResponse("User unlocked successfully", map[string]string{"userID": userID}))
 }
 
