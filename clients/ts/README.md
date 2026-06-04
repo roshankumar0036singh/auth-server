@@ -41,9 +41,14 @@ Create one client for your browser application:
 import { AuthClient, AuthError } from '@authserver/client';
 
 const auth = new AuthClient({
-  serverUrl: 'https://auth.example.com',
-  clientId: 'your-oauth-client-id',
-  storage: 'localStorage',
+  serverUrl: 'https://auth-server-4nmm.onrender.com',
+  clientId: 'your_oauth_client_id',
+  storage: 'localStorage', // 'sessionStorage' | 'memory' (default)
+});
+
+// Listen to auth state changes
+const unsubscribe = auth.onAuthStateChanged((session) => {
+  console.log(session ? 'Logged in' : 'Logged out');
 });
 
 try {
@@ -92,9 +97,9 @@ Create the client outside React components so renders do not replace it:
 // auth.ts
 import { AuthClient } from '@authserver/client';
 
-export const authClient = new AuthClient({
-  serverUrl: 'https://auth.example.com',
-  clientId: 'your-oauth-client-id',
+const authClient = new AuthClient({
+  serverUrl: 'https://auth-server-4nmm.onrender.com',
+  clientId: 'your_oauth_client_id',
   storage: 'localStorage',
 });
 ```
