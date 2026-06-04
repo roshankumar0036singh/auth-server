@@ -184,8 +184,7 @@ func TestAuthHandler_GetSessions_CurrentSessionFlag(t *testing.T) {
 	}
 
 	assert.True(t, foundExpectedSession, "expected session ID not found in response")
-
-	assert.True(t, foundExpectedSession, "expected one session to be marked as current")
+	
 }
 
 func TestAuthHandler_GetSessions_NoSessionIDInContext(t *testing.T) {

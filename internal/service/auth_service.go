@@ -300,36 +300,15 @@ func (s *AuthService) VerifyLoginMFA(email, code, ipAddress, userAgent string) (
 		return nil, errors.New("invalid TOTP code")
 	}
 
-	refreshTokenString, err := s.tokenService.GenerateRefreshToken(user)
+	response, err := s.createLoginResponse(user, ipAddress, userAgent)
 	if err != nil {
-		return nil, errors.New("failed to generate refresh token")
-	}
-
-	refreshToken := &models.RefreshToken{
-		UserID:    user.ID,
-		Token:     refreshTokenString,
-		ExpiresAt: time.Now().Add(7 * 24 * time.Hour),
-		IPAddress: ipAddress,
-		UserAgent: userAgent,
-	}
-
-	if err := s.tokenRepo.CreateRefreshToken(refreshToken); err != nil {
-		return nil, errors.New("failed to store refresh token")
-	}
-
-	// Generate tokens
-	accessToken, err := s.tokenService.GenerateAccessToken(user, refreshToken.ID)
-	if err != nil {
-		return nil, errors.New("failed to generate access token")
+		return nil, err
 	}
 
 	s.auditService.LogEvent(&user.ID, "USER_LOGIN_SUCCESS_MFA", "USER", user.ID, ipAddress, userAgent, nil)
 
-	return &dto.LoginResponse{
-		AccessToken:  accessToken,
-		RefreshToken: refreshTokenString,
-		User:         user.ToPublic(),
-	}, nil
+	return response, nil
+
 }
 
 // Register creates a new user account and sends verification email
@@ -490,43 +469,20 @@ func (s *AuthService) Login(req *dto.LoginRequest, ipAddress, userAgent string) 
 		return nil, errors.New("mfa_required")
 	}
 
-	refreshTokenString, err := s.tokenService.GenerateRefreshToken(user)
-	if err != nil {
-		return nil, errors.New("failed to generate refresh token")
-	}
-
-	// Store refresh token
-	refreshToken := &models.RefreshToken{
-		UserID:    user.ID,
-		Token:     refreshTokenString,
-		ExpiresAt: time.Now().Add(7 * 24 * time.Hour), // TODO: Align with config
-		IPAddress: ipAddress,
-		UserAgent: userAgent,
-	}
-
-	if err := s.tokenRepo.CreateRefreshToken(refreshToken); err != nil {
-		return nil, errors.New("failed to store refresh token")
-	}
-
-	// Generate tokens
-	accessToken, err := s.tokenService.GenerateAccessToken(user, refreshToken.ID)
-	if err != nil {
-		return nil, errors.New("failed to generate access token")
-	}
-
 	// Update last login
 	if err := s.userRepo.Update(user.ID, map[string]interface{}{"last_login_at": time.Now()}); err != nil {
 		log.Printf("Failed to update last login for user %s: %v", user.ID, err)
 	}
 
+	response, err := s.createLoginResponse(user, ipAddress, userAgent)
+	if err != nil {
+		return nil, err
+	}
+
 	// Audit Log
 	s.auditService.LogEvent(&user.ID, "USER_LOGIN_SUCCESS", "USER", user.ID, ipAddress, userAgent, nil)
 
-	return &dto.LoginResponse{
-		AccessToken:  accessToken,
-		RefreshToken: refreshTokenString,
-		User:         user.ToPublic(),
-	}, nil
+	return response, nil
 }
 
 // LoginWithOAuth handles login or registration via OAuth provider
@@ -569,36 +525,15 @@ func (s *AuthService) LoginWithOAuth(email, oauthID, firstName, lastName, provid
 		}
 	}
 
-	refreshTokenString, err := s.tokenService.GenerateRefreshToken(user)
+	response, err := s.createLoginResponse(user, ipAddress, userAgent)
 	if err != nil {
-		return nil, errors.New("failed to generate refresh token")
-	}
-
-	refreshToken := &models.RefreshToken{
-		UserID:    user.ID,
-		Token:     refreshTokenString,
-		ExpiresAt: time.Now().Add(7 * 24 * time.Hour),
-		IPAddress: ipAddress,
-		UserAgent: userAgent,
-	}
-
-	if err := s.tokenRepo.CreateRefreshToken(refreshToken); err != nil {
-		return nil, errors.New("failed to store refresh token")
-	}
-
-	// Generate tokens
-	accessToken, err := s.tokenService.GenerateAccessToken(user, refreshToken.ID)
-	if err != nil {
-		return nil, errors.New("failed to generate access token")
+		return nil, err
 	}
 
 	s.auditService.LogEvent(&user.ID, "USER_LOGIN_SUCCESS_OAUTH", "USER", user.ID, ipAddress, userAgent, nil)
 
-	return &dto.LoginResponse{
-		AccessToken:  accessToken,
-		RefreshToken: refreshTokenString,
-		User:         user.ToPublic(),
-	}, nil
+	return response, nil
+
 }
 
 func (s *AuthService) handleFailedLogin(user *models.User, email string, ctx context.Context) {
@@ -675,19 +610,14 @@ func (s *AuthService) RefreshAccessToken(refreshTokenString string, ipAddress, u
 		IPAddress: ipAddress,
 		UserAgent: userAgent,
 	}
+    
 
-	// Create new refresh token
-	if err := s.tokenRepo.CreateRefreshToken(newRefreshToken); err != nil {
-		return nil, errors.New("failed to store new refresh token")
-	}
-
-	// Revoke old refresh token
-	if err := s.tokenRepo.RevokeRefreshToken(refreshTokenString); err != nil {
-		// Rollback: remove the newly created token to avoid inconsistent state
-		if rollbackErr := s.tokenRepo.RevokeRefreshTokenByID(newRefreshToken.ID); rollbackErr != nil {
-			log.Printf("Warning: failed to rollback new refresh token %s: %v", newRefreshToken.ID, rollbackErr)
-		}
-		return nil, errors.New("failed to revoke old refresh token")
+	// transaction handling creation and rotation of refresh tokens
+	if err := s.tokenRepo.RotateRefreshToken(
+		refreshTokenString,
+		newRefreshToken,
+	); err != nil {
+		return nil, errors.New("failed to rotate refresh token")
 	}
 
 	// Generate new access token
@@ -777,4 +707,39 @@ func (s *AuthService) RevokeSession(userID, tokenID string) error {
 	}
 
 	return nil
+}
+
+func (s *AuthService) createLoginResponse(
+	user *models.User,
+	ipAddress string,
+	userAgent string,
+) (*dto.LoginResponse, error) {
+
+	refreshTokenString, err := s.tokenService.GenerateRefreshToken(user)
+	if err != nil {
+		return nil, errors.New("failed to generate refresh token")
+	}
+
+	refreshToken := &models.RefreshToken{
+		UserID:    user.ID,
+		Token:     refreshTokenString,
+		ExpiresAt: time.Now().Add(7 * 24 * time.Hour),
+		IPAddress: ipAddress,
+		UserAgent: userAgent,
+	}
+
+	if err := s.tokenRepo.CreateRefreshToken(refreshToken); err != nil {
+		return nil, errors.New("failed to store refresh token")
+	}
+
+	accessToken, err := s.tokenService.GenerateAccessToken(user, refreshToken.ID)
+	if err != nil {
+		return nil, errors.New("failed to generate access token")
+	}
+
+	return &dto.LoginResponse{
+		AccessToken:  accessToken,
+		RefreshToken: refreshTokenString,
+		User:         user.ToPublic(),
+	}, nil
 }

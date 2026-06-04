@@ -61,7 +61,7 @@ func (r *TokenRepository) RevokeRefreshToken(tokenString string) error {
 	result := r.db.Model(&models.RefreshToken{}).
 		Where("token = ?", tokenString).
 		Update("is_revoked", true)
-	
+
 	if result.Error != nil {
 		return result.Error
 	}
@@ -76,7 +76,7 @@ func (r *TokenRepository) RevokeRefreshTokenByID(id string) error {
 	result := r.db.Model(&models.RefreshToken{}).
 		Where("id = ?", id).
 		Update("is_revoked", true)
-	
+
 	if result.Error != nil {
 		return result.Error
 	}
@@ -97,7 +97,7 @@ func (r *TokenRepository) RevokeAllUserTokens(userID string) error {
 func (r *TokenRepository) DeleteExpiredTokens() (int64, error) {
 	result := r.db.Where("expires_at < ?", time.Now()).
 		Delete(&models.RefreshToken{})
-	
+
 	if result.Error != nil {
 		return 0, result.Error
 	}
@@ -109,7 +109,7 @@ func (r *TokenRepository) DeleteRevokedTokens(olderThan time.Duration) (int64, e
 	cutoffTime := time.Now().Add(-olderThan)
 	result := r.db.Where("is_revoked = ? AND updated_at < ?", true, cutoffTime).
 		Delete(&models.RefreshToken{})
-	
+
 	if result.Error != nil {
 		return 0, result.Error
 	}
@@ -123,4 +123,28 @@ func (r *TokenRepository) CountUserActiveSessions(userID string) (int64, error) 
 		Where("user_id = ? AND is_revoked = ? AND expires_at > ?", userID, false, time.Now()).
 		Count(&count).Error
 	return count, err
+}
+
+func (r *TokenRepository) RotateRefreshToken(oldToken string, newToken *models.RefreshToken) error {
+
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(newToken).Error; err != nil {
+			return err
+		}
+
+		result := tx.Model(&models.RefreshToken{}).
+			Where("token = ?", oldToken).
+			Update("is_revoked", true)
+
+		if result.Error != nil {
+			return result.Error
+		}
+
+		if result.RowsAffected == 0 {
+			return errors.New("refresh token not found")
+		}
+
+		return nil
+
+	})
 }
