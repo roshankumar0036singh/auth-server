@@ -30,6 +30,7 @@ func setupOAuthUserInfoRouter(t *testing.T) (*gin.Engine, *repository.UserReposi
 		repository.NewAuthorizationCodeRepository(db),
 		tokenRepo,
 		repository.NewUserConsentRepository(db),
+		repository.NewOAuthProviderConfigRepository(db),
 		service.NewTokenService(&config.Config{
 			JWT: config.JWTConfig{AccessSecret: "secret", RefreshSecret: "refresh"},
 		}),
@@ -75,6 +76,7 @@ func TestNewOAuthHandlerPanicsWithoutUserRepository(t *testing.T) {
 		repository.NewAuthorizationCodeRepository(db),
 		tokenRepo,
 		repository.NewUserConsentRepository(db),
+		repository.NewOAuthProviderConfigRepository(db),
 		service.NewTokenService(&config.Config{
 			JWT: config.JWTConfig{AccessSecret: "secret", RefreshSecret: "refresh"},
 		}),
@@ -258,4 +260,51 @@ func TestOAuthHandler_UserInfoHandlesMissingUser(t *testing.T) {
 	var response map[string]interface{}
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
 	assert.Equal(t, "user_not_found", response["error"])
+}
+
+func TestOAuthHandler_UserInfo_ErrorCases(t *testing.T) {
+	tests := []struct {
+		name           string
+		authHeader     string
+		expectedStatus int
+		expectedError  string
+	}{
+		{
+			name:           "missing authorization header",
+			authHeader:     "",
+			expectedStatus: http.StatusUnauthorized,
+			expectedError:  "missing_token",
+		},
+		{
+			name:           "invalid token format without bearer prefix",
+			authHeader:     "InvalidFormatToken",
+			expectedStatus: http.StatusUnauthorized,
+			expectedError:  "invalid_token_format",
+		},
+		{
+			name:           "invalid or fake token",
+			authHeader:     "Bearer this-is-a-fake-token",
+			expectedStatus: http.StatusUnauthorized,
+			expectedError:  "invalid access token",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r, _, _ := setupOAuthUserInfoRouter(t)
+
+			req := httptest.NewRequest(http.MethodGet, "/oauth/userinfo", nil)
+			if tt.authHeader != "" {
+				req.Header.Set("Authorization", tt.authHeader)
+			}
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
+
+			assert.Equal(t, tt.expectedStatus, w.Code)
+
+			var response map[string]interface{}
+			require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
+			assert.Equal(t, tt.expectedError, response["error"])
+		})
+	}
 }
