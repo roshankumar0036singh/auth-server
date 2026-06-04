@@ -13,6 +13,7 @@ import (
 	"github.com/roshankumar0036singh/auth-server/internal/repository"
 	"github.com/roshankumar0036singh/auth-server/internal/utils"
 	"golang.org/x/crypto/bcrypt"
+	"gorm.io/gorm"
 )
 
 var (
@@ -42,6 +43,7 @@ type AuthService struct {
 	auditService      *AuditService
 	mfaService        *MFAService
 	config            *config.Config
+	db                *gorm.DB
 }
 
 func NewAuthService(
@@ -55,6 +57,7 @@ func NewAuthService(
 	auditService *AuditService,
 	mfaService *MFAService,
 	cfg *config.Config,
+	db *gorm.DB,
 ) *AuthService {
 	return &AuthService{
 		userRepo:          userRepo,
@@ -67,6 +70,7 @@ func NewAuthService(
 		auditService:      auditService,
 		mfaService:        mfaService,
 		config:            cfg,
+		db:                db,
 	}
 }
 
@@ -795,56 +799,61 @@ func (s *AuthService) LockUser(userID, adminID, ipAddress, userAgent string) err
 		return ErrSelfLock
 	}
 
-	user, err := s.userRepo.FindByID(userID)
-	if err != nil {
-		if errors.Is(err, repository.ErrUserNotFound) {
-			return ErrUserNotFound
+	return s.db.Transaction(func(tx *gorm.DB) error {
+
+		user, err := s.userRepo.FindByID(userID)
+		if err != nil {
+			if errors.Is(err, repository.ErrUserNotFound) {
+				return ErrUserNotFound
+			}
+			return err
 		}
-		return err
-	}
 
-	if user.Role == "admin" {
-		return ErrAdminLock
-	}
+		if user.Role == "admin" {
+			return ErrAdminLock
+		}
 
-	if user.IsLocked() {
-		return ErrAlreadyLocked
-	}
+		if user.IsLocked() {
+			return ErrAlreadyLocked
+		}
 
-	// effective until manually unlocked
-	lockedUntil := time.Now().AddDate(100, 0, 0)
+		// effective until manually unlocked
+		lockedUntil := time.Now().AddDate(100, 0, 0)
 
-	if err := s.userRepo.LockUser(userID, lockedUntil); err != nil {
-		return fmt.Errorf("lock user: %w", err)
-	}
+		if err := s.userRepo.LockUser(userID, lockedUntil); err != nil {
+			return fmt.Errorf("lock user: %w", err)
+		}
 
-	if err := s.tokenRepo.RevokeAllUserTokens(userID); err != nil {
-		return fmt.Errorf("revoke user tokens: %w", err)
-	}
+		if err := s.tokenRepo.RevokeAllUserTokens(userID); err != nil {
+			return fmt.Errorf("revoke user tokens: %w", err)
+		}
 
-	s.auditService.LogEvent(&adminID, "USER_LOCKED", "USER", userID, ipAddress, userAgent, map[string]interface{}{"locked_until": lockedUntil})
+		s.auditService.LogEvent(&adminID, "USER_LOCKED", "USER", userID, ipAddress, userAgent, map[string]interface{}{"locked_until": lockedUntil})
 
-	return nil
+		return nil
+	})
 }
 
 func (s *AuthService) UnlockUser(userID, adminID, ipAddress, userAgent string) error {
-	user, err := s.userRepo.FindByID(userID)
-	if err != nil {
-		if errors.Is(err, repository.ErrUserNotFound) {
-			return ErrUserNotFound
+	return s.db.Transaction(func(tx *gorm.DB) error {
+		user, err := s.userRepo.FindByID(userID)
+		if err != nil {
+			if errors.Is(err, repository.ErrUserNotFound) {
+				return ErrUserNotFound
+			}
+			return err
 		}
-		return err
-	}
 
-	if !user.IsLocked() {
-		return ErrNotLocked
-	}
+		if !user.IsLocked() {
+			return ErrNotLocked
+		}
 
-	if err := s.userRepo.UnlockUser(userID); err != nil {
-		return fmt.Errorf("unlock user: %w", err)
-	}
+		if err := s.userRepo.UnlockUser(userID); err != nil {
+			return fmt.Errorf("unlock user: %w", err)
+		}
 
-	s.auditService.LogEvent(&adminID, "USER_UNLOCKED", "USER", userID, ipAddress, userAgent, map[string]interface{}{"locked_until": nil})
+		s.auditService.LogEvent(&adminID, "USER_UNLOCKED", "USER", userID, ipAddress, userAgent, map[string]interface{}{"locked_until": nil})
 
-	return nil
+		return nil
+	})
 }

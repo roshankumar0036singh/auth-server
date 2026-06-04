@@ -96,6 +96,12 @@ func TestAuthService_LockUser(t *testing.T) {
 
 	promoteAdmin(t, db, admin.ID)
 
+	_, err := authSvc.Login(&dto.LoginRequest{
+		Email:    "user@example.com",
+		Password: "Password123!",
+	}, "127.0.0.1", "test-agent")
+	require.NoError(t, err)
+
 	require.NoError(t,
 		authSvc.LockUser(user.ID, admin.ID, "127.0.0.1", "test-agent"),
 	)
@@ -103,13 +109,16 @@ func TestAuthService_LockUser(t *testing.T) {
 	updatedUser, err := repository.NewUserRepository(db).FindByID(user.ID)
 	require.NoError(t, err)
 
-	assert.NotNil(t, updatedUser.LockedUntil)
-	assert.True(t, updatedUser.IsLocked())
+	require.NotNil(t, updatedUser.LockedUntil)
+	require.True(t, updatedUser.IsLocked())
 
 	var tokenCount int64
-	db.Model(&models.RefreshToken{}).
-		Where("user_id = ?", user.ID).
-		Count(&tokenCount)
+
+	require.NoError(t,
+		db.Model(&models.RefreshToken{}).
+			Where("user_id = ? AND is_revoked = ?", user.ID, false).
+			Count(&tokenCount).Error,
+	)
 
 	assert.Equal(t, int64(0), tokenCount)
 }
@@ -122,6 +131,21 @@ func TestAuthService_LockUser_TokenRevocation(t *testing.T) {
 
 	promoteAdmin(t, db, admin.ID)
 
+	loginResp, err := authSvc.Login(&dto.LoginRequest{
+		Email:    "user2@example.com",
+		Password: "Password123!",
+	}, "127.0.0.1", "test-agent")
+	require.NoError(t, err)
+	require.NotEmpty(t, loginResp.AccessToken)
+
+	var before int64
+	require.NoError(t,
+		db.Model(&models.RefreshToken{}).
+			Where("user_id = ?", user.ID).
+			Count(&before).Error,
+	)
+	require.Greater(t, before, int64(0))
+
 	require.NoError(t,
 		authSvc.LockUser(user.ID, admin.ID, "", ""),
 	)
@@ -130,6 +154,16 @@ func TestAuthService_LockUser_TokenRevocation(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.NotNil(t, updatedUser.LockedUntil)
+
+	var after int64
+
+	require.NoError(t,
+		db.Model(&models.RefreshToken{}).
+			Where("user_id = ? AND is_revoked = ?", user.ID, false).
+			Count(&after).Error,
+	)
+
+	assert.Equal(t, int64(0), after)
 }
 
 func TestAuthService_LockUser_SelfLock(t *testing.T) {
