@@ -118,7 +118,7 @@ func (s *AuthService) ResetPassword(tokenString, newPassword string) error {
 	// Hash new password
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
 	if err != nil {
-		return errors.New("failed to hash password")
+		return errors.New(errHashPassword)
 	}
 
 	// Update user password
@@ -181,7 +181,7 @@ func (s *AuthService) GetUserAuditLogs(userID string) ([]models.AuditLog, error)
 func (s *AuthService) ChangePassword(userID string, req *dto.ChangePasswordRequest) error {
 	user, err := s.userRepo.FindByID(userID)
 	if err != nil {
-		return errors.New("user not found")
+		return errors.New(errUserNotFound)
 	}
 
 	// Verify current password
@@ -197,7 +197,7 @@ func (s *AuthService) ChangePassword(userID string, req *dto.ChangePasswordReque
 	// Hash new password
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.NewPassword), bcrypt.DefaultCost)
 	if err != nil {
-		return errors.New("failed to hash password")
+		return errors.New(errHashPassword)
 	}
 
 	// Update password
@@ -266,7 +266,7 @@ func (s *AuthService) EnableMFA(userID string) (*dto.MFAEnableResponse, error) {
 func (s *AuthService) VerifyEnableMFA(userID, code string) error {
 	user, err := s.userRepo.FindByID(userID)
 	if err != nil {
-		return errors.New("user not found")
+		return errors.New(errUserNotFound)
 	}
 
 	if user.MFAEnabled {
@@ -435,7 +435,7 @@ func (s *AuthService) VerifyEmail(tokenString string) error {
 func (s *AuthService) ResendVerification(email string) error {
 	user, err := s.userRepo.FindByEmail(email)
 	if err != nil {
-		return errors.New("user not found")
+		return errors.New(errUserNotFound)
 	}
 
 	if user.EmailVerified {

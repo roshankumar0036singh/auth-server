@@ -10,7 +10,7 @@ import (
 )
 
 // Encrypt encrypts plain text string into base64 encoded string
-func Encrypt(plaintext string, key string) (string, error) {
+func Encrypt(plaintext, key string) (string, error) {
 	if plaintext == "" {
 		return "", nil
 	}
@@ -40,7 +40,7 @@ func Encrypt(plaintext string, key string) (string, error) {
 }
 
 // Decrypt decrypts base64 encoded string into plain text string
-func Decrypt(cryptoText string, key string) (string, error) {
+func Decrypt(cryptoText, key string) (string, error) {
 	if cryptoText == "" {
 		return "", nil
 	}

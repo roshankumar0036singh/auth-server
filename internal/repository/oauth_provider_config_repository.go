@@ -19,7 +19,7 @@ func (r *OAuthProviderConfigRepository) Create(config *models.OAuthProviderConfi
 }
 
 // FindByClientAndProvider finds config by client ID and provider
-func (r *OAuthProviderConfigRepository) FindByClientAndProvider(clientID string, provider string) (*models.OAuthProviderConfig, error) {
+func (r *OAuthProviderConfigRepository) FindByClientAndProvider(clientID, provider string) (*models.OAuthProviderConfig, error) {
 	var config models.OAuthProviderConfig
 	err := r.db.Where("client_id = ? AND provider = ?", clientID, provider).First(&config).Error
 	if err != nil {

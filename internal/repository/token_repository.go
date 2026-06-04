@@ -68,7 +68,7 @@ func (r *TokenRepository) RevokeRefreshToken(tokenString string) error {
 		return result.Error
 	}
 	if result.RowsAffected == 0 {
-		return errors.New("refresh token not found")
+		return ErrRefreshTokenNotFound
 	}
 	return nil
 }
@@ -83,7 +83,7 @@ func (r *TokenRepository) RevokeRefreshTokenByID(id string) error {
 		return result.Error
 	}
 	if result.RowsAffected == 0 {
-		return errors.New("refresh token not found")
+		return ErrRefreshTokenNotFound
 	}
 	return nil
 }

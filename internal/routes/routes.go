@@ -143,9 +143,10 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, redisClient *redis.Client, cfg
 
 					// OAuth Provider Configurations
 					oauthProviderConfigHandler := handler.NewOAuthProviderConfigHandler(oauthProviderService)
-					oauthClients.POST("/:clientId/providers/:provider", oauthProviderConfigHandler.CreateOrUpdateProviderConfig)
-					oauthClients.GET("/:clientId/providers/:provider", oauthProviderConfigHandler.GetProviderConfig)
-					oauthClients.DELETE("/:clientId/providers/:provider", oauthProviderConfigHandler.DeleteProviderConfig)
+					providerConfigPath := "/:clientId/providers/:provider"
+					oauthClients.POST(providerConfigPath, oauthProviderConfigHandler.CreateOrUpdateProviderConfig)
+					oauthClients.GET(providerConfigPath, oauthProviderConfigHandler.GetProviderConfig)
+					oauthClients.DELETE(providerConfigPath, oauthProviderConfigHandler.DeleteProviderConfig)
 				}
 			}
 		}
