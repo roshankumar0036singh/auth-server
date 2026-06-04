@@ -4,8 +4,13 @@ import (
 	"testing"
 
 	"github.com/roshankumar0036singh/auth-server/internal/dto"
+	"github.com/roshankumar0036singh/auth-server/internal/models"
+	"github.com/roshankumar0036singh/auth-server/internal/repository"
+	"github.com/roshankumar0036singh/auth-server/internal/service"
 	"github.com/roshankumar0036singh/auth-server/internal/testutils"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 )
 
 func TestAuthService_Register_Integration(t *testing.T) {
@@ -57,4 +62,128 @@ func TestAuthService_Login_Integration(t *testing.T) {
 	}
 	_, err = service.Login(loginReqFail, "127.0.0.1", "UserAgent")
 	assert.Error(t, err)
+}
+
+func registerUser(t *testing.T, authSvc *service.AuthService, email string) *models.User {
+	t.Helper()
+
+	user, err := authSvc.Register(&dto.RegisterRequest{
+		Email:     email,
+		Password:  "Password123!",
+		FirstName: "Test",
+		LastName:  "User",
+	})
+	require.NoError(t, err)
+
+	return user
+}
+
+func promoteAdmin(t *testing.T, db *gorm.DB, userID string) {
+	t.Helper()
+
+	require.NoError(t,
+		db.Model(&models.User{}).
+			Where("id = ?", userID).
+			Update("role", "admin").Error,
+	)
+}
+
+func TestAuthService_LockUser(t *testing.T) {
+	authSvc, db, _ := testutils.SetupIntegrationTest(t)
+
+	admin := registerUser(t, authSvc, "admin@example.com")
+	user := registerUser(t, authSvc, "user@example.com")
+
+	promoteAdmin(t, db, admin.ID)
+
+	require.NoError(t,
+		authSvc.LockUser(user.ID, admin.ID, "127.0.0.1", "test-agent"),
+	)
+
+	updatedUser, err := repository.NewUserRepository(db).FindByID(user.ID)
+	require.NoError(t, err)
+
+	assert.NotNil(t, updatedUser.LockedUntil)
+	assert.True(t, updatedUser.IsLocked())
+
+	var tokenCount int64
+	db.Model(&models.RefreshToken{}).
+		Where("user_id = ?", user.ID).
+		Count(&tokenCount)
+
+	assert.Equal(t, int64(0), tokenCount)
+}
+
+func TestAuthService_LockUser_TokenRevocation(t *testing.T) {
+	authSvc, db, _ := testutils.SetupIntegrationTest(t)
+
+	admin := registerUser(t, authSvc, "admin2@example.com")
+	user := registerUser(t, authSvc, "user2@example.com")
+
+	promoteAdmin(t, db, admin.ID)
+
+	require.NoError(t,
+		authSvc.LockUser(user.ID, admin.ID, "", ""),
+	)
+
+	updatedUser, err := repository.NewUserRepository(db).FindByID(user.ID)
+	require.NoError(t, err)
+
+	assert.NotNil(t, updatedUser.LockedUntil)
+}
+
+func TestAuthService_LockUser_SelfLock(t *testing.T) {
+	authSvc, db, _ := testutils.SetupIntegrationTest(t)
+
+	user := registerUser(t, authSvc, "self@example.com")
+	promoteAdmin(t, db, user.ID)
+
+	err := authSvc.LockUser(user.ID, user.ID, "", "")
+	assert.ErrorIs(t, err, service.ErrSelfLock)
+}
+
+func TestAuthService_LockUser_AdminLock(t *testing.T) {
+	authSvc, db, _ := testutils.SetupIntegrationTest(t)
+
+	admin := registerUser(t, authSvc, "admin5@example.com")
+	user := registerUser(t, authSvc, "user5@example.com")
+
+	promoteAdmin(t, db, admin.ID)
+
+	err := authSvc.LockUser(admin.ID, user.ID, "", "")
+	assert.ErrorIs(t, err, service.ErrAdminLock)
+}
+
+func TestAuthService_UnlockUser(t *testing.T) {
+	authSvc, db, _ := testutils.SetupIntegrationTest(t)
+
+	admin := registerUser(t, authSvc, "admin3@example.com")
+	user := registerUser(t, authSvc, "user3@example.com")
+
+	promoteAdmin(t, db, admin.ID)
+
+	require.NoError(t,
+		authSvc.LockUser(user.ID, admin.ID, "", ""),
+	)
+
+	require.NoError(t,
+		authSvc.UnlockUser(user.ID, admin.ID, "", ""),
+	)
+
+	updatedUser, err := repository.NewUserRepository(db).FindByID(user.ID)
+	require.NoError(t, err)
+
+	assert.Nil(t, updatedUser.LockedUntil)
+}
+
+func TestAuthService_UnlockUser_WhenNotLocked(t *testing.T) {
+	authSvc, db, _ := testutils.SetupIntegrationTest(t)
+
+	admin := registerUser(t, authSvc, "admin4@example.com")
+	user := registerUser(t, authSvc, "user4@example.com")
+
+	promoteAdmin(t, db, admin.ID)
+
+	err := authSvc.UnlockUser(user.ID, admin.ID, "", "")
+	assert.ErrorIs(t, err, service.ErrNotLocked)
 }

@@ -7,20 +7,20 @@ import (
 	"log"
 	"time"
 
-	"golang.org/x/crypto/bcrypt"
 	"github.com/roshankumar0036singh/auth-server/internal/config"
 	"github.com/roshankumar0036singh/auth-server/internal/dto"
 	"github.com/roshankumar0036singh/auth-server/internal/models"
 	"github.com/roshankumar0036singh/auth-server/internal/repository"
 	"github.com/roshankumar0036singh/auth-server/internal/utils"
+	"golang.org/x/crypto/bcrypt"
 )
 
 var (
-	ErrUserNotFound      = errors.New("user not found")
-    ErrSelfLock          = errors.New("admin cannot lock their own account")
-    ErrAdminLock         = errors.New("admin accounts cannot be locked")
-    ErrAlreadyLocked     = errors.New("account is already locked")
-    ErrNotLocked         = errors.New("account is not locked")
+	ErrUserNotFound  = errors.New("user not found")
+	ErrSelfLock      = errors.New("admin cannot lock their own account")
+	ErrAdminLock     = errors.New("admin accounts cannot be locked")
+	ErrAlreadyLocked = errors.New("account is already locked")
+	ErrNotLocked     = errors.New("account is not locked")
 )
 
 type AuthService struct {
@@ -79,7 +79,7 @@ func (s *AuthService) ForgotPassword(email string) error {
 	token := &models.PasswordResetToken{
 		UserID:    user.ID,
 		Token:     s.tokenService.GenerateRandomString(32),
-		ExpiresAt: time.Now().Add(1 * time.Hour), 
+		ExpiresAt: time.Now().Add(1 * time.Hour),
 	}
 
 	if err := s.passwordResetRepo.Create(token); err != nil {
@@ -143,7 +143,7 @@ func (s *AuthService) ResetPassword(tokenString, newPassword string) error {
 // UpdateProfile updates user profile information
 func (s *AuthService) UpdateProfile(userID string, req *dto.UpdateProfileRequest) (*models.User, error) {
 	updates := make(map[string]interface{})
-	
+
 	if req.FirstName != "" {
 		updates["first_name"] = req.FirstName
 	}
@@ -209,7 +209,7 @@ func (s *AuthService) ChangePassword(userID string, req *dto.ChangePasswordReque
 
 	// Revoke all other sessions? Maybe optional, but good practice for security.
 	// For now, let's keep current session active.
-	
+
 	// Audit Log
 	s.auditService.LogEvent(&userID, "PASSWORD_CHANGED", "USER", userID, "", "", nil)
 
@@ -322,7 +322,7 @@ func (s *AuthService) VerifyLoginMFA(email, code, ipAddress, userAgent string) (
 	refreshToken := &models.RefreshToken{
 		UserID:    user.ID,
 		Token:     refreshTokenString,
-		ExpiresAt: time.Now().Add(7 * 24 * time.Hour), 
+		ExpiresAt: time.Now().Add(7 * 24 * time.Hour),
 		IPAddress: ipAddress,
 		UserAgent: userAgent,
 	}
@@ -369,7 +369,7 @@ func (s *AuthService) Register(req *dto.RegisterRequest) (*models.User, error) {
 		FirstName:     req.FirstName,
 		LastName:      req.LastName,
 		OAuthProvider: "local",
-		IsActive:      true,  // Can allow login but restrict features, or set false
+		IsActive:      true, // Can allow login but restrict features, or set false
 		EmailVerified: false,
 	}
 
@@ -448,7 +448,6 @@ func (s *AuthService) ResendVerification(email string) error {
 	// Send new email
 	return s.sendVerificationEmail(user)
 }
-
 
 // Login authenticates a user and returns tokens with device tracking
 func (s *AuthService) Login(req *dto.LoginRequest, ipAddress, userAgent string) (*dto.LoginResponse, error) {
@@ -545,7 +544,7 @@ func (s *AuthService) LoginWithOAuth(email, oauthID, firstName, lastName, provid
 		// User does not exist, create new one
 		password := s.tokenService.GenerateRandomString(32)
 		hashedPassword, _ := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
-		
+
 		user = &models.User{
 			Email:         email,
 			PasswordHash:  string(hashedPassword),
@@ -556,11 +555,11 @@ func (s *AuthService) LoginWithOAuth(email, oauthID, firstName, lastName, provid
 			IsActive:      true,
 			EmailVerified: true, // Trusted from OAuth
 		}
-		
+
 		if err := s.userRepo.Create(user); err != nil {
 			return nil, errors.New("failed to create user")
 		}
-		
+
 		s.auditService.LogEvent(&user.ID, "USER_REGISTERED_OAUTH", "USER", user.ID, "", "", map[string]interface{}{"provider": provider})
 	} else {
 		// User exists, link account if not generic local
@@ -592,7 +591,7 @@ func (s *AuthService) LoginWithOAuth(email, oauthID, firstName, lastName, provid
 	refreshToken := &models.RefreshToken{
 		UserID:    user.ID,
 		Token:     refreshTokenString,
-		ExpiresAt: time.Now().Add(7 * 24 * time.Hour), 
+		ExpiresAt: time.Now().Add(7 * 24 * time.Hour),
 		IPAddress: ipAddress,
 		UserAgent: userAgent,
 	}
@@ -629,7 +628,7 @@ func (s *AuthService) handleFailedLogin(user *models.User, email string, ctx con
 	}
 
 	s.userRepo.Update(user.ID, updates)
-	
+
 	// Audit Log Failed Login
 	s.auditService.LogEvent(&user.ID, "USER_LOGIN_FAILED", "USER", user.ID, "", "", map[string]interface{}{"email": email})
 }
@@ -783,53 +782,61 @@ func (s *AuthService) RevokeSession(userID, tokenID string) error {
 	return nil
 }
 
-func(s *AuthService) LockUser(userId , adminId, ipAddress, userAgent string) error {
-	if userId == adminId {
+func (s *AuthService) LockUser(userID, adminID, ipAddress, userAgent string) error {
+	if userID == adminID {
 		return ErrSelfLock
 	}
 
-	user, err := s.userRepo.FindByID(userId)
+	user, err := s.userRepo.FindByID(userID)
 	if err != nil {
-		return ErrUserNotFound
+		if errors.Is(err, repository.ErrUserNotFound) {
+			return ErrUserNotFound
+		}
+		return err
 	}
 
 	if user.Role == "admin" {
 		return ErrAdminLock
 	}
 
-	if user.LockedUntil != nil && time.Now().Before(*user.LockedUntil) {
+	if user.IsLocked() {
 		return ErrAlreadyLocked
 	}
 
-	// effectively until manually unlocked
+	// effective until manually unlocked
 	lockedUntil := time.Now().AddDate(100, 0, 0)
 
-	if err := s.userRepo.Update(userId,map[string]interface{}{"locked_until": lockedUntil}); err != nil{
-		return errors.New("failed to lock user")
+	if err := s.userRepo.LockUser(userID, lockedUntil); err != nil {
+		return fmt.Errorf("lock user: %w", err)
 	}
 
-	if err := s.tokenRepo.RevokeAllUserTokens(userId); err != nil {
-	    return err
+	if err := s.tokenRepo.RevokeAllUserTokens(userID); err != nil {
+		return fmt.Errorf("revoke user tokens: %w", err)
 	}
-	s.auditService.LogEvent(&userId, "USER_LOCKED", "USER", userId, ipAddress, userAgent, map[string]interface{}{"locked_until": lockedUntil})
+
+	s.auditService.LogEvent(&adminID, "USER_LOCKED", "USER", userID, ipAddress, userAgent, map[string]interface{}{"locked_until": lockedUntil})
+
 	return nil
 }
 
-func (s *AuthService) UnlockUser(userId, adminId, ipAddress, userAgent string) error {
-	user,err := s.userRepo.FindByID(userId)
+func (s *AuthService) UnlockUser(userID, adminID, ipAddress, userAgent string) error {
+	user, err := s.userRepo.FindByID(userID)
 	if err != nil {
-		 return ErrUserNotFound
+		if errors.Is(err, repository.ErrUserNotFound) {
+			return ErrUserNotFound
+		}
+		return err
 	}
 
-	if user.LockedUntil == nil || !time.Now().Before(*user.LockedUntil){
-		 return ErrNotLocked
+	if !user.IsLocked() {
+		return ErrNotLocked
 	}
 
-	if err := s.userRepo.Update(userId,map[string]interface{}{"locked_until": nil, "failed_login_attempts": 0}); err != nil{
-	return errors.New("failed to unlock user")
+	if err := s.userRepo.UnlockUser(userID); err != nil {
+		return fmt.Errorf("unlock user: %w", err)
 	}
 
-	s.auditService.LogEvent(&userId, "USER_UNLOCKED", "USER", userId, ipAddress, userAgent, map[string]interface{}{"locked_until": nil})
+	s.auditService.LogEvent(&adminID, "USER_UNLOCKED", "USER", userID, ipAddress, userAgent, map[string]interface{}{"locked_until": nil})
 
 	return nil
 }

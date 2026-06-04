@@ -1,4 +1,4 @@
-package handler
+package handler_test
 
 import (
 	"net/http"
@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
+	"github.com/roshankumar0036singh/auth-server/internal/handler"
 
 	"github.com/roshankumar0036singh/auth-server/internal/config"
 	"github.com/roshankumar0036singh/auth-server/internal/dto"
@@ -43,7 +44,7 @@ func setupAdminLockRouter(t *testing.T) (
 
 	tokenSvc := service.NewTokenService(cfg)
 
-	adminHandler := NewAdminHandler(authSvc)
+	adminHandler := handler.NewAdminHandler(authSvc)
 
 	gin.SetMode(gin.TestMode)
 
@@ -87,6 +88,7 @@ func TestAdminHandler_LockUser_Errors(t *testing.T) {
 	require.NoError(t,
 		userRepo.Update(otherAdmin.ID, map[string]interface{}{"role": "admin"}))
 
+	// ensure already locked case is valid
 	require.NoError(t,
 		authSvc.LockUser(user.ID, admin.ID, "", ""))
 
@@ -106,7 +108,7 @@ func TestAdminHandler_LockUser_Errors(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req, _ := http.NewRequest(
+			req := httptest.NewRequest(
 				http.MethodPost,
 				"/api/admin/users/"+tt.userID+"/lock",
 				nil,
@@ -134,11 +136,23 @@ func TestAdminHandler_UnlockUser_Errors(t *testing.T) {
 		userRepo.Update(admin.ID, map[string]interface{}{"role": "admin"}))
 	admin.Role = "admin"
 
-	user, err := authSvc.Register(&dto.RegisterRequest{
+	// user 1: will be NOT locked
+	unlockedUser, err := authSvc.Register(&dto.RegisterRequest{
 		Email:    "unlock-user@test.com",
 		Password: "Password123!",
 	})
 	require.NoError(t, err)
+
+	// user 2: will be locked
+	lockedUser, err := authSvc.Register(&dto.RegisterRequest{
+		Email:    "unlock-user-locked@test.com",
+		Password: "Password123!",
+	})
+	require.NoError(t, err)
+
+	require.NoError(t,
+		authSvc.LockUser(lockedUser.ID, admin.ID, "", ""),
+	)
 
 	token, err := tokenSvc.GenerateAccessToken(admin)
 	require.NoError(t, err)
@@ -149,12 +163,12 @@ func TestAdminHandler_UnlockUser_Errors(t *testing.T) {
 		status int
 	}{
 		{"user not found", "00000000-0000-0000-0000-000000000000", http.StatusNotFound},
-		{"not locked", user.ID, http.StatusBadRequest},
+		{"not locked", unlockedUser.ID, http.StatusBadRequest},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req, _ := http.NewRequest(
+			req := httptest.NewRequest(
 				http.MethodPost,
 				"/api/admin/users/"+tt.userID+"/unlock",
 				nil,
