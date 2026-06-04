@@ -228,6 +228,7 @@ See the **[complete TypeScript SDK guide and API reference](https://github.com/r
 ## Local Development
 
 ```bash
+cd clients/ts
 npm ci
 npm run build
 ```
