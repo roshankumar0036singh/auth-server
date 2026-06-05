@@ -130,14 +130,9 @@ func (r *TokenRepository) CountUserActiveSessions(userID string) (int64, error) 
 }
 
 func (r *TokenRepository) RotateRefreshToken(oldToken string, newToken *models.RefreshToken) error {
-
 	return r.db.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Create(newToken).Error; err != nil {
-			return err
-		}
-
 		result := tx.Model(&models.RefreshToken{}).
-			Where(tokenQuery, oldToken).
+			Where("token = ? AND is_revoked = ?", oldToken, false).
 			Update("is_revoked", true)
 
 		if result.Error != nil {
@@ -145,10 +140,13 @@ func (r *TokenRepository) RotateRefreshToken(oldToken string, newToken *models.R
 		}
 
 		if result.RowsAffected == 0 {
-			return errors.New("refresh token not found")
+			return ErrRefreshTokenNotFound
+		}
+
+		if err := tx.Create(newToken).Error; err != nil {
+			return err
 		}
 
 		return nil
-
 	})
 }

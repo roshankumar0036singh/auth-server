@@ -619,18 +619,18 @@ func (s *AuthService) RefreshAccessToken(refreshTokenString string, ipAddress, u
 		UserAgent: userAgent,
 	}
 
+	// Generate new access token
+	newAccessToken, err := s.tokenService.GenerateAccessToken(user, newRefreshToken.ID)
+	if err != nil {
+		return nil, errors.New(errGenAccessToken)
+	}
+
 	// transaction handling creation and rotation of refresh tokens
 	if err := s.tokenRepo.RotateRefreshToken(
 		refreshTokenString,
 		newRefreshToken,
 	); err != nil {
 		return nil, errors.New("failed to rotate refresh token")
-	}
-
-	// Generate new access token
-	newAccessToken, err := s.tokenService.GenerateAccessToken(user, newRefreshToken.ID)
-	if err != nil {
-		return nil, errors.New(errGenAccessToken)
 	}
 
 	return &dto.TokenRefreshResponse{

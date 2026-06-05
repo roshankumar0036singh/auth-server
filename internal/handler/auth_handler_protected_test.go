@@ -39,7 +39,11 @@ func TestAuthHandler_GetMe(t *testing.T) {
 	}
 
 	// Generate Token
-	token, _ := tokenService.GenerateAccessToken(user, "test-session-id")
+	token, err := tokenService.GenerateAccessToken(user, "test-session-id")
+	assert.NoError(t, err)
+	if err != nil {
+		t.FailNow()
+	}
 
 	req, _ := http.NewRequest(http.MethodGet, "/api/auth/me", nil)
 	req.Header.Set("Authorization", "Bearer "+token)

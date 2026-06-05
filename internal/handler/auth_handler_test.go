@@ -242,6 +242,7 @@ func TestAuthHandler_GetSessions_NoSessionIDInContext(t *testing.T) {
 	assert.NoError(t, err)
 
 	data := resp["data"].([]interface{})
+	assert.NotEmpty(t, data, "expected at least one session after login")
 
 	for _, item := range data {
 		session := item.(map[string]interface{})
