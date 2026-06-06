@@ -35,14 +35,13 @@ type RedisConfig struct {
 	TTL int
 }
 
+
 type JWTConfig struct {
 	AccessSecret  string
 	RefreshSecret string
 	AccessExpiry  string
 	RefreshExpiry string
-	RefreshExpiry: "168h", // 7 days
 }
-
 type OAuthConfig struct {
 	Google GoogleOAuthConfig
 	GitHub GitHubOAuthConfig
