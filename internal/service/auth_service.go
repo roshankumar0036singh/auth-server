@@ -89,7 +89,32 @@ func (s *AuthService) hashPassword(password string) (string, error) {
 	return string(hashedPassword), nil
 }
 // ... Register and other methods remain same ...
+func (s *AuthService) generateTokens(
+	user *models.User,
+	ipAddress, userAgent string,
+) (string, string, error) {
 
+	accessToken, err := s.tokenService.GenerateAccessToken(user)
+	if err != nil {
+		return "", "", errors.New("failed to generate access token")
+	}
+
+	refreshTokenString, err := s.tokenService.GenerateRefreshToken(user)
+	if err != nil {
+		return "", "", errors.New("failed to generate refresh token")
+	}
+
+	if err := s.createRefreshToken(
+		user.ID,
+		refreshTokenString,
+		ipAddress,
+		userAgent,
+	); err != nil {
+		return "", "", errors.New("failed to store refresh token")
+	}
+
+	return accessToken, refreshTokenString, nil
+}
 // ForgotPassword initiates the password reset flow
 func (s *AuthService) ForgotPassword(email string) error {
 	user, err := s.userRepo.FindByEmail(email)
@@ -335,18 +360,13 @@ func (s *AuthService) VerifyLoginMFA(email, code, ipAddress, userAgent string) (
 	}
 
 	// Generate tokens
-	accessToken, err := s.tokenService.GenerateAccessToken(user)
-	if err != nil {
-		return nil, errors.New("failed to generate access token")
-	}
-
-	refreshTokenString, err := s.tokenService.GenerateRefreshToken(user)
-	if err != nil {
-		return nil, errors.New("failed to generate refresh token")
-	}
-	
-	if err := s.createRefreshToken(user.ID, refreshTokenString, ipAddress, userAgent); err != nil {
-    return nil, errors.New("failed to store refresh token")
+	accessToken, refreshTokenString, err := s.generateTokens(
+	user,
+	ipAddress,
+	userAgent,
+)
+if err != nil {
+	return nil, err
 }
 
 	s.auditService.LogEvent(&user.ID, "USER_LOGIN_SUCCESS_MFA", "USER", user.ID, ipAddress, userAgent, nil)
@@ -518,20 +538,13 @@ func (s *AuthService) Login(req *dto.LoginRequest, ipAddress, userAgent string) 
 	}
 
 	// Generate tokens
-	accessToken, err := s.tokenService.GenerateAccessToken(user)
-	if err != nil {
-		return nil, errors.New("failed to generate access token")
-	}
-
-	refreshTokenString, err := s.tokenService.GenerateRefreshToken(user)
-	if err != nil {
-		return nil, errors.New("failed to generate refresh token")
-	}
-
-	// Store refresh token
-
-	if err := s.createRefreshToken(user.ID, refreshTokenString, ipAddress, userAgent); err != nil {
-    return nil, errors.New("failed to store refresh token")
+	accessToken, refreshTokenString, err := s.generateTokens(
+	user,
+	ipAddress,
+	userAgent,
+)
+if err != nil {
+	return nil, err
 }
 
 	// Update last login
@@ -590,19 +603,13 @@ func (s *AuthService) LoginWithOAuth(email, oauthID, firstName, lastName, provid
 	}
 
 	// Generate tokens
-	accessToken, err := s.tokenService.GenerateAccessToken(user)
-	if err != nil {
-		return nil, errors.New("failed to generate access token")
-	}
-
-	refreshTokenString, err := s.tokenService.GenerateRefreshToken(user)
-	if err != nil {
-		return nil, errors.New("failed to generate refresh token")
-	}
-
-	
-	if err := s.createRefreshToken(user.ID, refreshTokenString, ipAddress, userAgent); err != nil {
-    return nil, errors.New("failed to store refresh token")
+	accessToken, refreshTokenString, err := s.generateTokens(
+	user,
+	ipAddress,
+	userAgent,
+)
+if err != nil {
+	return nil, err
 }
 
 	s.auditService.LogEvent(&user.ID, "USER_LOGIN_Success_MFA", "USER", user.ID, ipAddress, userAgent, nil)
