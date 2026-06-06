@@ -14,6 +14,7 @@ import (
 	"github.com/roshankumar0036singh/auth-server/internal/repository"
 	"github.com/roshankumar0036singh/auth-server/internal/utils"
 )
+
 const (
     errUserNotFound              = "user not found"
     errFailedToHashPassword      = "failed to hash password"
@@ -21,6 +22,7 @@ const (
     errFailedToGenerateRefresh   = "failed to generate refresh token"
     errFailedToStoreRefreshToken = "failed to store refresh token"
 )
+
 type AuthService struct {
 	userRepo          *repository.UserRepository
 	tokenRepo         *repository.TokenRepository
@@ -69,6 +71,19 @@ func (s *AuthService) getRefreshTokenExpiry() time.Duration {
 
 	return expiry
 }
+
+func (s *AuthService) createRefreshToken(userID, token, ipAddress, userAgent string) error {
+	refreshToken := &models.RefreshToken{
+		UserID:    userID,
+		Token:     token,
+		ExpiresAt: time.Now().Add(s.getRefreshTokenExpiry()),
+		IPAddress: ipAddress,
+		UserAgent: userAgent,
+	}
+
+	return s.tokenRepo.CreateRefreshToken(refreshToken)
+}
+
 // ... Register and other methods remain same ...
 
 // ForgotPassword initiates the password reset flow
@@ -325,17 +340,10 @@ func (s *AuthService) VerifyLoginMFA(email, code, ipAddress, userAgent string) (
 	if err != nil {
 		return nil, errors.New(errFailedToGenerateRefresh)
 	}
-	refreshToken := &models.RefreshToken{
-    UserID: user.ID,
-    Token: refreshTokenString,
-    ExpiresAt: time.Now().Add(s.getRefreshTokenExpiry()),
-    IPAddress: ipAddress,
-    UserAgent: userAgent,
+	
+	if err := s.createRefreshToken(user.ID, refreshTokenString, ipAddress, userAgent); err != nil {
+    return nil, errors.New(errFailedToStoreRefreshToken)
 }
-
-	if err := s.tokenRepo.CreateRefreshToken(refreshToken); err != nil {
-		return nil, errors.New(errFailedToStoreRefreshToken)
-	}
 
 	s.auditService.LogEvent(&user.ID, "USER_LOGIN_SUCCESS_MFA", "USER", user.ID, ipAddress, userAgent, nil)
 
@@ -517,17 +525,10 @@ func (s *AuthService) Login(req *dto.LoginRequest, ipAddress, userAgent string) 
 	}
 
 	// Store refresh token
-	refreshToken := &models.RefreshToken{
-    UserID: user.ID,
-    Token: refreshTokenString,
-    ExpiresAt: time.Now().Add(s.getRefreshTokenExpiry()),
-    IPAddress: ipAddress,
-    UserAgent: userAgent,
-}
 
-	if err := s.tokenRepo.CreateRefreshToken(refreshToken); err != nil {
-		return nil, errors.New(errFailedToStoreRefreshToken)
-	}
+	if err := s.createRefreshToken(user.ID, refreshTokenString, ipAddress, userAgent); err != nil {
+    return nil, errors.New(errFailedToStoreRefreshToken)
+}
 
 	// Update last login
 	if err := s.userRepo.Update(user.ID, map[string]interface{}{"last_login_at": time.Now()}); err != nil {
@@ -596,16 +597,9 @@ func (s *AuthService) LoginWithOAuth(email, oauthID, firstName, lastName, provid
 	}
 
 	
-	refreshToken := &models.RefreshToken{
-    UserID: user.ID,
-    Token: refreshTokenString,
-    ExpiresAt: time.Now().Add(s.getRefreshTokenExpiry()),
-    IPAddress: ipAddress,
-    UserAgent: userAgent,
+	if err := s.createRefreshToken(user.ID, refreshTokenString, ipAddress, userAgent); err != nil {
+    return nil, errors.New(errFailedToStoreRefreshToken)
 }
-	if err := s.tokenRepo.CreateRefreshToken(refreshToken); err != nil {
-		return nil, errors.New(errFailedToStoreRefreshToken)
-	}
 
 	s.auditService.LogEvent(&user.ID, "USER_LOGIN_Success_MFA", "USER", user.ID, ipAddress, userAgent, nil)
 
@@ -694,17 +688,9 @@ func (s *AuthService) RefreshAccessToken(refreshTokenString string, ipAddress, u
 	}
 
 	// Store new refresh token
-	refreshToken := &models.RefreshToken{
-    UserID: user.ID,
-    Token: newRefreshTokenString,
-    ExpiresAt: time.Now().Add(s.getRefreshTokenExpiry()),
-    IPAddress: ipAddress,
-    UserAgent: userAgent,
+	if err := s.createRefreshToken(user.ID, newRefreshTokenString, ipAddress, userAgent); err != nil {
+    log.Printf("Warning: Failed to store new refresh token: %v", err)
 }
-
-	if err := s.tokenRepo.CreateRefreshToken(refreshToken); err != nil {
-		log.Printf("Warning: Failed to store new refresh token: %v", err)
-	}
 
 	return &dto.TokenRefreshResponse{
 		AccessToken:  newAccessToken,
