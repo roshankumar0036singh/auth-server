@@ -78,6 +78,12 @@ func (r *UserRepository) EmailExists(email string) (bool, error) {
 	return count > 0, err
 }
 
+func (r *UserRepository) RunInTx(fn func(u *UserRepository, t *TokenRepository) error) error {
+    return r.db.Transaction(func(tx *gorm.DB) error {
+        return fn(NewUserRepository(tx), NewTokenRepository(tx))
+    })
+}
+
 func (r *UserRepository) LockUser(userID string, lockedUntil time.Time) error {
 	result := r.db.Model(&models.User{}).
 		Where("id = ?", userID).

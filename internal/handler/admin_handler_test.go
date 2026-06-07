@@ -1,179 +1,133 @@
 package handler_test
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/gin-gonic/gin"
-	"github.com/roshankumar0036singh/auth-server/internal/config"
-	"github.com/roshankumar0036singh/auth-server/internal/dto"
 	"github.com/roshankumar0036singh/auth-server/internal/handler"
-	"github.com/roshankumar0036singh/auth-server/internal/middleware"
 	"github.com/roshankumar0036singh/auth-server/internal/repository"
 	"github.com/roshankumar0036singh/auth-server/internal/service"
-	"github.com/roshankumar0036singh/auth-server/internal/testutils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func setupAdminLockRouter(t *testing.T) (
-	*gin.Engine,
-	*service.AuthService,
-	*service.TokenService,
-	*repository.UserRepository,
-) {
-	t.Helper()
+type mockAdminSvc struct {
+	lockErr   error
+	unlockErr error
+	deleteErr error
+}
 
-	authSvc, db, mr := testutils.SetupIntegrationTest(t)
-	t.Cleanup(func() { mr.Close() })
+func (m *mockAdminSvc) LockUser(userID, adminID, ipAddress, userAgent string) error {
+	return m.lockErr
+}
 
-	userRepo := repository.NewUserRepository(db)
+func (m *mockAdminSvc) UnlockUser(userID, adminID, ipAddress, userAgent string) error {
+	return m.unlockErr
+}
 
-	cfg := &config.Config{
-		JWT: config.JWTConfig{
-			AccessSecret:  "test-access-secret",
-			RefreshSecret: "test-refresh-secret",
-		},
-	}
+func (m *mockAdminSvc) DeleteAccount(userID string) error {
+	return m.deleteErr
+}
 
-	tokenSvc := service.NewTokenService(cfg)
-	adminHandler := handler.NewAdminHandler(authSvc)
+const (
+	testAdminID = "admin-uuid-1234"
+	testUserID  = "user-uuid-5678"
+)
 
+func newRouter(svc handler.AdminAuthService) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
 
-	admin := r.Group("/api/admin")
-	admin.Use(middleware.AuthMiddleware(tokenSvc))
-	admin.Use(middleware.RequireRole("admin"))
+	// Simulate what AuthMiddleware + RequireRole would set; no token parsing needed.
+	r.Use(func(c *gin.Context) {
+		c.Set("userID", testAdminID)
+		c.Set("role", "admin")
+		c.Next()
+	})
 
-	admin.POST("/users/:id/lock", adminHandler.LockUser)
-	admin.POST("/users/:id/unlock", adminHandler.UnlockUser)
+	h := handler.NewAdminHandler(svc)
+	r.POST("/api/admin/users/:id/lock", h.LockUser)
+	r.POST("/api/admin/users/:id/unlock", h.UnlockUser)
+	r.DELETE("/api/admin/users/:id", h.DeleteUser)
 
-	return r, authSvc, tokenSvc, userRepo
+	return r
+}
+
+func doRequest(r *gin.Engine, method, path string) *httptest.ResponseRecorder {
+	req := httptest.NewRequest(method, path, nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	return w
+}
+
+func responseCode(t *testing.T, w *httptest.ResponseRecorder) int {
+	t.Helper()
+	return w.Code
+}
+
+func TestAdminHandler_LockUser_Success(t *testing.T) {
+	r := newRouter(&mockAdminSvc{lockErr: nil})
+	w := doRequest(r, http.MethodPost, "/api/admin/users/"+testUserID+"/lock")
+
+	assert.Equal(t, http.StatusOK, responseCode(t, w))
+
+	var body map[string]interface{}
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&body))
+	assert.Equal(t, testUserID, body["data"].(map[string]interface{})["userID"])
 }
 
 func TestAdminHandler_LockUser_Errors(t *testing.T) {
-	r, authSvc, tokenSvc, userRepo := setupAdminLockRouter(t)
-
-	admin, err := authSvc.Register(&dto.RegisterRequest{
-		Email:    "lock-admin@test.com",
-		Password: "Password123!",
-	})
-	require.NoError(t, err)
-
-	require.NoError(t,
-		userRepo.Update(admin.ID, map[string]interface{}{"role": "admin"}))
-
-	admin.Role = "admin"
-
-	user, err := authSvc.Register(&dto.RegisterRequest{
-		Email:    "lock-user@test.com",
-		Password: "Password123!",
-	})
-	require.NoError(t, err)
-
-	otherAdmin, err := authSvc.Register(&dto.RegisterRequest{
-		Email:    "lock-other-admin@test.com",
-		Password: "Password123!",
-	})
-	require.NoError(t, err)
-
-	require.NoError(t,
-		userRepo.Update(otherAdmin.ID, map[string]interface{}{"role": "admin"}))
-
-	require.NoError(t,
-		authSvc.LockUser(user.ID, admin.ID, "", ""))
-
-	token, err := tokenSvc.GenerateAccessToken(admin)
-	require.NoError(t, err)
-
 	tests := []struct {
-		name   string
-		userID string
-		status int
+		name       string
+		lockErr    error
+		wantStatus int
 	}{
-		{"user not found", "00000000-0000-0000-0000-000000000000", http.StatusNotFound},
-		{"self lock", admin.ID, http.StatusBadRequest},
-		{"admin account", otherAdmin.ID, http.StatusForbidden},
-		{"already locked", user.ID, http.StatusConflict},
+		{"user not found", repository.ErrUserNotFound, http.StatusNotFound},
+		{"self lock", service.ErrSelfLock, http.StatusBadRequest},
+		{"admin account", service.ErrAdminLock, http.StatusForbidden},
+		{"already locked", service.ErrAlreadyLocked, http.StatusConflict},
+		{"unexpected error", assert.AnError, http.StatusInternalServerError},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req := httptest.NewRequestWithContext(
-				t.Context(),
-				http.MethodPost,
-				"/api/admin/users/"+tt.userID+"/lock",
-				nil,
-			)
-
-			req.Header.Set("Authorization", "Bearer "+token)
-
-			w := httptest.NewRecorder()
-			r.ServeHTTP(w, req)
-
-			assert.Equal(t, tt.status, w.Code)
+			r := newRouter(&mockAdminSvc{lockErr: tt.lockErr})
+			w := doRequest(r, http.MethodPost, "/api/admin/users/"+testUserID+"/lock")
+			assert.Equal(t, tt.wantStatus, w.Code)
 		})
 	}
 }
 
+func TestAdminHandler_UnlockUser_Success(t *testing.T) {
+	r := newRouter(&mockAdminSvc{unlockErr: nil})
+	w := doRequest(r, http.MethodPost, "/api/admin/users/"+testUserID+"/unlock")
+
+	assert.Equal(t, http.StatusOK, responseCode(t, w))
+
+	var body map[string]interface{}
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&body))
+	assert.Equal(t, testUserID, body["data"].(map[string]interface{})["userID"])
+}
+
 func TestAdminHandler_UnlockUser_Errors(t *testing.T) {
-	r, authSvc, tokenSvc, userRepo := setupAdminLockRouter(t)
-
-	admin, err := authSvc.Register(&dto.RegisterRequest{
-		Email:    "unlock-admin@test.com",
-		Password: "Password123!",
-	})
-	require.NoError(t, err)
-
-	require.NoError(t,
-		userRepo.Update(admin.ID, map[string]interface{}{"role": "admin"}))
-
-	admin.Role = "admin"
-
-	unlockedUser, err := authSvc.Register(&dto.RegisterRequest{
-		Email:    "unlock-user@test.com",
-		Password: "Password123!",
-	})
-	require.NoError(t, err)
-
-	lockedUser, err := authSvc.Register(&dto.RegisterRequest{
-		Email:    "unlock-user-locked@test.com",
-		Password: "Password123!",
-	})
-	require.NoError(t, err)
-
-	require.NoError(t,
-		authSvc.LockUser(lockedUser.ID, admin.ID, "", ""))
-
-	token, err := tokenSvc.GenerateAccessToken(admin)
-	require.NoError(t, err)
-
 	tests := []struct {
-		name   string
-		userID string
-		status int
+		name       string
+		unlockErr  error
+		wantStatus int
 	}{
-		{"user not found", "00000000-0000-0000-0000-000000000000", http.StatusNotFound},
-		{"not locked", unlockedUser.ID, http.StatusBadRequest},
+		{"user not found", repository.ErrUserNotFound, http.StatusNotFound},
+		{"not locked", service.ErrNotLocked, http.StatusBadRequest},
+		{"unexpected error", assert.AnError, http.StatusInternalServerError},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req := httptest.NewRequestWithContext(
-				t.Context(),
-				http.MethodPost,
-				"/api/admin/users/"+tt.userID+"/unlock",
-				nil,
-			)
-
-			req.Header.Set("Authorization", "Bearer "+token)
-
-			w := httptest.NewRecorder()
-			r.ServeHTTP(w, req)
-
-			assert.Equal(t, tt.status, w.Code)
+			r := newRouter(&mockAdminSvc{unlockErr: tt.unlockErr})
+			w := doRequest(r, http.MethodPost, "/api/admin/users/"+testUserID+"/unlock")
+			assert.Equal(t, tt.wantStatus, w.Code)
 		})
 	}
 }

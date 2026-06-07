@@ -48,7 +48,6 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, redisClient *redis.Client, cfg
 		auditService,
 		mfaService,
 		cfg,
-		db,
 	)
 
 	// OAuth Provider service

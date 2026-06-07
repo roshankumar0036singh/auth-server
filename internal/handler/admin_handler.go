@@ -7,16 +7,21 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/roshankumar0036singh/auth-server/internal/service"
 	"github.com/roshankumar0036singh/auth-server/internal/utils"
+	"github.com/roshankumar0036singh/auth-server/internal/repository"
 )
 
-type AdminHandler struct {
-	authService *service.AuthService
+type AdminAuthService interface {
+	LockUser(userID, adminID, ipAddress, userAgent string) error
+	UnlockUser(userID, adminID, ipAddress, userAgent string) error
+	DeleteAccount(userID string) error
 }
 
-func NewAdminHandler(authService *service.AuthService) *AdminHandler {
-	return &AdminHandler{
-		authService: authService,
-	}
+type AdminHandler struct {
+	authService AdminAuthService
+}
+
+func NewAdminHandler(authService AdminAuthService) *AdminHandler {
+	return &AdminHandler{authService: authService}
 }
 
 // GetUsers lists all users (Note: Pagination should be added for production)
@@ -46,7 +51,7 @@ func (h *AdminHandler) LockUser(c *gin.Context) {
 	userAgent := c.GetHeader("User-Agent")
 	if err := h.authService.LockUser(userID, adminID, ipAddress, userAgent); err != nil {
 		switch {
-		case errors.Is(err, service.ErrUserNotFound):
+		case errors.Is(err, repository.ErrUserNotFound):
 			c.JSON(http.StatusNotFound,
 				utils.ErrorResponse("User not found", err))
 		case errors.Is(err, service.ErrSelfLock):
@@ -81,7 +86,7 @@ func (h *AdminHandler) UnlockUser(c *gin.Context) {
 	userAgent := c.GetHeader("User-Agent")
 	if err := h.authService.UnlockUser(userID, adminID, ipAddress, userAgent); err != nil {
 		switch {
-		case errors.Is(err, service.ErrUserNotFound):
+		case errors.Is(err, repository.ErrUserNotFound):
 			c.JSON(http.StatusNotFound,
 				utils.ErrorResponse("User not found", err))
 		case errors.Is(err, service.ErrNotLocked):

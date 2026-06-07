@@ -8,8 +8,11 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
+	"github.com/roshankumar0036singh/auth-server/internal/config"
 	"github.com/roshankumar0036singh/auth-server/internal/dto"
 	"github.com/roshankumar0036singh/auth-server/internal/handler"
+	"github.com/roshankumar0036singh/auth-server/internal/middleware"
+	"github.com/roshankumar0036singh/auth-server/internal/service"
 	"github.com/roshankumar0036singh/auth-server/internal/testutils"
 	"github.com/stretchr/testify/assert"
 )
@@ -94,3 +97,160 @@ func TestAuthHandler_Login(t *testing.T) {
 }
 
 // TODO: Add tests for Protected Routes using middleware
+
+func TestAuthHandler_GetSessions_CurrentSessionFlag(t *testing.T) {
+	authService, _, mr := testutils.SetupIntegrationTest(t)
+	defer mr.Close()
+
+	authHandler := handler.NewAuthHandler(authService, nil)
+
+	cfg := &config.Config{
+		JWT: config.JWTConfig{
+			AccessSecret:  "secret",
+			RefreshSecret: "refresh-secret",
+		},
+	}
+	tokenService := service.NewTokenService(cfg)
+
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	r.Use(middleware.AuthMiddleware(tokenService))
+
+	r.GET("/api/auth/sessions", authHandler.GetSessions)
+
+	// Create user
+	regReq := &dto.RegisterRequest{
+		Email:     "sessions@example.com",
+		Password:  "Password123!",
+		FirstName: "Session",
+		LastName:  "Test",
+	}
+
+	_, err := authService.Register(regReq)
+	assert.NoError(t, err)
+
+	// Create a session via login
+	loginResp, err := authService.Login(
+		&dto.LoginRequest{
+			Email:    "sessions@example.com",
+			Password: "Password123!",
+		},
+		"127.0.0.1",
+		"test-agent",
+	)
+
+	assert.NoError(t, err)
+
+	claims, err := tokenService.ValidateAccessToken(loginResp.AccessToken)
+	assert.NoError(t, err)
+
+	expectedSessionID := claims.SessionID
+
+	// Call sessions endpoint using the access token
+	req, _ := http.NewRequest(
+		http.MethodGet,
+		"/api/auth/sessions",
+		nil,
+	)
+
+	req.Header.Set(
+		"Authorization",
+		"Bearer "+loginResp.AccessToken,
+	)
+
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var resp map[string]interface{}
+	err = json.Unmarshal(w.Body.Bytes(), &resp)
+	assert.NoError(t, err)
+
+	data := resp["data"].([]interface{})
+
+	foundExpectedSession := false
+
+	for _, item := range data {
+		session := item.(map[string]interface{})
+
+		sessionID := session["id"].(string)
+		isCurrent := session["isCurrent"].(bool)
+
+		if sessionID == expectedSessionID {
+			assert.True(t, isCurrent, "expected session used by request token to be current")
+			foundExpectedSession = true
+		}
+	}
+
+	assert.True(t, foundExpectedSession, "expected session ID not found in response")
+
+}
+
+func TestAuthHandler_GetSessions_NoSessionIDInContext(t *testing.T) {
+	authService, _, mr := testutils.SetupIntegrationTest(t)
+	defer mr.Close()
+
+	authHandler := handler.NewAuthHandler(authService, nil)
+
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+
+	// Register user
+	regReq := &dto.RegisterRequest{
+		Email:     "nosession@example.com",
+		Password:  "Password123!",
+		FirstName: "No",
+		LastName:  "Session",
+	}
+
+	user, err := authService.Register(regReq)
+	assert.NoError(t, err)
+
+	userID := user.ID
+
+	// Intentionally set only userID, not sessionID
+	r.GET("/api/auth/sessions", func(c *gin.Context) {
+		c.Set("userID", userID)
+		authHandler.GetSessions(c)
+	})
+
+	// Create a session
+	_, err = authService.Login(
+		&dto.LoginRequest{
+			Email:    regReq.Email,
+			Password: regReq.Password,
+		},
+		"127.0.0.1",
+		"test-agent",
+	)
+	assert.NoError(t, err)
+
+	req, _ := http.NewRequest(
+		http.MethodGet,
+		"/api/auth/sessions",
+		nil,
+	)
+
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var resp map[string]interface{}
+	err = json.Unmarshal(w.Body.Bytes(), &resp)
+	assert.NoError(t, err)
+
+	data := resp["data"].([]interface{})
+	assert.NotEmpty(t, data, "expected at least one session after login")
+
+	for _, item := range data {
+		session := item.(map[string]interface{})
+
+		assert.False(
+			t,
+			session["isCurrent"].(bool),
+			"expected no session to be marked current when sessionID is missing",
+		)
+	}
+}

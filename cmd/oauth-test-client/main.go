@@ -11,9 +11,9 @@ import (
 // Configuration
 // In a real app, these would come from environment variables
 const (
-	AuthServerURL = "https://auth-server-4nmm.onrender.com"            // Replace with your Render URL
-	ClientID      = "your-client-id-here"                              // You'll get this after registering the client
-	ClientSecret  = "your-client-secret-here"                          // You'll get this after registering the client
+	AuthServerURL = "https://auth-server-4nmm.onrender.com" // Replace with your Render URL
+	ClientID      = "your-client-id-here"                   // You'll get this after registering the client
+	ClientSecret  = "your-client-secret-here"               // You'll get this after registering the client
 	RedirectURI   = "http://localhost:3000/callback"
 	AppPort       = ":3000"
 )

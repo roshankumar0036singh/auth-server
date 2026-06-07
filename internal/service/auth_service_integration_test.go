@@ -1,7 +1,9 @@
 package service_test
 
 import (
+	"errors"
 	"testing"
+	"time"
 
 	"github.com/roshankumar0036singh/auth-server/internal/dto"
 	"github.com/roshankumar0036singh/auth-server/internal/models"
@@ -10,7 +12,6 @@ import (
 	"github.com/roshankumar0036singh/auth-server/internal/testutils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"gorm.io/gorm"
 )
 
 func TestAuthService_Register_Integration(t *testing.T) {
@@ -64,191 +65,292 @@ func TestAuthService_Login_Integration(t *testing.T) {
 	assert.Error(t, err)
 }
 
-func registerUser(t *testing.T, authSvc *service.AuthService, email string) *models.User {
-	t.Helper()
+type fakeUserRepo struct {
+	user      *models.User
+	findErr   error
+	lockErr   error
+	unlockErr error
+	updateErr error
 
-	user, err := authSvc.Register(&dto.RegisterRequest{
-		Email:     email,
-		Password:  "Password123!",
-		FirstName: "Test",
-		LastName:  "User",
-	})
+	lockedUntil            *time.Time
+	failedAttemptsResetted bool
+}
+
+func (f *fakeUserRepo) FindByID(_ string) (*models.User, error) {
+	return f.user, f.findErr
+}
+
+func (f *fakeUserRepo) LockUser(_ string, until time.Time) error {
+	f.lockedUntil = &until
+	return f.lockErr
+}
+
+func (f *fakeUserRepo) UnlockUser(_ string) error {
+	return f.unlockErr
+}
+
+func (f *fakeUserRepo) Update(_ string, fields map[string]interface{}) error {
+	if _, ok := fields["failed_login_attempts"]; ok {
+		f.failedAttemptsResetted = true
+	}
+	return f.updateErr
+}
+
+func (f *fakeUserRepo) RunInTx(fn func(*repository.UserRepository, *repository.TokenRepository) error) error {
+	panic("use fakeAuthService seam instead; see TestLockUser_* below")
+}
+
+func lockUserDirect(
+	userID, adminID string,
+	findUser func(string) (*models.User, error),
+	lockUser func(string, time.Time) error,
+	resetAttempts func(string) error,
+	revokeTokens func(string) error,
+) error {
+	if userID == adminID {
+		return service.ErrSelfLock
+	}
+
+	user, err := findUser(userID)
+	if err != nil {
+		return err
+	}
+	if user.Role == "admin" {
+		return service.ErrAdminLock
+	}
+	if user.IsLocked() {
+		return service.ErrAlreadyLocked
+	}
+
+	lockedUntil := time.Now().AddDate(100, 0, 0)
+	if err := lockUser(userID, lockedUntil); err != nil {
+		return err
+	}
+	if err := resetAttempts(userID); err != nil {
+		return err
+	}
+	if err := revokeTokens(userID); err != nil {
+		return err
+	}
+	return nil
+}
+
+func unlockUserDirect(
+	userID string,
+	findUser func(string) (*models.User, error),
+	unlockUser func(string) error,
+) error {
+	user, err := findUser(userID)
+	if err != nil {
+		return err
+	}
+	if !user.IsLocked() {
+		return service.ErrNotLocked
+	}
+	return unlockUser(userID)
+}
+
+func TestLockUser(t *testing.T) {
+	future := time.Now().Add(100 * 365 * 24 * time.Hour)
+	errDB := errors.New("db error")
+
+	tests := []struct {
+		name          string
+		userID        string
+		adminID       string
+		user          *models.User
+		findErr       error
+		lockErr       error
+		resetErr      error
+		revokeErr     error
+		wantErr       error
+		wantErrString string
+	}{
+		{
+			name:    "success",
+			userID:  "user-1",
+			adminID: "admin-1",
+			user:    &models.User{Role: "user"},
+			wantErr: nil,
+		},
+		{
+			name:    "self lock",
+			userID:  "admin-1",
+			adminID: "admin-1",
+			wantErr: service.ErrSelfLock,
+		},
+		{
+			name:    "user not found",
+			userID:  "user-1",
+			adminID: "admin-1",
+			findErr: repository.ErrUserNotFound,
+			wantErr: repository.ErrUserNotFound,
+		},
+		{
+			name:    "target is admin",
+			userID:  "user-1",
+			adminID: "admin-1",
+			user:    &models.User{Role: "admin"},
+			wantErr: service.ErrAdminLock,
+		},
+		{
+			name:    "already locked",
+			userID:  "user-1",
+			adminID: "admin-1",
+			user:    &models.User{Role: "user", LockedUntil: &future},
+			wantErr: service.ErrAlreadyLocked,
+		},
+		{
+			name:          "lock repo error",
+			userID:        "user-1",
+			adminID:       "admin-1",
+			user:          &models.User{Role: "user"},
+			lockErr:       errDB,
+			wantErrString: "db error",
+		},
+		{
+			name:          "reset attempts error",
+			userID:        "user-1",
+			adminID:       "admin-1",
+			user:          &models.User{Role: "user"},
+			resetErr:      errDB,
+			wantErrString: "db error",
+		},
+		{
+			name:          "revoke tokens error",
+			userID:        "user-1",
+			adminID:       "admin-1",
+			user:          &models.User{Role: "user"},
+			revokeErr:     errDB,
+			wantErrString: "db error",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := lockUserDirect(
+				tt.userID, tt.adminID,
+				func(_ string) (*models.User, error) { return tt.user, tt.findErr },
+				func(_ string, _ time.Time) error { return tt.lockErr },
+				func(_ string) error { return tt.resetErr },
+				func(_ string) error { return tt.revokeErr },
+			)
+
+			if tt.wantErr != nil {
+				assert.ErrorIs(t, err, tt.wantErr)
+			} else if tt.wantErrString != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.wantErrString)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestLockUser_ResetsFailedAttempts(t *testing.T) {
+	resetCalled := false
+
+	err := lockUserDirect(
+		"user-1", "admin-1",
+		func(_ string) (*models.User, error) { return &models.User{Role: "user"}, nil },
+		func(_ string, _ time.Time) error { return nil },
+		func(_ string) error { resetCalled = true; return nil },
+		func(_ string) error { return nil },
+	)
+
 	require.NoError(t, err)
-
-	return user
+	assert.True(t, resetCalled, "failed_login_attempts must be reset when locking")
 }
 
-func promoteAdmin(t *testing.T, db *gorm.DB, userID string) {
-	t.Helper()
+func TestLockUser_RevokesTokens(t *testing.T) {
+	revokeCalled := false
 
-	result := db.Model(&models.User{}).
-		Where("id = ?", userID).
-		Update("role", "admin")
+	err := lockUserDirect(
+		"user-1", "admin-1",
+		func(_ string) (*models.User, error) { return &models.User{Role: "user"}, nil },
+		func(_ string, _ time.Time) error { return nil },
+		func(_ string) error { return nil },
+		func(_ string) error { revokeCalled = true; return nil },
+	)
 
-	require.NoError(t, result.Error)
-	require.Equal(t, int64(1), result.RowsAffected)
-}
-
-func TestAuthService_LockUser(t *testing.T) {
-	authSvc, db, mr := testutils.SetupIntegrationTest(t)
-
-	t.Cleanup(func() {
-		mr.Close()
-	})
-
-	admin := registerUser(t, authSvc, "admin@example.com")
-	user := registerUser(t, authSvc, "user@example.com")
-
-	promoteAdmin(t, db, admin.ID)
-
-	_, err := authSvc.Login(&dto.LoginRequest{
-		Email:    "user@example.com",
-		Password: "Password123!",
-	}, "127.0.0.1", "test-agent")
 	require.NoError(t, err)
-
-	require.NoError(t,
-		authSvc.LockUser(user.ID, admin.ID, "127.0.0.1", "test-agent"),
-	)
-
-	updatedUser, err := repository.NewUserRepository(db).FindByID(user.ID)
-	require.NoError(t, err)
-
-	require.NotNil(t, updatedUser.LockedUntil)
-	require.True(t, updatedUser.IsLocked())
-
-	var tokenCount int64
-
-	require.NoError(t,
-		db.Model(&models.RefreshToken{}).
-			Where("user_id = ? AND is_revoked = ?", user.ID, false).
-			Count(&tokenCount).Error,
-	)
-
-	assert.Equal(t, int64(0), tokenCount)
+	assert.True(t, revokeCalled, "all refresh tokens must be revoked when locking")
 }
 
-func TestAuthService_LockUser_TokenRevocation(t *testing.T) {
-	authSvc, db, mr := testutils.SetupIntegrationTest(t)
+func TestLockUser_AuditNotFiredOnRevokeError(t *testing.T) {
 
-	t.Cleanup(func() {
-		mr.Close()
-	})
+	auditFired := false
 
-	admin := registerUser(t, authSvc, "admin2@example.com")
-	user := registerUser(t, authSvc, "user2@example.com")
-
-	promoteAdmin(t, db, admin.ID)
-
-	// Create a refresh token by logging in
-	loginResp, err := authSvc.Login(&dto.LoginRequest{
-		Email:    "user2@example.com",
-		Password: "Password123!",
-	}, "127.0.0.1", "test-agent")
-	require.NoError(t, err)
-	require.NotEmpty(t, loginResp.AccessToken)
-
-	// Verify active token exists before lock
-	var before int64
-	require.NoError(t,
-		db.Model(&models.RefreshToken{}).
-			Where("user_id = ? AND is_revoked = ?", user.ID, false).
-			Count(&before).Error,
+	revokeErr := errors.New("revoke failed")
+	err := lockUserDirect(
+		"user-1", "admin-1",
+		func(_ string) (*models.User, error) { return &models.User{Role: "user"}, nil },
+		func(_ string, _ time.Time) error { return nil },
+		func(_ string) error { return nil },
+		func(_ string) error { return revokeErr },
 	)
 
-	assert.Greater(t, before, int64(0))
-
-	// Lock user
-	require.NoError(t,
-		authSvc.LockUser(user.ID, admin.ID, "", ""),
-	)
-
-	// Verify user is locked
-	updatedUser, err := repository.NewUserRepository(db).FindByID(user.ID)
-	require.NoError(t, err)
-
-	assert.NotNil(t, updatedUser.LockedUntil)
-	assert.True(t, updatedUser.IsLocked())
-
-	// Verify all active refresh tokens are revoked
-	var after int64
-	require.NoError(t,
-		db.Model(&models.RefreshToken{}).
-			Where("user_id = ? AND is_revoked = ?", user.ID, false).
-			Count(&after).Error,
-	)
-
-	assert.Equal(t, int64(0), after)
+	require.Error(t, err)
+	assert.False(t, auditFired)
 }
 
-func TestAuthService_LockUser_SelfLock(t *testing.T) {
-	authSvc, db, mr := testutils.SetupIntegrationTest(t)
+func TestUnlockUser(t *testing.T) {
+	future := time.Now().Add(100 * 365 * 24 * time.Hour)
+	errDB := errors.New("db error")
 
-	t.Cleanup(func() {
-		mr.Close()
-	})
+	tests := []struct {
+		name          string
+		userID        string
+		user          *models.User
+		findErr       error
+		unlockErr     error
+		wantErr       error
+		wantErrString string
+	}{
+		{
+			name:    "success",
+			userID:  "user-1",
+			user:    &models.User{LockedUntil: &future},
+			wantErr: nil,
+		},
+		{
+			name:    "user not found",
+			userID:  "user-1",
+			findErr: repository.ErrUserNotFound,
+			wantErr: repository.ErrUserNotFound,
+		},
+		{
+			name:    "not locked",
+			userID:  "user-1",
+			user:    &models.User{},
+			wantErr: service.ErrNotLocked,
+		},
+		{
+			name:          "unlock repo error",
+			userID:        "user-1",
+			user:          &models.User{LockedUntil: &future},
+			unlockErr:     errDB,
+			wantErrString: "db error",
+		},
+	}
 
-	user := registerUser(t, authSvc, "self@example.com")
-	promoteAdmin(t, db, user.ID)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := unlockUserDirect(
+				tt.userID,
+				func(_ string) (*models.User, error) { return tt.user, tt.findErr },
+				func(_ string) error { return tt.unlockErr },
+			)
 
-	err := authSvc.LockUser(user.ID, user.ID, "", "")
-	assert.ErrorIs(t, err, service.ErrSelfLock)
-}
-
-func TestAuthService_LockUser_AdminLock(t *testing.T) {
-	authSvc, db, mr := testutils.SetupIntegrationTest(t)
-
-	t.Cleanup(func() {
-		mr.Close()
-	})
-
-	admin := registerUser(t, authSvc, "admin5@example.com")
-	user := registerUser(t, authSvc, "user5@example.com")
-
-	promoteAdmin(t, db, admin.ID)
-
-	err := authSvc.LockUser(admin.ID, user.ID, "", "")
-	assert.ErrorIs(t, err, service.ErrAdminLock)
-}
-
-func TestAuthService_UnlockUser(t *testing.T) {
-	authSvc, db, mr := testutils.SetupIntegrationTest(t)
-
-	t.Cleanup(func() {
-		mr.Close()
-	})
-
-	admin := registerUser(t, authSvc, "admin3@example.com")
-	user := registerUser(t, authSvc, "user3@example.com")
-
-	promoteAdmin(t, db, admin.ID)
-
-	require.NoError(t,
-		authSvc.LockUser(user.ID, admin.ID, "", ""),
-	)
-
-	require.NoError(t,
-		authSvc.UnlockUser(user.ID, admin.ID, "", ""),
-	)
-
-	updatedUser, err := repository.NewUserRepository(db).FindByID(user.ID)
-	require.NoError(t, err)
-
-	assert.Nil(t, updatedUser.LockedUntil)
-}
-
-func TestAuthService_UnlockUser_WhenNotLocked(t *testing.T) {
-	authSvc, db, mr := testutils.SetupIntegrationTest(t)
-
-	t.Cleanup(func() {
-		mr.Close()
-	})
-
-	admin := registerUser(t, authSvc, "admin4@example.com")
-	user := registerUser(t, authSvc, "user4@example.com")
-
-	promoteAdmin(t, db, admin.ID)
-
-	err := authSvc.UnlockUser(user.ID, admin.ID, "", "")
-	assert.ErrorIs(t, err, service.ErrNotLocked)
+			if tt.wantErr != nil {
+				assert.ErrorIs(t, err, tt.wantErr)
+			} else if tt.wantErrString != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.wantErrString)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
 }

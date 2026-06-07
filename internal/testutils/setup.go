@@ -90,7 +90,6 @@ func SetupIntegrationTest(t *testing.T) (*service.AuthService, *gorm.DB, *minire
 		auditService,
 		mfaService,
 		cfg,
-		db,
 	)
 
 	return authService, db, mr
