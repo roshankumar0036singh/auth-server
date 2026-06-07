@@ -12,9 +12,19 @@ type Response struct {
 }
 
 type ErrorDetail struct {
-	Code    string `json:"code"`
-	Message string `json:"message"`
+	Code    string      `json:"code"`
+	Message string      `json:"message"`
+	Details interface{} `json:"details,omitempty"`
 }
+
+
+const (
+	ErrValidation     = "VALIDATION_ERROR"
+	ErrUnauthorized   = "UNAUTHORIZED"
+	ErrForbidden      = "FORBIDDEN"
+	ErrInternalServer = "INTERNAL_SERVER_ERROR"
+	ErrGeneric        = "ERROR"
+)
 
 // SuccessResponse creates a success response
 func SuccessResponse(message string, data interface{}) Response {
@@ -45,29 +55,29 @@ func ErrorResponse(message string, err error) Response {
 
 // ValidationErrorResponse creates a validation error response
 func ValidationErrorResponse(message string) Response {
-	return Response{
-		Success: false,
-		Error: &ErrorDetail{
-			Code:    "VALIDATION_ERROR",
-			Message: message,
-		},
-	}
+	return StructuredError(
+		ErrValidation,
+		"Invalid request",
+		message,
+	)
 }
 
 // UnauthorizedResponse returns a 401 Unauthorized response
 func UnauthorizedResponse(message string) Response {
-	return Response{
-		Success: false,
-		Message: message,
-	}
+	return StructuredError(
+		ErrUnauthorized,
+		message,
+		nil,
+	)
 }
 
 // ForbiddenResponse returns a 403 Forbidden response
 func ForbiddenResponse(message string) Response {
-	return Response{
-		Success: false,
-		Message: message,
-	}
+	return StructuredError(
+		ErrForbidden,
+		message,
+		nil,
+	)
 }
 
 // BadRequestResponse returns a 400 Bad Request response
@@ -89,5 +99,17 @@ func InternalServerErrorResponse(c interface{}, message string) {
 			Success: false,
 			Message: message,
 		})
+	}
+}
+
+// For Structured Error Response
+func StructuredError(code, message string, details interface{}) Response {
+	return Response{
+		Success: false,
+		Error: &ErrorDetail{
+			Code:    code,
+			Message: message,
+			Details: details,
+		},
 	}
 }

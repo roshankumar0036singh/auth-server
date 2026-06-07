@@ -11,6 +11,7 @@ import (
 	"github.com/roshankumar0036singh/auth-server/internal/models"
 	"github.com/roshankumar0036singh/auth-server/internal/repository"
 	"github.com/roshankumar0036singh/auth-server/internal/service"
+	"github.com/roshankumar0036singh/auth-server/internal/utils"
 )
 
 const errTmpl = "error.html"
@@ -180,29 +181,41 @@ func (h *OAuthHandler) Token(c *gin.Context) {
 
 	// Validate grant type
 	if grantType != "authorization_code" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":             "unsupported_grant_type",
-			"error_description": "Only authorization_code grant type is supported",
-		})
+		c.JSON(
+			http.StatusBadRequest,
+			utils.StructuredError(
+				"UNSUPPORTED_GRANT_TYPE",
+				"Only authorization_code grant type is supported",
+				nil,
+			),
+		)
 		return
 	}
 
 	// Validate client credentials
 	if _, err := h.oauthProviderService.ValidateClient(clientID, clientSecret); err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"error":             "invalid_client",
-			"error_description": "Invalid client credentials",
-		})
+		c.JSON(
+			http.StatusUnauthorized,
+			utils.StructuredError(
+				"INVALID_CLIENT",
+				"Invalid client credentials",
+				nil,
+			),
+		)
 		return
 	}
 
 	// Exchange code for token
 	accessToken, err := h.oauthProviderService.ExchangeCodeForToken(code, clientID, redirectURI)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":             "invalid_grant",
-			"error_description": err.Error(),
-		})
+		c.JSON(
+			http.StatusBadRequest,
+			utils.StructuredError(
+				"INVALID_GRANT",
+				"Authorization code is invalid",
+				err.Error(),
+			),
+		)
 		return
 	}
 
@@ -227,17 +240,38 @@ func (h *OAuthHandler) UserInfo(c *gin.Context) {
 	// Validate token
 	accessToken, err := h.oauthProviderService.ValidateAccessToken(token)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		c.JSON(
+			http.StatusUnauthorized,
+			utils.StructuredError(
+				"INVALID_TOKEN",
+				"Token validation failed",
+				err.Error(),
+			),
+		)
 		return
 	}
 
 	user, err := h.userRepo.FindByID(accessToken.UserID)
 	if err != nil {
 		if errors.Is(err, repository.ErrUserNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{"error": "user_not_found"})
+			c.JSON(
+				http.StatusNotFound,
+				utils.StructuredError(
+					"USER_NOT_FOUND",
+					"User not found",
+					nil,
+				),
+			)
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed_to_fetch_user"})
+		c.JSON(
+			http.StatusInternalServerError,
+			utils.StructuredError(
+				"FETCH_USER_FAILED",
+				"Failed to fetch user",
+				nil,
+			),
+		)
 		return
 	}
 
