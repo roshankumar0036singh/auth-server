@@ -8,7 +8,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/roshankumar0036singh/auth-server/internal/handler"
-	"github.com/roshankumar0036singh/auth-server/internal/repository"
 	"github.com/roshankumar0036singh/auth-server/internal/service"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -85,7 +84,7 @@ func TestAdminHandler_LockUser_Errors(t *testing.T) {
 		lockErr    error
 		wantStatus int
 	}{
-		{"user not found", repository.ErrUserNotFound, http.StatusNotFound},
+		{"user not found", service.ErrUserNotFound, http.StatusNotFound},
 		{"self lock", service.ErrSelfLock, http.StatusBadRequest},
 		{"admin account", service.ErrAdminLock, http.StatusForbidden},
 		{"already locked", service.ErrAlreadyLocked, http.StatusConflict},
@@ -118,7 +117,7 @@ func TestAdminHandler_UnlockUser_Errors(t *testing.T) {
 		unlockErr  error
 		wantStatus int
 	}{
-		{"user not found", repository.ErrUserNotFound, http.StatusNotFound},
+		{"user not found", service.ErrUserNotFound, http.StatusNotFound},
 		{"not locked", service.ErrNotLocked, http.StatusBadRequest},
 		{"unexpected error", assert.AnError, http.StatusInternalServerError},
 	}

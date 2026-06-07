@@ -66,6 +66,7 @@ func TestAuthService_Login_Integration(t *testing.T) {
 }
 
 type fakeUserRepo struct {
+	t         *testing.T
 	user      *models.User
 	findErr   error
 	lockErr   error
@@ -97,7 +98,10 @@ func (f *fakeUserRepo) Update(_ string, fields map[string]interface{}) error {
 }
 
 func (f *fakeUserRepo) RunInTx(fn func(*repository.UserRepository, *repository.TokenRepository) error) error {
-	panic("use fakeAuthService seam instead; see TestLockUser_* below")
+	if f.t != nil {
+		f.t.Fatal("RunInTx should not be invoked directly in this unit test execution pathway; use the fakeAuthService seam instead")
+	}
+	return errors.New("transaction runner not implemented in mock")
 }
 
 func lockUserDirect(
@@ -279,10 +283,8 @@ func TestLockUser_RevokesTokens(t *testing.T) {
 }
 
 func TestLockUser_AuditNotFiredOnRevokeError(t *testing.T) {
-
-	auditFired := false
-
 	revokeErr := errors.New("revoke failed")
+
 	err := lockUserDirect(
 		"user-1", "admin-1",
 		func(_ string) (*models.User, error) { return &models.User{Role: "user"}, nil },
@@ -292,7 +294,7 @@ func TestLockUser_AuditNotFiredOnRevokeError(t *testing.T) {
 	)
 
 	require.Error(t, err)
-	assert.False(t, auditFired)
+	assert.ErrorIs(t, err, revokeErr, "expected execution flow to yield raw error back cleanly")
 }
 
 func TestUnlockUser(t *testing.T) {
