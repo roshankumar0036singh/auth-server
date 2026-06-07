@@ -24,7 +24,9 @@ func TestTokenService_GenerateAccessToken(t *testing.T) {
 		Role:  "user",
 	}
 
-	token, err := svc.GenerateAccessToken(user)
+	sessionID := "session-123"
+
+	token, err := svc.GenerateAccessToken(user, sessionID)
 	assert.NoError(t, err)
 	assert.NotEmpty(t, token)
 
