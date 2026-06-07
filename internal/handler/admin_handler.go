@@ -7,7 +7,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/roshankumar0036singh/auth-server/internal/service"
 	"github.com/roshankumar0036singh/auth-server/internal/utils"
-	"github.com/roshankumar0036singh/auth-server/internal/repository"
 )
 
 type AdminAuthService interface {
@@ -51,7 +50,7 @@ func (h *AdminHandler) LockUser(c *gin.Context) {
 	userAgent := c.GetHeader("User-Agent")
 	if err := h.authService.LockUser(userID, adminID, ipAddress, userAgent); err != nil {
 		switch {
-		case errors.Is(err, repository.ErrUserNotFound):
+		case errors.Is(err, service.ErrUserNotFound):
 			c.JSON(http.StatusNotFound,
 				utils.ErrorResponse("User not found", err))
 		case errors.Is(err, service.ErrSelfLock):
@@ -86,7 +85,7 @@ func (h *AdminHandler) UnlockUser(c *gin.Context) {
 	userAgent := c.GetHeader("User-Agent")
 	if err := h.authService.UnlockUser(userID, adminID, ipAddress, userAgent); err != nil {
 		switch {
-		case errors.Is(err, repository.ErrUserNotFound):
+		case errors.Is(err, service.ErrUserNotFound):
 			c.JSON(http.StatusNotFound,
 				utils.ErrorResponse("User not found", err))
 		case errors.Is(err, service.ErrNotLocked):
