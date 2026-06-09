@@ -7,14 +7,13 @@ import (
 	"log"
 	"time"
 
-	"golang.org/x/crypto/bcrypt"
 	"github.com/roshankumar0036singh/auth-server/internal/config"
 	"github.com/roshankumar0036singh/auth-server/internal/dto"
 	"github.com/roshankumar0036singh/auth-server/internal/models"
 	"github.com/roshankumar0036singh/auth-server/internal/repository"
 	"github.com/roshankumar0036singh/auth-server/internal/utils"
+	"golang.org/x/crypto/bcrypt"
 )
-
 
 type AuthService struct {
 	userRepo          *repository.UserRepository
@@ -88,6 +87,7 @@ func (s *AuthService) hashPassword(password string) (string, error) {
 
 	return string(hashedPassword), nil
 }
+
 // ... Register and other methods remain same ...
 func (s *AuthService) generateTokens(
 	user *models.User,
@@ -115,6 +115,7 @@ func (s *AuthService) generateTokens(
 
 	return accessToken, refreshTokenString, nil
 }
+
 // ForgotPassword initiates the password reset flow
 func (s *AuthService) ForgotPassword(email string) error {
 	user, err := s.userRepo.FindByEmail(email)
@@ -130,7 +131,7 @@ func (s *AuthService) ForgotPassword(email string) error {
 	token := &models.PasswordResetToken{
 		UserID:    user.ID,
 		Token:     s.tokenService.GenerateRandomString(32),
-		ExpiresAt: time.Now().Add(1 * time.Hour), 
+		ExpiresAt: time.Now().Add(1 * time.Hour),
 	}
 
 	if err := s.passwordResetRepo.Create(token); err != nil {
@@ -170,7 +171,7 @@ func (s *AuthService) ResetPassword(tokenString, newPassword string) error {
 	hashedPassword, err := s.hashPassword(newPassword)
 	if err != nil {
 		return err
-}
+	}
 
 	// Update user password
 	if err := s.userRepo.Update(token.UserID, map[string]interface{}{
@@ -194,7 +195,7 @@ func (s *AuthService) ResetPassword(tokenString, newPassword string) error {
 // UpdateProfile updates user profile information
 func (s *AuthService) UpdateProfile(userID string, req *dto.UpdateProfileRequest) (*models.User, error) {
 	updates := make(map[string]interface{})
-	
+
 	if req.FirstName != "" {
 		updates["first_name"] = req.FirstName
 	}
@@ -247,9 +248,9 @@ func (s *AuthService) ChangePassword(userID string, req *dto.ChangePasswordReque
 
 	// Hash new password
 	hashedPassword, err := s.hashPassword(req.NewPassword)
-		if err != nil {
+	if err != nil {
 		return err
-}
+	}
 
 	// Update password
 	if err := s.userRepo.Update(userID, map[string]interface{}{
@@ -260,7 +261,7 @@ func (s *AuthService) ChangePassword(userID string, req *dto.ChangePasswordReque
 
 	// Revoke all other sessions? Maybe optional, but good practice for security.
 	// For now, let's keep current session active.
-	
+
 	// Audit Log
 	s.auditService.LogEvent(&userID, "PASSWORD_CHANGED", "USER", userID, "", "", nil)
 
@@ -361,13 +362,13 @@ func (s *AuthService) VerifyLoginMFA(email, code, ipAddress, userAgent string) (
 
 	// Generate tokens
 	accessToken, refreshTokenString, err := s.generateTokens(
-	user,
-	ipAddress,
-	userAgent,
-)
-if err != nil {
-	return nil, err
-}
+		user,
+		ipAddress,
+		userAgent,
+	)
+	if err != nil {
+		return nil, err
+	}
 
 	s.auditService.LogEvent(&user.ID, "USER_LOGIN_SUCCESS_MFA", "USER", user.ID, ipAddress, userAgent, nil)
 
@@ -396,9 +397,9 @@ func (s *AuthService) Register(req *dto.RegisterRequest) (*models.User, error) {
 
 	// Hash password
 	hashedPassword, err := s.hashPassword(req.Password)
-		if err != nil {
-   		return nil, err
-}
+	if err != nil {
+		return nil, err
+	}
 
 	// Create user
 	user := &models.User{
@@ -407,7 +408,7 @@ func (s *AuthService) Register(req *dto.RegisterRequest) (*models.User, error) {
 		FirstName:     req.FirstName,
 		LastName:      req.LastName,
 		OAuthProvider: "local",
-		IsActive:      true,  // Can allow login but restrict features, or set false
+		IsActive:      true, // Can allow login but restrict features, or set false
 		EmailVerified: false,
 	}
 
@@ -487,7 +488,6 @@ func (s *AuthService) ResendVerification(email string) error {
 	return s.sendVerificationEmail(user)
 }
 
-
 // Login authenticates a user and returns tokens with device tracking
 func (s *AuthService) Login(req *dto.LoginRequest, ipAddress, userAgent string) (*dto.LoginResponse, error) {
 	ctx := context.Background()
@@ -539,13 +539,13 @@ func (s *AuthService) Login(req *dto.LoginRequest, ipAddress, userAgent string) 
 
 	// Generate tokens
 	accessToken, refreshTokenString, err := s.generateTokens(
-	user,
-	ipAddress,
-	userAgent,
-)
-if err != nil {
-	return nil, err
-}
+		user,
+		ipAddress,
+		userAgent,
+	)
+	if err != nil {
+		return nil, err
+	}
 
 	// Update last login
 	if err := s.userRepo.Update(user.ID, map[string]interface{}{"last_login_at": time.Now()}); err != nil {
@@ -569,7 +569,7 @@ func (s *AuthService) LoginWithOAuth(email, oauthID, firstName, lastName, provid
 		// User does not exist, create new one
 		password := s.tokenService.GenerateRandomString(32)
 		hashedPassword, _ := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
-		
+
 		user = &models.User{
 			Email:         email,
 			PasswordHash:  string(hashedPassword),
@@ -580,11 +580,11 @@ func (s *AuthService) LoginWithOAuth(email, oauthID, firstName, lastName, provid
 			IsActive:      true,
 			EmailVerified: true, // Trusted from OAuth
 		}
-		
+
 		if err := s.userRepo.Create(user); err != nil {
 			return nil, errors.New("failed to create user")
 		}
-		
+
 		s.auditService.LogEvent(&user.ID, "USER_REGISTERED_OAUTH", "USER", user.ID, "", "", map[string]interface{}{"provider": provider})
 	} else {
 		// User exists, link account if not generic local
@@ -604,15 +604,15 @@ func (s *AuthService) LoginWithOAuth(email, oauthID, firstName, lastName, provid
 
 	// Generate tokens
 	accessToken, refreshTokenString, err := s.generateTokens(
-	user,
-	ipAddress,
-	userAgent,
-)
-if err != nil {
-	return nil, err
-}
+		user,
+		ipAddress,
+		userAgent,
+	)
+	if err != nil {
+		return nil, err
+	}
 
-s.auditService.LogEvent(&user.ID, "USER_LOGIN_SUCCESS_OAUTH", "USER", user.ID, ipAddress, userAgent, nil)
+	s.auditService.LogEvent(&user.ID, "USER_LOGIN_SUCCESS_OAUTH", "USER", user.ID, ipAddress, userAgent, nil)
 
 	return &dto.LoginResponse{
 		AccessToken:  accessToken,
@@ -640,7 +640,7 @@ func (s *AuthService) handleFailedLogin(user *models.User, email string, ctx con
 	}
 
 	s.userRepo.Update(user.ID, updates)
-	
+
 	// Audit Log Failed Login
 	s.auditService.LogEvent(&user.ID, "USER_LOGIN_FAILED", "USER", user.ID, "", "", map[string]interface{}{"email": email})
 }
@@ -700,8 +700,8 @@ func (s *AuthService) RefreshAccessToken(refreshTokenString string, ipAddress, u
 
 	// Store new refresh token
 	if err := s.createRefreshToken(user.ID, newRefreshTokenString, ipAddress, userAgent); err != nil {
-    	return nil, errors.New("failed to store refresh token")
-}
+		return nil, errors.New("failed to store refresh token")
+	}
 	return &dto.TokenRefreshResponse{
 		AccessToken:  newAccessToken,
 		RefreshToken: newRefreshTokenString,
