@@ -187,8 +187,8 @@ func TestLockUser(t *testing.T) {
 			name:    "user not found",
 			userID:  "user-1",
 			adminID: "admin-1",
-			findErr: repository.ErrUserNotFound,
-			wantErr: repository.ErrUserNotFound,
+			findErr: service.ErrUserNotFound,
+			wantErr: service.ErrUserNotFound,
 		},
 		{
 			name:    "target is admin",
@@ -319,8 +319,8 @@ func TestUnlockUser(t *testing.T) {
 		{
 			name:    "user not found",
 			userID:  "user-1",
-			findErr: repository.ErrUserNotFound,
-			wantErr: repository.ErrUserNotFound,
+			findErr: service.ErrUserNotFound,
+			wantErr: service.ErrUserNotFound,
 		},
 		{
 			name:    "not locked",
