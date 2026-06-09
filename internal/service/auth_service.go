@@ -729,6 +729,9 @@ type userLocker interface {
 func validateLockUser(repo userLocker, userID string) error {
 	user, err := repo.FindByID(userID)
 	if err != nil {
+		if errors.Is(err, repository.ErrUserNotFound) {
+			return ErrUserNotFound
+		}
 		return err
 	}
 	if user.Role == "admin" {
