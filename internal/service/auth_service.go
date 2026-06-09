@@ -15,6 +15,8 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+const errUserNotFound = "user not found"
+
 type AuthService struct {
 	userRepo          *repository.UserRepository
 	tokenRepo         *repository.TokenRepository
@@ -219,7 +221,7 @@ func (s *AuthService) UpdateProfile(userID string, req *dto.UpdateProfileRequest
 
 	user, err := s.userRepo.FindByID(userID)
 	if err != nil {
-		return nil, errors.New("user not found")
+		return nil, errors.New(errUserNotFound)
 	}
 	return user, nil
 }
@@ -233,7 +235,7 @@ func (s *AuthService) GetUserAuditLogs(userID string) ([]models.AuditLog, error)
 func (s *AuthService) ChangePassword(userID string, req *dto.ChangePasswordRequest) error {
 	user, err := s.userRepo.FindByID(userID)
 	if err != nil {
-		return errors.New("user not found")
+		return errors.New(errUserNotFound)
 	}
 
 	// Verify current password
@@ -289,7 +291,7 @@ func (s *AuthService) DeleteAccount(userID string) error {
 func (s *AuthService) EnableMFA(userID string) (*dto.MFAEnableResponse, error) {
 	user, err := s.userRepo.FindByID(userID)
 	if err != nil {
-		return nil, errors.New("user not found")
+		return nil, errors.New(errUserNotFound)
 	}
 
 	if user.MFAEnabled {
@@ -318,7 +320,7 @@ func (s *AuthService) EnableMFA(userID string) (*dto.MFAEnableResponse, error) {
 func (s *AuthService) VerifyEnableMFA(userID, code string) error {
 	user, err := s.userRepo.FindByID(userID)
 	if err != nil {
-		return errors.New("user not found")
+		return errors.New(errUserNotFound)
 	}
 
 	if user.MFAEnabled {
@@ -348,7 +350,7 @@ func (s *AuthService) VerifyEnableMFA(userID, code string) error {
 func (s *AuthService) VerifyLoginMFA(email, code, ipAddress, userAgent string) (*dto.LoginResponse, error) {
 	user, err := s.userRepo.FindByEmail(email)
 	if err != nil {
-		return nil, errors.New("user not found")
+		return nil, errors.New(errUserNotFound)
 	}
 
 	if !user.MFAEnabled {
@@ -474,7 +476,7 @@ func (s *AuthService) VerifyEmail(tokenString string) error {
 func (s *AuthService) ResendVerification(email string) error {
 	user, err := s.userRepo.FindByEmail(email)
 	if err != nil {
-		return errors.New("user not found")
+		return errors.New(errUserNotFound)
 	}
 
 	if user.EmailVerified {
@@ -678,7 +680,7 @@ func (s *AuthService) RefreshAccessToken(refreshTokenString string, ipAddress, u
 	// Get user
 	user, err := s.userRepo.FindByID(claims.UserID)
 	if err != nil {
-		return nil, errors.New("user not found")
+		return nil, errors.New(errUserNotFound)
 	}
 
 	// Generate new access token
@@ -752,7 +754,7 @@ func (s *AuthService) LogoutAll(userID string, currentAccessToken string) error 
 func (s *AuthService) GetUserByID(userID string) (*models.User, error) {
 	user, err := s.userRepo.FindByID(userID)
 	if err != nil {
-		return nil, errors.New("user not found")
+		return nil, errors.New(errUserNotFound)
 	}
 	return user, nil
 }
