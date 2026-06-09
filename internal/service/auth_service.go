@@ -168,7 +168,7 @@ func (s *AuthService) ResetPassword(tokenString, newPassword string) error {
 
 	// Hash new password
 	hashedPassword, err := s.hashPassword(newPassword)
-		if err != nil {
+	if err != nil {
 		return err
 }
 
@@ -612,7 +612,7 @@ if err != nil {
 	return nil, err
 }
 
-	s.auditService.LogEvent(&user.ID, "USER_LOGIN_Success_MFA", "USER", user.ID, ipAddress, userAgent, nil)
+s.auditService.LogEvent(&user.ID, "USER_LOGIN_SUCCESS_OAUTH", "USER", user.ID, ipAddress, userAgent, nil)
 
 	return &dto.LoginResponse{
 		AccessToken:  accessToken,
@@ -700,9 +700,8 @@ func (s *AuthService) RefreshAccessToken(refreshTokenString string, ipAddress, u
 
 	// Store new refresh token
 	if err := s.createRefreshToken(user.ID, newRefreshTokenString, ipAddress, userAgent); err != nil {
-    log.Printf("Warning: Failed to store new refresh token: %v", err)
+    	return nil, errors.New("failed to store refresh token")
 }
-
 	return &dto.TokenRefreshResponse{
 		AccessToken:  newAccessToken,
 		RefreshToken: newRefreshTokenString,
