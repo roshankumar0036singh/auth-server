@@ -173,7 +173,7 @@ func (s *AuthService) UpdateProfile(userID string, req *dto.UpdateProfileRequest
 
 	user, err := s.userRepo.FindByID(userID)
 	if err != nil {
-		return nil, repository.ErrUserNotFound
+		return nil, ErrUserNotFound
 	}
 	return user, nil
 }
@@ -187,7 +187,7 @@ func (s *AuthService) GetUserAuditLogs(userID string) ([]models.AuditLog, error)
 func (s *AuthService) ChangePassword(userID string, req *dto.ChangePasswordRequest) error {
 	user, err := s.userRepo.FindByID(userID)
 	if err != nil {
-		return repository.ErrUserNotFound
+		return ErrUserNotFound
 	}
 
 	// Verify current password
@@ -243,7 +243,7 @@ func (s *AuthService) DeleteAccount(userID string) error {
 func (s *AuthService) EnableMFA(userID string) (*dto.MFAEnableResponse, error) {
 	user, err := s.userRepo.FindByID(userID)
 	if err != nil {
-		return nil, repository.ErrUserNotFound
+		return nil, ErrUserNotFound
 	}
 
 	if user.MFAEnabled {
@@ -272,7 +272,7 @@ func (s *AuthService) EnableMFA(userID string) (*dto.MFAEnableResponse, error) {
 func (s *AuthService) VerifyEnableMFA(userID, code string) error {
 	user, err := s.userRepo.FindByID(userID)
 	if err != nil {
-		return repository.ErrUserNotFound
+		return ErrUserNotFound
 	}
 
 	if user.MFAEnabled {
@@ -302,7 +302,7 @@ func (s *AuthService) VerifyEnableMFA(userID, code string) error {
 func (s *AuthService) VerifyLoginMFA(email, code, ipAddress, userAgent string) (*dto.LoginResponse, error) {
 	user, err := s.userRepo.FindByEmail(email)
 	if err != nil {
-		return nil, repository.ErrUserNotFound
+		return nil, ErrUserNotFound
 	}
 
 	if !user.MFAEnabled {
@@ -420,7 +420,7 @@ func (s *AuthService) VerifyEmail(tokenString string) error {
 func (s *AuthService) ResendVerification(email string) error {
 	user, err := s.userRepo.FindByEmail(email)
 	if err != nil {
-		return repository.ErrUserNotFound
+		return ErrUserNotFound
 	}
 
 	if user.EmailVerified {
@@ -607,7 +607,7 @@ func (s *AuthService) RefreshAccessToken(refreshTokenString string, ipAddress, u
 	// Get user
 	user, err := s.userRepo.FindByID(claims.UserID)
 	if err != nil {
-		return nil, repository.ErrUserNotFound
+		return nil, ErrUserNotFound
 	}
 
 	// Token rotation: Generate new refresh token
@@ -689,7 +689,7 @@ func (s *AuthService) LogoutAll(userID string, currentAccessToken string) error 
 func (s *AuthService) GetUserByID(userID string) (*models.User, error) {
 	user, err := s.userRepo.FindByID(userID)
 	if err != nil {
-		return nil, repository.ErrUserNotFound
+		return nil, ErrUserNotFound
 	}
 	return user, nil
 }
@@ -790,6 +790,9 @@ func (s *AuthService) LockUser(userID, adminID, ipAddress, userAgent string) err
 	return nil
 }
 
+// UnlockUser removes the account lock state.
+// Previously revoked refresh tokens remain revoked and are not restored.
+// Users must log in again after the account is unlocked.
 func (s *AuthService) UnlockUser(userID, adminID, ipAddress, userAgent string) error {
 	err := s.userRepo.RunInTx(func(userRepo *repository.UserRepository, tokenRepo *repository.TokenRepository) error {
 		user, err := userRepo.FindByID(userID)
