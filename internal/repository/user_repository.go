@@ -2,9 +2,13 @@ package repository
 
 import (
 	"errors"
+	"time"
+
 	"github.com/roshankumar0036singh/auth-server/internal/models"
 	"gorm.io/gorm"
 )
+
+var ErrUserNotFound = errors.New("user not found")
 
 type UserRepository struct {
 	db *gorm.DB
@@ -19,7 +23,7 @@ func (r *UserRepository) FindByID(id string) (*models.User, error) {
 	var user models.User
 	if err := r.db.First(&user, "id = ?", id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, errors.New("user not found")
+			return nil, ErrUserNotFound
 		}
 		return nil, err
 	}
@@ -31,7 +35,7 @@ func (r *UserRepository) FindByEmail(email string) (*models.User, error) {
 	var user models.User
 	if err := r.db.Where("email = ?", email).First(&user).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, errors.New("user not found")
+			return nil, ErrUserNotFound
 		}
 		return nil, err
 	}
@@ -50,7 +54,7 @@ func (r *UserRepository) Update(id string, updates map[string]interface{}) error
 		return result.Error
 	}
 	if result.RowsAffected == 0 {
-		return errors.New("user not found")
+		return ErrUserNotFound
 	}
 	return nil
 }
@@ -62,7 +66,7 @@ func (r *UserRepository) Delete(id string) error {
 		return result.Error
 	}
 	if result.RowsAffected == 0 {
-		return errors.New("user not found")
+		return ErrUserNotFound
 	}
 	return nil
 }
@@ -72,4 +76,45 @@ func (r *UserRepository) EmailExists(email string) (bool, error) {
 	var count int64
 	err := r.db.Model(&models.User{}).Where("email = ?", email).Count(&count).Error
 	return count > 0, err
+}
+
+func (r *UserRepository) RunInTx(fn func(u *UserRepository, t *TokenRepository) error) error {
+    return r.db.Transaction(func(tx *gorm.DB) error {
+        return fn(NewUserRepository(tx), NewTokenRepository(tx))
+    })
+}
+
+func (r *UserRepository) LockUser(userID string, lockedUntil time.Time) error {
+	result := r.db.Model(&models.User{}).
+		Where("id = ?", userID).
+		Update("locked_until", lockedUntil)
+
+	if result.Error != nil {
+		return result.Error
+	}
+
+	if result.RowsAffected == 0 {
+		return ErrUserNotFound
+	}
+
+	return nil
+}
+
+func (r *UserRepository) UnlockUser(userID string) error {
+	result := r.db.Model(&models.User{}).
+		Where("id = ?", userID).
+		Updates(map[string]interface{}{
+			"locked_until":          nil,
+			"failed_login_attempts": 0,
+		})
+
+	if result.Error != nil {
+		return result.Error
+	}
+
+	if result.RowsAffected == 0 {
+		return ErrUserNotFound
+	}
+
+	return nil
 }

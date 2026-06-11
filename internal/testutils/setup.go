@@ -4,8 +4,8 @@ import (
 	"testing"
 
 	"github.com/alicebob/miniredis/v2"
-	"github.com/go-redis/redis/v8"
 	"github.com/glebarez/sqlite"
+	"github.com/go-redis/redis/v8"
 	"github.com/roshankumar0036singh/auth-server/internal/config"
 	"github.com/roshankumar0036singh/auth-server/internal/models"
 	"github.com/roshankumar0036singh/auth-server/internal/repository"
@@ -47,8 +47,10 @@ func SetupIntegrationTest(t *testing.T) (*service.AuthService, *gorm.DB, *minire
 		&models.VerificationToken{},
 		&models.PasswordResetToken{},
 		&models.AuditLog{},
+		&models.OAuthAccessToken{},
 	)
 	assert.NoError(t, err)
+	assert.NoError(t, db.Exec("DELETE FROM oauth_access_tokens").Error)
 
 	// 2. Miniredis
 	mr, err := miniredis.Run()
@@ -67,9 +69,9 @@ func SetupIntegrationTest(t *testing.T) (*service.AuthService, *gorm.DB, *minire
 
 	// 4. Services
 	cfg := &config.Config{
-		JWT: config.JWTConfig{AccessSecret: "secret", RefreshSecret: "refresh"},
-		Security: config.SecurityConfig{RateLimitMax: 10, RateLimitWindow: 60}, 
-		App: config.AppConfig{URL: "http://localhost"},
+		JWT:      config.JWTConfig{AccessSecret: "secret", RefreshSecret: "refresh"},
+		Security: config.SecurityConfig{RateLimitMax: 10, RateLimitWindow: 60},
+		App:      config.AppConfig{URL: "http://localhost"},
 	}
 	tokenService := service.NewTokenService(cfg)
 	cacheService := service.NewCacheService(rdb)
