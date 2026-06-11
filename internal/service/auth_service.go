@@ -15,6 +15,8 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+var ErrIncorrectCurrentPassword = errors.New("incorrect current password")
+
 const (
 	errUserNotFound      = "user not found"
 	errGenAccessToken    = "failed to generate access token"
@@ -186,7 +188,7 @@ func (s *AuthService) ChangePassword(userID string, req *dto.ChangePasswordReque
 
 	// Verify current password
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.CurrentPassword)); err != nil {
-		return errors.New("incorrect current password")
+		return ErrIncorrectCurrentPassword
 	}
 
 	// Validate password strength

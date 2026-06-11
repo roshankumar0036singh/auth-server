@@ -259,10 +259,13 @@ func TestOAuthHandler_UserInfoHandlesMissingUser(t *testing.T) {
 
 	var response map[string]interface{}
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
-	assert.Equal(t, "user_not_found", response["error"])
+	// # standardize error response format in auth and oauth handlers
+	errorField := response["error"].(map[string]interface{})
+	assert.Equal(t, "USER_NOT_FOUND", errorField["code"])
 }
 
 func TestOAuthHandler_UserInfo_ErrorCases(t *testing.T) {
+	// # standardize error response format in auth and oauth handlers
 	tests := []struct {
 		name           string
 		authHeader     string
@@ -273,19 +276,19 @@ func TestOAuthHandler_UserInfo_ErrorCases(t *testing.T) {
 			name:           "missing authorization header",
 			authHeader:     "",
 			expectedStatus: http.StatusUnauthorized,
-			expectedError:  "missing_token",
+			expectedError:  "MISSING_TOKEN",
 		},
 		{
 			name:           "invalid token format without bearer prefix",
 			authHeader:     "InvalidFormatToken",
 			expectedStatus: http.StatusUnauthorized,
-			expectedError:  "invalid_token_format",
+			expectedError:  "INVALID_TOKEN_FORMAT",
 		},
 		{
 			name:           "invalid or fake token",
 			authHeader:     "Bearer this-is-a-fake-token",
 			expectedStatus: http.StatusUnauthorized,
-			expectedError:  "invalid access token",
+			expectedError:  "INVALID_TOKEN",
 		},
 	}
 
@@ -304,7 +307,10 @@ func TestOAuthHandler_UserInfo_ErrorCases(t *testing.T) {
 
 			var response map[string]interface{}
 			require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
-			assert.Equal(t, tt.expectedError, response["error"])
+
+			// Standardized error response should have error.code field
+			errorField := response["error"].(map[string]interface{})
+			assert.Equal(t, tt.expectedError, errorField["code"])
 		})
 	}
 }

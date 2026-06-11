@@ -254,3 +254,118 @@ func TestAuthHandler_GetSessions_NoSessionIDInContext(t *testing.T) {
 		)
 	}
 }
+
+// # standardize error response format in auth and oauth handlers
+func TestAuthHandler_ErrorResponse_InvalidRequest(t *testing.T) {
+	r, h := SetupRouter(t)
+	r.POST("/api/auth/register", h.Register)
+
+	// Test invalid JSON body
+	req, _ := http.NewRequest(http.MethodPost, "/api/auth/register", bytes.NewBuffer([]byte("invalid json")))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+
+	var resp map[string]interface{}
+	err := json.Unmarshal(w.Body.Bytes(), &resp)
+	assert.NoError(t, err)
+
+	// Verify standardized error response format
+	assert.False(t, resp["success"].(bool))
+	errorField := resp["error"].(map[string]interface{})
+	assert.Equal(t, "VALIDATION_ERROR", errorField["code"])
+	assert.NotEmpty(t, errorField["message"])
+}
+
+func TestAuthHandler_ErrorResponse_LoginFailed(t *testing.T) {
+	r, h := SetupRouter(t)
+	r.POST("/api/auth/register", h.Register)
+	r.POST("/api/auth/login", h.Login)
+
+	// Register user first
+	regBody := dto.RegisterRequest{
+		Email:     "login_error@example.com",
+		Password:  "Password123!",
+		FirstName: "Login",
+		LastName:  "Error",
+	}
+	b, _ := json.Marshal(regBody)
+	regReq, _ := http.NewRequest(http.MethodPost, "/api/auth/register", bytes.NewBuffer(b))
+	regReq.Header.Set("Content-Type", "application/json")
+	regW := httptest.NewRecorder()
+	r.ServeHTTP(regW, regReq)
+	assert.Equal(t, http.StatusCreated, regW.Code)
+
+	// Try to login with wrong password
+	loginBody := dto.LoginRequest{
+		Email:    "login_error@example.com",
+		Password: "WrongPassword123!",
+	}
+	b2, _ := json.Marshal(loginBody)
+	req, _ := http.NewRequest(http.MethodPost, "/api/auth/login", bytes.NewBuffer(b2))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+
+	var resp map[string]interface{}
+	err := json.Unmarshal(w.Body.Bytes(), &resp)
+	assert.NoError(t, err)
+
+	// Verify standardized error response format
+	assert.False(t, resp["success"].(bool))
+	errorField := resp["error"].(map[string]interface{})
+	assert.Equal(t, "LOGIN_FAILED", errorField["code"])
+	assert.NotEmpty(t, errorField["message"])
+}
+
+func TestAuthHandler_ErrorResponse_VerifyEmail_MissingToken(t *testing.T) {
+	r, h := SetupRouter(t)
+	r.GET("/api/auth/verify-email", h.VerifyEmail)
+
+	req, _ := http.NewRequest(http.MethodGet, "/api/auth/verify-email", nil)
+	w := httptest.NewRecorder()
+
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+
+	var resp map[string]interface{}
+	err := json.Unmarshal(w.Body.Bytes(), &resp)
+	assert.NoError(t, err)
+
+	// Verify standardized error response format
+	assert.False(t, resp["success"].(bool))
+	errorField := resp["error"].(map[string]interface{})
+	assert.Equal(t, "MISSING_TOKEN", errorField["code"])
+	assert.NotEmpty(t, errorField["message"])
+}
+
+func TestAuthHandler_ErrorResponse_ResetPassword_InvalidRequest(t *testing.T) {
+	r, h := SetupRouter(t)
+	r.POST("/api/auth/reset-password", h.ResetPassword)
+
+	// Test invalid JSON body
+	req, _ := http.NewRequest(http.MethodPost, "/api/auth/reset-password", bytes.NewBuffer([]byte("invalid json")))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+
+	var resp map[string]interface{}
+	err := json.Unmarshal(w.Body.Bytes(), &resp)
+	assert.NoError(t, err)
+
+	// Verify standardized error response format
+	assert.False(t, resp["success"].(bool))
+	errorField := resp["error"].(map[string]interface{})
+	assert.Equal(t, "VALIDATION_ERROR", errorField["code"])
+	assert.NotEmpty(t, errorField["message"])
+}
