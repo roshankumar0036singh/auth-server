@@ -567,11 +567,14 @@ func (s *AuthService) LoginWithOAuth(email, oauthID, firstName, lastName, provid
 	if err != nil {
 		// User does not exist, create new one
 		password := s.tokenService.GenerateRandomString(32)
-		hashedPassword, _ := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 
+		hashedPassword, err := s.hashPassword(password)
+		if err != nil {
+			return nil, err
+		}
 		user = &models.User{
 			Email:         email,
-			PasswordHash:  string(hashedPassword),
+			PasswordHash:  hashedPassword,
 			FirstName:     firstName,
 			LastName:      lastName,
 			OAuthProvider: provider,
@@ -669,7 +672,7 @@ func (s *AuthService) RefreshAccessToken(refreshTokenString string, ipAddress, u
 	// Get user
 	user, err := s.userRepo.FindByID(claims.UserID)
 	if err != nil {
-		return nil, ErrUserNotFound
+		return nil, errors.New(errUserNotFound)
 	}
 
 	// Token rotation: Generate new refresh token
@@ -700,11 +703,12 @@ func (s *AuthService) RefreshAccessToken(refreshTokenString string, ipAddress, u
 	); err != nil {
 		return nil, errors.New("failed to rotate refresh token")
 	}
-	return &dto.TokenRefreshResponse{
-		AccessToken:  newAccessToken,
-		RefreshToken: newRefreshTokenString,
-	}, nil
-}
+
+	// Generate new access token AFTER refresh token is stored
+	newAccessToken, err := s.tokenService.GenerateAccessToken(user)
+	if err != nil {
+		return nil, errors.New("failed to generate access token")
+	}
 
 // Logout revokes the refresh token and blacklists the access token
 func (s *AuthService) Logout(accessToken, refreshToken string) error {
