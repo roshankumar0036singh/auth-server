@@ -110,7 +110,7 @@ func (s *AuthService) generateTokens(
 	ipAddress, userAgent string,
 ) (string, string, error) {
 
-	accessToken, err := s.tokenService.GenerateAccessToken(user)
+	accessToken, err := s.tokenService.GenerateAccessToken(user, "")
 	if err != nil {
 		return "", "", errors.New("failed to generate access token")
 	}
