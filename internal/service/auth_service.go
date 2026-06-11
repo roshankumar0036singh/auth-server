@@ -704,11 +704,11 @@ func (s *AuthService) RefreshAccessToken(refreshTokenString string, ipAddress, u
 		return nil, errors.New("failed to rotate refresh token")
 	}
 
-	// Generate new access token AFTER refresh token is stored
-	newAccessToken, err := s.tokenService.GenerateAccessToken(user)
-	if err != nil {
-		return nil, errors.New("failed to generate access token")
-	}
+	return &dto.TokenRefreshResponse{
+		AccessToken:  newAccessToken,
+		RefreshToken: newRefreshTokenString,
+	}, nil
+}
 
 // Logout revokes the refresh token and blacklists the access token
 func (s *AuthService) Logout(accessToken, refreshToken string) error {
