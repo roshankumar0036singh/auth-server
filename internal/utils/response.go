@@ -12,9 +12,46 @@ type Response struct {
 }
 
 type ErrorDetail struct {
-	Code    string `json:"code"`
-	Message string `json:"message"`
+	Code    string      `json:"code"`
+	Message string      `json:"message"`
+	Details interface{} `json:"details,omitempty"`
 }
+
+const (
+	ErrValidation              = "VALIDATION_ERROR"
+	ErrUnauthorized            = "UNAUTHORIZED"
+	ErrForbidden               = "FORBIDDEN"
+	ErrInternalServer          = "INTERNAL_SERVER_ERROR"
+	ErrGeneric                 = "ERROR"
+	ErrPasswordRestFailed      = "PASSWORD_RESET_FAILED"
+	ErrResendFailed            = "RESEND_FAILED"
+	ErrVerificationFailed      = "VERIFICATION_FAILED"
+	ErrRegistrationFailed      = "REGISTRATION_FAILED"
+	ErrMissingToken            = "MISSING_TOKEN"
+	ErrProcessFailed           = "PROCESS_FAILED"
+	ErrUpdateProfileFailed     = "UPDATE_PROFILE_FAILED"
+	ErrPasswordIncorrect       = "INCORRECT_PASSWORD"
+	ErrDeleteAccountFailed     = "DELETE_ACCOUNT_FAILED"
+	ErrLoginFailed             = "LOGIN_FAILED"
+	ErrTokenRefreshFailed      = "TOKEN_REFRESH_FAILED"
+	ErrLogoutFailed            = "LOGOUT_FAILED"
+	ErrOAuthStateGeneration    = "OAUTH_STATE_GENERATION_FAILED"
+	ErrGetAuthURL              = "GET_AUTH_URL_FAILED"
+	ErrInvalidState            = "INVALID_STATE"
+	ErrTokenExchange           = "TOKEN_EXCHANGE_FAILED"
+	ErrFetchUserInfo           = "FETCH_USER_INFO_FAILED"
+	ErrMFASetup                = "MFA_SETUP_FAILED"
+	ErrMFAVerification         = "MFA_VERIFICATION_FAILED"
+	ErrInvalidClientID         = "INVALID_CLIENT_ID"
+	ErrInvalidRedirectURI      = "INVALID_REDIRECT_URI"
+	ErrMissingRequiredParams   = "MISSING_REQUIRED_PARAMS"
+	ErrMissingSessionID        = "MISSING_SESSION_ID"
+	ErrRevokeSessionFailed     = "REVOKE_SESSION_FAILED"
+	ErrFetchSessionsFailed     = "FETCH_SESSIONS_FAILED"
+	ErrUnsupportedResponseType = "UNSUPPORTED_RESPONSE_TYPE"
+	ErrSaveConsentFailed       = "SAVE_CONSENT_FAILED"
+	ErrAuthCodeGeneration      = "AUTH_CODE_GENERATION_FAILED"
+)
 
 // SuccessResponse creates a success response
 func SuccessResponse(message string, data interface{}) Response {
@@ -37,7 +74,7 @@ func ErrorResponse(message string, err error) Response {
 	return Response{
 		Success: false,
 		Error: &ErrorDetail{
-			Code:    "ERROR",
+			Code:    ErrGeneric,
 			Message: errMsg,
 		},
 	}
@@ -45,29 +82,29 @@ func ErrorResponse(message string, err error) Response {
 
 // ValidationErrorResponse creates a validation error response
 func ValidationErrorResponse(message string) Response {
-	return Response{
-		Success: false,
-		Error: &ErrorDetail{
-			Code:    "VALIDATION_ERROR",
-			Message: message,
-		},
-	}
+	return StructuredError(
+		ErrValidation,
+		message,
+		nil,
+	)
 }
 
 // UnauthorizedResponse returns a 401 Unauthorized response
 func UnauthorizedResponse(message string) Response {
-	return Response{
-		Success: false,
-		Message: message,
-	}
+	return StructuredError(
+		ErrUnauthorized,
+		message,
+		nil,
+	)
 }
 
 // ForbiddenResponse returns a 403 Forbidden response
 func ForbiddenResponse(message string) Response {
-	return Response{
-		Success: false,
-		Message: message,
-	}
+	return StructuredError(
+		ErrForbidden,
+		message,
+		nil,
+	)
 }
 
 // BadRequestResponse returns a 400 Bad Request response
@@ -89,5 +126,17 @@ func InternalServerErrorResponse(c interface{}, message string) {
 			Success: false,
 			Message: message,
 		})
+	}
+}
+
+// For Structured Error Response
+func StructuredError(code, message string, details interface{}) Response {
+	return Response{
+		Success: false,
+		Error: &ErrorDetail{
+			Code:    code,
+			Message: message,
+			Details: details,
+		},
 	}
 }

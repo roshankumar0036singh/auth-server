@@ -11,6 +11,7 @@ import (
 	"github.com/roshankumar0036singh/auth-server/internal/models"
 	"github.com/roshankumar0036singh/auth-server/internal/repository"
 	"github.com/roshankumar0036singh/auth-server/internal/service"
+	"github.com/roshankumar0036singh/auth-server/internal/utils"
 )
 
 const errTmpl = "error.html"
@@ -22,7 +23,7 @@ type OAuthHandler struct {
 
 func NewOAuthHandler(oauthProviderService *service.OAuthProviderService, userRepo *repository.UserRepository) *OAuthHandler {
 	if userRepo == nil {
-		panic("oauth handler requires user repository")
+		panic("user repository is required")
 	}
 
 	return &OAuthHandler{
@@ -43,34 +44,26 @@ func (h *OAuthHandler) Authorize(c *gin.Context) {
 
 	// Validate required parameters
 	if clientID == "" || redirectURI == "" || responseType == "" {
-		c.HTML(http.StatusBadRequest, errTmpl, gin.H{
-			"error": "Missing required parameters",
-		})
+		c.JSON(http.StatusBadRequest, utils.StructuredError(utils.ErrMissingRequiredParams, "Missing required parameters", nil))
 		return
 	}
 
 	// Only support authorization_code flow
 	if responseType != "code" {
-		c.HTML(http.StatusBadRequest, errTmpl, gin.H{
-			"error": "Unsupported response_type. Only 'code' is supported",
-		})
+		c.JSON(http.StatusBadRequest, utils.StructuredError(utils.ErrUnsupportedResponseType, "Unsupported response_type. Only 'code' is supported", nil))
 		return
 	}
 
 	// Validate client
 	client, err := h.oauthProviderService.GetPublicClient(clientID)
 	if err != nil {
-		c.HTML(http.StatusBadRequest, errTmpl, gin.H{
-			"error": "Invalid client_id",
-		})
+		c.JSON(http.StatusBadRequest, utils.StructuredError(utils.ErrInvalidClientID, "Invalid client_id", nil))
 		return
 	}
 
 	// Validate redirect URI
 	if err := h.oauthProviderService.ValidateRedirectURI(client, redirectURI); err != nil {
-		c.HTML(http.StatusBadRequest, errTmpl, gin.H{
-			"error": "Invalid redirect_uri",
-		})
+		c.JSON(http.StatusBadRequest, utils.StructuredError(utils.ErrInvalidRedirectURI, "Invalid redirect_uri", nil))
 		return
 	}
 
@@ -143,9 +136,7 @@ func (h *OAuthHandler) AuthorizePost(c *gin.Context) {
 	// Get authenticated user
 	userID, exists := c.Get("userID")
 	if !exists {
-		c.HTML(http.StatusUnauthorized, "error.html", gin.H{
-			"error": "User not authenticated",
-		})
+		c.JSON(http.StatusUnauthorized, utils.StructuredError(utils.ErrUnauthorized, "User not authenticated", nil))
 		return
 	}
 
@@ -180,29 +171,41 @@ func (h *OAuthHandler) Token(c *gin.Context) {
 
 	// Validate grant type
 	if grantType != "authorization_code" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":             "unsupported_grant_type",
-			"error_description": "Only authorization_code grant type is supported",
-		})
+		c.JSON(
+			http.StatusBadRequest,
+			utils.StructuredError(
+				"UNSUPPORTED_GRANT_TYPE",
+				"Only authorization_code grant type is supported",
+				nil,
+			),
+		)
 		return
 	}
 
 	// Validate client credentials
 	if _, err := h.oauthProviderService.ValidateClient(clientID, clientSecret); err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"error":             "invalid_client",
-			"error_description": "Invalid client credentials",
-		})
+		c.JSON(
+			http.StatusUnauthorized,
+			utils.StructuredError(
+				"INVALID_CLIENT",
+				"Invalid client credentials",
+				nil,
+			),
+		)
 		return
 	}
 
 	// Exchange code for token
 	accessToken, err := h.oauthProviderService.ExchangeCodeForToken(code, clientID, redirectURI)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":             "invalid_grant",
-			"error_description": err.Error(),
-		})
+		c.JSON(
+			http.StatusBadRequest,
+			utils.StructuredError(
+				"INVALID_GRANT",
+				"Authorization code is invalid",
+				err.Error(),
+			),
+		)
 		return
 	}
 
@@ -217,27 +220,56 @@ func (h *OAuthHandler) Token(c *gin.Context) {
 
 // UserInfo returns user information based on the access token
 // GET /oauth/userinfo
+// # standardize error response format in auth and oauth handlers
 func (h *OAuthHandler) UserInfo(c *gin.Context) {
-	token, err := extractBearerToken(c)
-	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+	token, errorCode, errorMsg := extractBearerToken(c)
+	if errorCode != "" {
+		c.JSON(
+			http.StatusUnauthorized,
+			utils.StructuredError(
+				errorCode,
+				errorMsg,
+				nil,
+			),
+		)
 		return
 	}
 
 	// Validate token
 	accessToken, err := h.oauthProviderService.ValidateAccessToken(token)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		c.JSON(
+			http.StatusUnauthorized,
+			utils.StructuredError(
+				"INVALID_TOKEN",
+				"Token validation failed",
+				err.Error(),
+			),
+		)
 		return
 	}
 
 	user, err := h.userRepo.FindByID(accessToken.UserID)
 	if err != nil {
 		if errors.Is(err, repository.ErrUserNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{"error": "user_not_found"})
+			c.JSON(
+				http.StatusNotFound,
+				utils.StructuredError(
+					"USER_NOT_FOUND",
+					"User not found",
+					nil,
+				),
+			)
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed_to_fetch_user"})
+		c.JSON(
+			http.StatusInternalServerError,
+			utils.StructuredError(
+				"FETCH_USER_FAILED",
+				"Failed to fetch user",
+				nil,
+			),
+		)
 		return
 	}
 
@@ -245,16 +277,16 @@ func (h *OAuthHandler) UserInfo(c *gin.Context) {
 	c.JSON(http.StatusOK, response)
 }
 
-func extractBearerToken(c *gin.Context) (string, error) {
+func extractBearerToken(c *gin.Context) (string, string, string) {
 	authHeader := c.GetHeader("Authorization")
 	if authHeader == "" {
-		return "", errors.New("missing_token")
+		return "", "MISSING_TOKEN", "Authorization header is required"
 	}
 
 	if len(authHeader) > 7 && authHeader[:7] == "Bearer " {
-		return authHeader[7:], nil
+		return authHeader[7:], "", ""
 	}
-	return "", errors.New("invalid_token_format")
+	return "", "INVALID_TOKEN_FORMAT", "Invalid authorization header format"
 }
 
 func buildUserInfoResponse(user *models.User, accessToken *models.OAuthAccessToken) gin.H {

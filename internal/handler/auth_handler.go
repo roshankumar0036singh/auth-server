@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -43,14 +44,14 @@ func (h *AuthHandler) Register(c *gin.Context) {
 
 	// Validate request body
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, utils.ValidationErrorResponse(err.Error()))
+		c.JSON(http.StatusBadRequest, utils.StructuredError(utils.ErrValidation, "Invalid request format", err.Error()))
 		return
 	}
 
 	// Register user
 	user, err := h.authService.Register(&req)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, utils.ErrorResponse("Registration failed", err))
+		c.JSON(http.StatusBadRequest, utils.StructuredError(utils.ErrRegistrationFailed, "Registration failed", err.Error()))
 		return
 	}
 
@@ -68,12 +69,12 @@ func (h *AuthHandler) Register(c *gin.Context) {
 func (h *AuthHandler) VerifyEmail(c *gin.Context) {
 	token := c.Query("token")
 	if token == "" {
-		c.JSON(http.StatusBadRequest, utils.ValidationErrorResponse("Token is required"))
+		c.JSON(http.StatusBadRequest, utils.StructuredError(utils.ErrMissingToken, "Token is required", nil))
 		return
 	}
 
 	if err := h.authService.VerifyEmail(token); err != nil {
-		c.JSON(http.StatusBadRequest, utils.ErrorResponse("Verification failed", err))
+		c.JSON(http.StatusBadRequest, utils.StructuredError(utils.ErrVerificationFailed, "Verification failed", err.Error()))
 		return
 	}
 
@@ -92,14 +93,14 @@ func (h *AuthHandler) ResendVerification(c *gin.Context) {
 	var req dto.ResendVerificationRequest
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, utils.ValidationErrorResponse(err.Error()))
+		c.JSON(http.StatusBadRequest, utils.StructuredError(utils.ErrValidation, "Invalid request format", err.Error()))
 		return
 	}
 
 	if err := h.authService.ResendVerification(req.Email); err != nil {
 		// Don't reveal if user exists or not for security (unless it's a validation error)
 		// But for now we might return the error if it's "email already verified"
-		c.JSON(http.StatusBadRequest, utils.ErrorResponse("Failed to resend verification", err))
+		c.JSON(http.StatusBadRequest, utils.StructuredError(utils.ErrResendFailed, "Failed to resend verification", err.Error()))
 		return
 	}
 
@@ -118,12 +119,12 @@ func (h *AuthHandler) ForgotPassword(c *gin.Context) {
 	var req dto.ForgotPasswordRequest
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, utils.ValidationErrorResponse(err.Error()))
+		c.JSON(http.StatusBadRequest, utils.StructuredError(utils.ErrValidation, "Invalid request format", err.Error()))
 		return
 	}
 
 	if err := h.authService.ForgotPassword(req.Email); err != nil {
-		c.JSON(http.StatusInternalServerError, utils.ErrorResponse("Failed to process request", err))
+		c.JSON(http.StatusInternalServerError, utils.StructuredError(utils.ErrProcessFailed, "Failed to process request", err.Error()))
 		return
 	}
 
@@ -142,12 +143,12 @@ func (h *AuthHandler) ResetPassword(c *gin.Context) {
 	var req dto.ResetPasswordRequest
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, utils.ValidationErrorResponse(err.Error()))
+		c.JSON(http.StatusBadRequest, utils.StructuredError(utils.ErrValidation, "Invalid request format", err.Error()))
 		return
 	}
 
 	if err := h.authService.ResetPassword(req.Token, req.Password); err != nil {
-		c.JSON(http.StatusBadRequest, utils.ErrorResponse("Password reset failed", err))
+		c.JSON(http.StatusBadRequest, utils.StructuredError(utils.ErrPasswordRestFailed, "Password reset failed", err.Error()))
 		return
 	}
 
@@ -165,19 +166,19 @@ func (h *AuthHandler) ResetPassword(c *gin.Context) {
 func (h *AuthHandler) UpdateProfile(c *gin.Context) {
 	userID, exists := c.Get("userID")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, utils.UnauthorizedResponse("Unauthorized"))
+		c.JSON(http.StatusUnauthorized, utils.StructuredError(utils.ErrUnauthorized, "Unauthorized", nil))
 		return
 	}
 
 	var req dto.UpdateProfileRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, utils.ValidationErrorResponse(err.Error()))
+		c.JSON(http.StatusBadRequest, utils.StructuredError(utils.ErrValidation, "Invalid request format", err.Error()))
 		return
 	}
 
 	user, err := h.authService.UpdateProfile(userID.(string), &req)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, utils.ErrorResponse("Failed to update profile", err))
+		c.JSON(http.StatusBadRequest, utils.StructuredError(utils.ErrUpdateProfileFailed, "Failed to update profile", err.Error()))
 		return
 	}
 
@@ -195,22 +196,24 @@ func (h *AuthHandler) UpdateProfile(c *gin.Context) {
 func (h *AuthHandler) ChangePassword(c *gin.Context) {
 	userID, exists := c.Get("userID")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, utils.UnauthorizedResponse("Unauthorized"))
+		c.JSON(http.StatusUnauthorized, utils.StructuredError(utils.ErrUnauthorized, "Unauthorized", nil))
 		return
 	}
 
 	var req dto.ChangePasswordRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, utils.ValidationErrorResponse(err.Error()))
+		c.JSON(http.StatusBadRequest, utils.StructuredError(utils.ErrValidation, "Invalid request format", err.Error()))
 		return
 	}
 
 	if err := h.authService.ChangePassword(userID.(string), &req); err != nil {
 		statusCode := http.StatusBadRequest
-		if err.Error() == "incorrect current password" {
+		errorCode := "CHANGE_PASSWORD_FAILED"
+		if errors.Is(err, service.ErrIncorrectCurrentPassword) {
 			statusCode = http.StatusUnauthorized
+			errorCode = utils.ErrPasswordIncorrect
 		}
-		c.JSON(statusCode, utils.ErrorResponse(err.Error(), err))
+		c.JSON(statusCode, utils.StructuredError(errorCode, err.Error(), nil))
 		return
 	}
 
@@ -227,12 +230,12 @@ func (h *AuthHandler) ChangePassword(c *gin.Context) {
 func (h *AuthHandler) DeleteAccount(c *gin.Context) {
 	userID, exists := c.Get("userID")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, utils.UnauthorizedResponse("Unauthorized"))
+		c.JSON(http.StatusUnauthorized, utils.StructuredError(utils.ErrUnauthorized, "Unauthorized", nil))
 		return
 	}
 
 	if err := h.authService.DeleteAccount(userID.(string)); err != nil {
-		c.JSON(http.StatusInternalServerError, utils.ErrorResponse("Failed to delete account", err))
+		c.JSON(http.StatusInternalServerError, utils.StructuredError(utils.ErrDeleteAccountFailed, "Failed to delete account", err.Error()))
 		return
 	}
 
@@ -249,13 +252,13 @@ func (h *AuthHandler) DeleteAccount(c *gin.Context) {
 func (h *AuthHandler) GetAuditLogs(c *gin.Context) {
 	userID, exists := c.Get("userID")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, utils.UnauthorizedResponse("Unauthorized"))
+		c.JSON(http.StatusUnauthorized, utils.StructuredError(utils.ErrUnauthorized, "Unauthorized", nil))
 		return
 	}
 
 	logs, err := h.authService.GetUserAuditLogs(userID.(string))
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, utils.ErrorResponse("Failed to retrieve audit logs", err))
+		c.JSON(http.StatusInternalServerError, utils.StructuredError("FETCH_AUDIT_LOGS_FAILED", "Failed to retrieve audit logs", err.Error()))
 		return
 	}
 
@@ -281,7 +284,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 
 	// Validate request body
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, utils.ValidationErrorResponse(err.Error()))
+		c.JSON(http.StatusBadRequest, utils.StructuredError(utils.ErrValidation, "Invalid request format", err.Error()))
 		return
 	}
 
@@ -292,7 +295,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	// Authenticate user
 	loginResp, err := h.authService.Login(&req, ipAddress, userAgent)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, utils.ErrorResponse(msgLoginFailed, err))
+		c.JSON(http.StatusUnauthorized, utils.StructuredError(utils.ErrLoginFailed, msgLoginFailed, err.Error()))
 		return
 	}
 
@@ -316,7 +319,7 @@ func (h *AuthHandler) RefreshToken(c *gin.Context) {
 	var req dto.RefreshTokenRequest
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, utils.ValidationErrorResponse(err.Error()))
+		c.JSON(http.StatusBadRequest, utils.StructuredError(utils.ErrValidation, "Invalid request format", err.Error()))
 		return
 	}
 
@@ -327,7 +330,7 @@ func (h *AuthHandler) RefreshToken(c *gin.Context) {
 	// Refresh with token rotation
 	tokenResp, err := h.authService.RefreshAccessToken(req.RefreshToken, ipAddress, userAgent)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, utils.ErrorResponse("Token refresh failed", err))
+		c.JSON(http.StatusUnauthorized, utils.StructuredError(utils.ErrTokenRefreshFailed, "Token refresh failed", err.Error()))
 		return
 	}
 
@@ -360,7 +363,7 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 
 	// Logout
 	if err := h.authService.Logout(accessToken, req.RefreshToken); err != nil {
-		c.JSON(http.StatusInternalServerError, utils.ErrorResponse("Logout failed", err))
+		c.JSON(http.StatusInternalServerError, utils.StructuredError(utils.ErrLogoutFailed, "Logout failed", err.Error()))
 		return
 	}
 
@@ -378,7 +381,7 @@ func (h *AuthHandler) LogoutAll(c *gin.Context) {
 	// Get user ID from context
 	userID, exists := c.Get("userID")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, utils.UnauthorizedResponse("Unauthorized"))
+		c.JSON(http.StatusUnauthorized, utils.StructuredError(utils.ErrUnauthorized, "Unauthorized", nil))
 		return
 	}
 
@@ -394,7 +397,7 @@ func (h *AuthHandler) LogoutAll(c *gin.Context) {
 
 	// Logout from all devices
 	if err := h.authService.LogoutAll(userID.(string), accessToken); err != nil {
-		c.JSON(http.StatusInternalServerError, utils.ErrorResponse("Failed to logout from all devices", err))
+		c.JSON(http.StatusInternalServerError, utils.StructuredError(utils.ErrLogoutFailed, "Failed to logout from all devices", err.Error()))
 		return
 	}
 
@@ -413,14 +416,14 @@ func (h *AuthHandler) GetMe(c *gin.Context) {
 	// Get user ID from context (set by auth middleware)
 	userID, exists := c.Get("userID")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, utils.UnauthorizedResponse("Unauthorized"))
+		c.JSON(http.StatusUnauthorized, utils.StructuredError(utils.ErrUnauthorized, "Unauthorized", nil))
 		return
 	}
 
 	// Get user details
 	user, err := h.authService.GetUserByID(userID.(string))
 	if err != nil {
-		c.JSON(http.StatusNotFound, utils.ErrorResponse("User not found", err))
+		c.JSON(http.StatusNotFound, utils.StructuredError("USER_NOT_FOUND", "User not found", err.Error()))
 		return
 	}
 
@@ -438,14 +441,14 @@ func (h *AuthHandler) GetSessions(c *gin.Context) {
 	// Get user ID from context
 	userID, exists := c.Get("userID")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, utils.UnauthorizedResponse("Unauthorized"))
+		c.JSON(http.StatusUnauthorized, utils.StructuredError(utils.ErrUnauthorized, "Unauthorized", nil))
 		return
 	}
 
 	// Get sessions
 	sessions, err := h.authService.GetUserSessions(userID.(string))
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, utils.ErrorResponse("Failed to retrieve sessions", err))
+		c.JSON(http.StatusInternalServerError, utils.StructuredError("FETCH_SESSIONS_FAILED", "Failed to retrieve sessions", err.Error()))
 		return
 	}
 
@@ -461,7 +464,7 @@ func (h *AuthHandler) GetSessions(c *gin.Context) {
 			UserAgent: session.UserAgent,
 			CreatedAt: session.CreatedAt.Format("2006-01-02 15:04:05"),
 			ExpiresAt: session.ExpiresAt.Format("2006-01-02 15:04:05"),
-			IsCurrent: session.ID == currentID, 
+			IsCurrent: session.ID == currentID,
 		}
 	}
 
@@ -480,20 +483,20 @@ func (h *AuthHandler) RevokeSession(c *gin.Context) {
 	// Get user ID from context
 	userID, exists := c.Get("userID")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, utils.UnauthorizedResponse("Unauthorized"))
+		c.JSON(http.StatusUnauthorized, utils.StructuredError(utils.ErrUnauthorized, "Unauthorized", nil))
 		return
 	}
 
 	// Get session ID from URL
 	sessionID := c.Param("sessionId")
 	if sessionID == "" {
-		c.JSON(http.StatusBadRequest, utils.ValidationErrorResponse("Session ID is required"))
+		c.JSON(http.StatusBadRequest, utils.StructuredError("MISSING_SESSION_ID", "Session ID is required", nil))
 		return
 	}
 
 	// Revoke session
 	if err := h.authService.RevokeSession(userID.(string), sessionID); err != nil {
-		c.JSON(http.StatusBadRequest, utils.ErrorResponse("Failed to revoke session", err))
+		c.JSON(http.StatusBadRequest, utils.StructuredError("REVOKE_SESSION_FAILED", "Failed to revoke session", err.Error()))
 		return
 	}
 
@@ -524,7 +527,7 @@ func (h *AuthHandler) GoogleLogin(c *gin.Context) {
 
 	url, err := h.oauthService.GetGoogleAuthURL(clientID, state)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, utils.ErrorResponse("Failed to get auth URL", err))
+		c.JSON(http.StatusInternalServerError, utils.StructuredError(utils.ErrGetAuthURL, "Failed to get auth URL", err.Error()))
 		return
 	}
 	c.Redirect(http.StatusTemporaryRedirect, url)
@@ -541,7 +544,7 @@ func (h *AuthHandler) GoogleCallback(c *gin.Context) {
 	// Verify state
 	cookieState, err := c.Cookie("oauth_state")
 	if err != nil || state != cookieState {
-		c.JSON(http.StatusBadRequest, utils.ErrorResponse("Invalid state parameter", nil))
+		c.JSON(http.StatusBadRequest, utils.StructuredError(utils.ErrInvalidState, "Invalid state parameter", nil))
 		return
 	}
 
@@ -557,14 +560,14 @@ func (h *AuthHandler) GoogleCallback(c *gin.Context) {
 	// Exchange code
 	token, err := h.oauthService.ExchangeGoogleCode(c.Request.Context(), clientID, code)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, utils.ErrorResponse("Failed to exchange token", err))
+		c.JSON(http.StatusBadRequest, utils.StructuredError(utils.ErrTokenExchange, "Failed to exchange token", err.Error()))
 		return
 	}
 
 	// Get user info
 	userInfo, err := h.oauthService.FetchGoogleUser(c.Request.Context(), clientID, token)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, utils.ErrorResponse("Failed to fetch user info", err))
+		c.JSON(http.StatusInternalServerError, utils.StructuredError(utils.ErrFetchUserInfo, "Failed to fetch user info", err.Error()))
 		return
 	}
 
@@ -582,7 +585,7 @@ func (h *AuthHandler) GoogleCallback(c *gin.Context) {
 
 	loginResp, err := h.authService.LoginWithOAuth(email, oauthID, firstName, lastName, "google", ipAddress, userAgent)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, utils.ErrorResponse(msgLoginFailed, err))
+		c.JSON(http.StatusInternalServerError, utils.StructuredError(utils.ErrLoginFailed, msgLoginFailed, err.Error()))
 		return
 	}
 
@@ -602,7 +605,7 @@ func (h *AuthHandler) GitHubLogin(c *gin.Context) {
 
 	rawState, err := h.oauthService.GenerateState()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, utils.ErrorResponse("Failed to generate state", err))
+		c.JSON(http.StatusInternalServerError, utils.StructuredError(utils.ErrOAuthStateGeneration, "Failed to generate state", err.Error()))
 		return
 	}
 
@@ -617,7 +620,7 @@ func (h *AuthHandler) GitHubLogin(c *gin.Context) {
 
 	url, err := h.oauthService.GetGitHubAuthURL(clientID, state)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, utils.ErrorResponse("Failed to get auth URL", err))
+		c.JSON(http.StatusInternalServerError, utils.StructuredError(utils.ErrGetAuthURL, "Failed to get auth URL", err.Error()))
 		return
 	}
 	c.Redirect(http.StatusTemporaryRedirect, url)
@@ -633,7 +636,7 @@ func (h *AuthHandler) GitHubCallback(c *gin.Context) {
 
 	cookieState, err := c.Cookie("oauth_state")
 	if err != nil || state != cookieState {
-		c.JSON(http.StatusBadRequest, utils.ErrorResponse("Invalid state parameter", nil))
+		c.JSON(http.StatusBadRequest, utils.StructuredError(utils.ErrInvalidState, "Invalid state parameter", nil))
 		return
 	}
 
@@ -648,13 +651,13 @@ func (h *AuthHandler) GitHubCallback(c *gin.Context) {
 
 	token, err := h.oauthService.ExchangeGitHubCode(c.Request.Context(), clientID, code)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, utils.ErrorResponse("Failed to exchange token", err))
+		c.JSON(http.StatusBadRequest, utils.StructuredError(utils.ErrTokenExchange, "Failed to exchange token", err.Error()))
 		return
 	}
 
 	userInfo, err := h.oauthService.FetchGitHubUser(c.Request.Context(), clientID, token)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, utils.ErrorResponse("Failed to fetch user info", err))
+		c.JSON(http.StatusInternalServerError, utils.StructuredError(utils.ErrFetchUserInfo, "Failed to fetch user info", err.Error()))
 		return
 	}
 
@@ -680,7 +683,7 @@ func (h *AuthHandler) GitHubCallback(c *gin.Context) {
 
 	loginResp, err := h.authService.LoginWithOAuth(email, oauthID, firstName, lastName, "github", ipAddress, userAgent)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, utils.ErrorResponse("Login failed", err))
+		c.JSON(http.StatusInternalServerError, utils.StructuredError(utils.ErrLoginFailed, "Login failed", err.Error()))
 		return
 	}
 
@@ -703,7 +706,7 @@ func (h *AuthHandler) EnableMFA(c *gin.Context) {
 
 	resp, err := h.authService.EnableMFA(userID.(string))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, utils.ErrorResponse("Failed to enable MFA", err))
+		c.JSON(http.StatusBadRequest, utils.StructuredError(utils.ErrMFASetup, "Failed to enable MFA", err.Error()))
 		return
 	}
 
@@ -733,7 +736,7 @@ func (h *AuthHandler) VerifyMFA(c *gin.Context) {
 	}
 
 	if err := h.authService.VerifyEnableMFA(userID.(string), req.Code); err != nil {
-		c.JSON(http.StatusBadRequest, utils.ErrorResponse("MFA verification failed", err))
+		c.JSON(http.StatusBadRequest, utils.StructuredError(utils.ErrMFAVerification, "MFA verification failed", err.Error()))
 		return
 	}
 
@@ -760,7 +763,7 @@ func (h *AuthHandler) LoginMFA(c *gin.Context) {
 
 	resp, err := h.authService.VerifyLoginMFA(req.Email, req.Code, ipAddress, userAgent)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, utils.ErrorResponse("MFA login failed", err))
+		c.JSON(http.StatusUnauthorized, utils.StructuredError(utils.ErrMFAVerification, "MFA verification failed", err.Error()))
 		return
 	}
 
