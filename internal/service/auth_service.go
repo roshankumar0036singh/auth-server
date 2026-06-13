@@ -105,32 +105,6 @@ func (s *AuthService) hashPassword(password string) (string, error) {
 }
 
 // ... Register and other methods remain same ...
-func (s *AuthService) generateTokens(
-	user *models.User,
-	ipAddress, userAgent string,
-) (string, string, error) {
-
-	accessToken, err := s.tokenService.GenerateAccessToken(user, "")
-	if err != nil {
-		return "", "", errors.New("failed to generate access token")
-	}
-
-	refreshTokenString, err := s.tokenService.GenerateRefreshToken(user)
-	if err != nil {
-		return "", "", errors.New("failed to generate refresh token")
-	}
-
-	if err := s.createRefreshToken(
-		user.ID,
-		refreshTokenString,
-		ipAddress,
-		userAgent,
-	); err != nil {
-		return "", "", errors.New("failed to store refresh token")
-	}
-
-	return accessToken, refreshTokenString, nil
-}
 
 // ForgotPassword initiates the password reset flow
 func (s *AuthService) ForgotPassword(email string) error {
