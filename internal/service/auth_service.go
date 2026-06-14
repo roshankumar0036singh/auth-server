@@ -16,17 +16,20 @@ import (
 )
 
 var (
-	ErrSelfLock      = errors.New("admin cannot lock their own account")
-	ErrAdminLock     = errors.New("admin accounts cannot be locked")
-	ErrAlreadyLocked = errors.New("account is already locked")
-	ErrNotLocked     = errors.New("account is not locked")
+	ErrSelfLock        = errors.New("admin cannot lock their own account")
+	ErrAdminLock       = errors.New("admin accounts cannot be locked")
+	ErrAlreadyLocked   = errors.New("account is already locked")
+	ErrNotLocked       = errors.New("account is not locked")
+	ErrTooManyAttempts = errors.New("too many failed attempts, please try again later") // ADD
+	ErrInvalidMFACode  = errors.New("invalid TOTP code")                                // ADD
 )
 
 const (
-	errGenAccessToken    = "failed to generate access token"
-	errGenRefreshToken   = "failed to generate refresh token"
-	errStoreRefreshToken = "failed to store refresh token"
-	errHashPassword      = "failed to hash password"
+    errGenAccessToken        = "failed to generate access token"
+    errGenRefreshToken       = "failed to generate refresh token"
+    errStoreRefreshToken     = "failed to store refresh token"
+    errHashPassword          = "failed to hash password"
+    loginAttemptCacheTimeout = 5 * time.Second
 )
 
 const errUserNotFound = "user not found"
@@ -334,44 +337,30 @@ func (s *AuthService) VerifyEnableMFA(userID, code string) error {
 	return nil
 }
 
-// Constants and Sentinel errors
-const loginAttemptCacheTimeout = 5 * time.Second
-
-var (
-	ErrTooManyAttempts = errors.New("too many failed attempts, please try again later")
-	ErrInvalidMFACode  = errors.New("invalid TOTP code")
-)
-
 // VerifyLoginMFA completes the login process with MFA code
 func (s *AuthService) VerifyLoginMFA(email, code, ipAddress, userAgent string) (*dto.LoginResponse, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), loginAttemptCacheTimeout)
 	defer cancel()
 
-	// OWNER FIX: Create a rate limit key that tracks BOTH Email and IP Address
 	rateLimitKey := email + ":" + ipAddress
 
-	// COPILOT FIX: Guard all cache interactions behind the RateLimitMax check
 	if s.config.Security.RateLimitMax > 0 {
 		attempts, err := s.cacheService.GetLoginAttempts(ctx, rateLimitKey)
 		if err != nil {
-			// OWNER FIX: Fail-closed. If cache is down, block the login completely.
 			log.Printf("Error: Failed to get login attempts from cache: %v", err)
 			return nil, errors.New("authentication service temporarily unavailable")
-		} 
-		
+		}
+
 		if attempts >= int64(s.config.Security.RateLimitMax) {
-			// OWNER FIX: Increment even on the rate-limit path to extend the lockout
 			if incErr := s.cacheService.IncrementLoginAttempts(ctx, rateLimitKey); incErr != nil {
 				log.Printf("Warning: Failed to increment login attempts during lockout: %v", incErr)
 			}
-			
-			// COPILOT FIX: Emit an audit event for the rate limit lockout
-			s.auditService.LogEvent(nil, "MFA_RATE_LIMIT_EXCEEDED", "SYSTEM", ipAddress, ipAddress, userAgent, map[string]interface{}{"email": email})
+			s.auditService.LogEvent(nil, "MFA_RATE_LIMIT_EXCEEDED", "SYSTEM", "", ipAddress, userAgent,
+				map[string]interface{}{"email": email})
 			return nil, ErrTooManyAttempts
 		}
 	}
 
-	// User existence check happens AFTER rate limit check to protect the database
 	user, err := s.userRepo.FindByEmail(email)
 	if err != nil {
 		return nil, ErrUserNotFound
@@ -382,7 +371,6 @@ func (s *AuthService) VerifyLoginMFA(email, code, ipAddress, userAgent string) (
 	}
 
 	if !s.mfaService.ValidateMFA(user.MFASecret, code) {
-		// COPILOT FIX: Only increment if rate limiting is actually turned on
 		if s.config.Security.RateLimitMax > 0 {
 			if err := s.cacheService.IncrementLoginAttempts(ctx, rateLimitKey); err != nil {
 				log.Printf("Warning: Failed to increment login attempts in cache: %v", err)
@@ -392,7 +380,6 @@ func (s *AuthService) VerifyLoginMFA(email, code, ipAddress, userAgent string) (
 		return nil, ErrInvalidMFACode
 	}
 
-	// COPILOT FIX: Only reset if rate limiting is actually turned on
 	if s.config.Security.RateLimitMax > 0 {
 		if err := s.cacheService.ResetLoginAttempts(ctx, rateLimitKey); err != nil {
 			log.Printf("Warning: Failed to reset login attempts in cache: %v", err)
