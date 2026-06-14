@@ -336,6 +336,11 @@ func (s *AuthService) VerifyEnableMFA(userID, code string) error {
 
 // VerifyLoginMFA completes the login process with MFA code
 func (s *AuthService) VerifyLoginMFA(email, code, ipAddress, userAgent string) (*dto.LoginResponse, error) {
+	ctx := context.Background()
+	attempts, err := s.cacheService.GetLoginAttempts(ctx, email)
+	if err == nil && attempts >= int64(s.config.Security.RateLimitMax) {
+		return nil, errors.New("too many failed attempts, please try again later")
+	}
 	user, err := s.userRepo.FindByEmail(email)
 	if err != nil {
 		return nil, ErrUserNotFound
@@ -346,10 +351,12 @@ func (s *AuthService) VerifyLoginMFA(email, code, ipAddress, userAgent string) (
 	}
 
 	if !s.mfaService.ValidateMFA(user.MFASecret, code) {
+		s.cacheService.IncrementLoginAttempts(ctx, email)
 		s.auditService.LogEvent(&user.ID, "MFA_LOGIN_FAILED", "USER", user.ID, ipAddress, userAgent, nil)
 		return nil, errors.New("invalid TOTP code")
 	}
 
+	s.cacheService.ResetLoginAttempts(ctx, email)
 	response, err := s.createLoginResponse(user, ipAddress, userAgent)
 	if err != nil {
 		return nil, err
