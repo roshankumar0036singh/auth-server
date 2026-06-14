@@ -10,11 +10,11 @@ services:
     environment:
       - APP_ENV=production
       - PORT=8080
-      - DATABASE_URL=host=auth-postgres user=postgres password=postgres dbname=auth_db port=5432 sslmode=disable
+      - DATABASE_URL=host=postgres user=postgres password=postgres dbname=auth_db port=5432 sslmode=disable
       - REDIS_URL=redis://auth-redis:6379
-      - JWT_ACCESS_SECRET=${JWT_ACCESS_SECRET:-secret}
-      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET:-refresh}
-      - ENCRYPTION_KEY=YourSuperSecret32ByteStringGoesHere!
+      - JWT_ACCESS_SECRET=${JWT_ACCESS_SECRET}
+      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
     depends_on:
       - postgres
       - redis
