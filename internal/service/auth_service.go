@@ -481,6 +481,8 @@ func (s *AuthService) Login(req *dto.LoginRequest, ipAddress, userAgent string) 
 	}
 
 	user, err := s.userRepo.FindByEmail(req.Email)
+
+
 	if err != nil {
 		// Increment attempts even for non-existent users (to prevent enumeration)
 		s.cacheService.IncrementLoginAttempts(ctx, req.Email)
@@ -490,6 +492,10 @@ func (s *AuthService) Login(req *dto.LoginRequest, ipAddress, userAgent string) 
 	// Check if account is locked (Database - persistent lock)
 	if user.LockedUntil != nil && time.Now().Before(*user.LockedUntil) {
 		return nil, fmt.Errorf("account is locked until %v", user.LockedUntil)
+	}
+	// Check if user is active
+	if !user.IsActive {
+		return nil, errors.New("invalid email or password")
 	}
 
 	// Verify password
@@ -509,10 +515,7 @@ func (s *AuthService) Login(req *dto.LoginRequest, ipAddress, userAgent string) 
 	// Reset Redis attempts too
 	s.cacheService.ResetLoginAttempts(ctx, req.Email)
 
-	// Check if user is active
-	if !user.IsActive {
-		return nil, errors.New("account is deactivated")
-	}
+	
 
 	// Check MFA
 	if user.MFAEnabled {
