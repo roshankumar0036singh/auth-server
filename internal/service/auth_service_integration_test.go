@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/pquerna/otp/totp"
+	"github.com/roshankumar0036singh/auth-server/internal/config"
 	"github.com/roshankumar0036singh/auth-server/internal/dto"
 	"github.com/roshankumar0036singh/auth-server/internal/models"
 	"github.com/roshankumar0036singh/auth-server/internal/repository"
@@ -63,6 +65,52 @@ func TestAuthService_Login_Integration(t *testing.T) {
 	}
 	_, err = service.Login(loginReqFail, "127.0.0.1", "UserAgent")
 	assert.Error(t, err)
+}
+
+func TestAuthService_DisableMFA_Integration(t *testing.T) {
+	authService, db, mr := testutils.SetupIntegrationTest(t)
+	defer mr.Close()
+
+	regReq := &dto.RegisterRequest{
+		Email:     "mfauser@example.com",
+		Password:  "Password123!",
+		FirstName: "MFA",
+		LastName:  "User",
+	}
+	user, err := authService.Register(regReq)
+	require.NoError(t, err)
+
+	// MFA not enabled yet
+	err = authService.DisableMFA(user.ID, "123456")
+	assert.ErrorContains(t, err, "MFA is not enabled")
+
+	// Enable MFA directly via DB
+	secret, _, err := service.NewMFAService(&config.Config{}).GenerateMFA(user.Email)
+	require.NoError(t, err)
+	require.NoError(t, db.Model(&models.User{}).Where("id = ?", user.ID).Updates(map[string]interface{}{
+		"mfa_enabled": true,
+		"mfa_secret":  secret,
+	}).Error)
+
+	// Invalid TOTP code
+	err = authService.DisableMFA(user.ID, "000000")
+	assert.ErrorContains(t, err, "invalid TOTP code")
+
+	// Valid TOTP code disables MFA
+	code, err := totp.GenerateCode(secret, time.Now())
+	require.NoError(t, err)
+
+	err = authService.DisableMFA(user.ID, code)
+	assert.NoError(t, err)
+
+	var updated models.User
+	require.NoError(t, db.First(&updated, "id = ?", user.ID).Error)
+	assert.False(t, updated.MFAEnabled)
+	assert.Empty(t, updated.MFASecret)
+
+	// Disabling again fails since MFA is no longer enabled
+	err = authService.DisableMFA(user.ID, code)
+	assert.ErrorContains(t, err, "MFA is not enabled")
 }
 
 type fakeUserRepo struct {

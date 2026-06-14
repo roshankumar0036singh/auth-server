@@ -740,6 +740,38 @@ func (h *AuthHandler) VerifyMFA(c *gin.Context) {
 	c.JSON(http.StatusOK, utils.SuccessResponse("MFA enabled successfully", nil))
 }
 
+// DisableMFA verifies the user's TOTP code and disables MFA
+// @Summary Disable MFA
+// @Tags auth
+// @Security BearerAuth
+// @Accept json
+// @Produce json
+// @Param request body dto.MFADisableRequest true "TOTP verification code"
+// @Success 200 {object} utils.Response
+// @Failure 400 {object} utils.Response
+// @Failure 401 {object} utils.Response
+// @Router /api/auth/mfa/disable [post]
+func (h *AuthHandler) DisableMFA(c *gin.Context) {
+	userID, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, utils.UnauthorizedResponse("Unauthorized"))
+		return
+	}
+
+	var req dto.MFADisableRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, utils.ValidationErrorResponse(err.Error()))
+		return
+	}
+
+	if err := h.authService.DisableMFA(userID.(string), req.Code); err != nil {
+		c.JSON(http.StatusBadRequest, utils.ErrorResponse("Failed to disable MFA", err))
+		return
+	}
+
+	c.JSON(http.StatusOK, utils.SuccessResponse("MFA disabled successfully", nil))
+}
+
 // LoginMFA handles login with MFA code
 // @Summary Login with MFA
 // @Tags auth

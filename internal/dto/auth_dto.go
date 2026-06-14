@@ -87,6 +87,11 @@ type MFAVerifyRequest struct {
 	Code string `json:"code" binding:"required,len=6"`
 }
 
+// MFADisableRequest represents the request to disable MFA
+type MFADisableRequest struct {
+	Code string `json:"code" binding:"required,len=6"`
+}
+
 // MFALoginRequest represents the request to login with MFA
 type MFALoginRequest struct {
 	Email string `json:"email" binding:"required,email"`

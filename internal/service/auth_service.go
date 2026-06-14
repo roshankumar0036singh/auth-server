@@ -334,6 +334,32 @@ func (s *AuthService) VerifyEnableMFA(userID, code string) error {
 	return nil
 }
 
+// DisableMFA verifies the user's TOTP code and disables MFA on their account
+func (s *AuthService) DisableMFA(userID, code string) error {
+	user, err := s.userRepo.FindByID(userID)
+	if err != nil {
+		return ErrUserNotFound
+	}
+
+	if !user.MFAEnabled {
+		return errors.New("MFA is not enabled for this account")
+	}
+
+	if !s.mfaService.ValidateMFA(user.MFASecret, code) {
+		return errors.New("invalid TOTP code")
+	}
+
+	if err := s.userRepo.Update(userID, map[string]interface{}{
+		"mfa_enabled": false,
+		"mfa_secret":  "",
+	}); err != nil {
+		return errors.New("failed to disable MFA")
+	}
+
+	s.auditService.LogEvent(&userID, "MFA_DISABLED", "USER", userID, "", "", nil)
+	return nil
+}
+
 // VerifyLoginMFA completes the login process with MFA code
 func (s *AuthService) VerifyLoginMFA(email, code, ipAddress, userAgent string) (*dto.LoginResponse, error) {
 	user, err := s.userRepo.FindByEmail(email)
