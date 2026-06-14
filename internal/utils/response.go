@@ -71,23 +71,17 @@ func ForbiddenResponse(message string) Response {
 }
 
 // BadRequestResponse returns a 400 Bad Request response
-func BadRequestResponse(c interface{}, message string) {
-	// Type assertion to *gin.Context
-	if ctx, ok := c.(*gin.Context); ok {
-		ctx.JSON(400, Response{
-			Success: false,
-			Message: message,
-		})
-	}
+func BadRequestResponse(c *gin.Context, message string) {
+	c.JSON(400, Response{
+		Success: false,
+		Message: message,
+	})
 }
 
 // InternalServerErrorResponse returns a 500 Internal Server Error response
-func InternalServerErrorResponse(c interface{}, message string) {
-	// Type assertion to *gin.Context
-	if ctx, ok := c.(*gin.Context); ok {
-		ctx.JSON(500, Response{
-			Success: false,
-			Message: message,
-		})
-	}
+func InternalServerErrorResponse(c *gin.Context, message string) {
+	c.JSON(500, Response{
+		Success: false,
+		Message: message,
+	})
 }
