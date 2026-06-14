@@ -62,7 +62,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, redisClient *redis.Client, cfg
 	)
 
 	// Initialize handlers
-	authHandler := handler.NewAuthHandler(authService, oauthService)
+	authHandler := handler.NewAuthHandler(authService, oauthService, cfg.App.Env == "production", cfg.App.CookieDomain)
 	adminHandler := handler.NewAdminHandler(authService)
 	oauthClientHandler := handler.NewOAuthClientHandler(oauthProviderService)
 	oauthHandler := handler.NewOAuthHandler(oauthProviderService, userRepo)
