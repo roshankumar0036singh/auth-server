@@ -765,7 +765,11 @@ func (h *AuthHandler) DisableMFA(c *gin.Context) {
 	}
 
 	if err := h.authService.DisableMFA(userID.(string), req.Code); err != nil {
-		c.JSON(http.StatusBadRequest, utils.ErrorResponse("Failed to disable MFA", err))
+		statusCode := http.StatusBadRequest
+		if err.Error() == "invalid TOTP code" {
+			statusCode = http.StatusUnauthorized
+		}
+		c.JSON(statusCode, utils.ErrorResponse("Failed to disable MFA", err))
 		return
 	}
 
