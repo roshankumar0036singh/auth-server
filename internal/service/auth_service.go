@@ -491,7 +491,7 @@ func (s *AuthService) Login(req *dto.LoginRequest, ipAddress, userAgent string) 
 
 	// Check if account is locked (Database - persistent lock)
 	if user.LockedUntil != nil && time.Now().Before(*user.LockedUntil) {
-		return nil, fmt.Errorf("account is locked until %v", user.LockedUntil)
+		return nil, errors.New("invalid email or password")
 	}
 	// Check if user is active
 	if !user.IsActive {
