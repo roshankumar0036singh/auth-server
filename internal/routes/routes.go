@@ -1,7 +1,9 @@
 package routes
 
 import (
+	"context"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/go-redis/redis/v8"
@@ -79,21 +81,32 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, redisClient *redis.Client, cfg
 
 	// Health check endpoint
 	router.GET("/health", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{
+			"status":  "ok",
+			"message": "Auth server is alive",
+		})
+	})
+
+	// Ready check endpoint
+	router.GET("/ready", func(c *gin.Context) {
 		dbStatus := "up"
 		redisStatus := "up"
 		overallStatus := "ok"
 		statusCode := http.StatusOK
 
+		ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+		defer cancel()
+
 		// Check DB
 		sqlDB, err := db.DB()
-		if err != nil || sqlDB.Ping() != nil {
+		if err != nil || sqlDB.PingContext(ctx) != nil {
 			dbStatus = "down"
 			overallStatus = "degraded"
 			statusCode = http.StatusServiceUnavailable
 		}
 
 		// Check Redis
-		if err := redisClient.Ping(c.Request.Context()).Err(); err != nil {
+		if err := redisClient.Ping(ctx).Err(); err != nil {
 			redisStatus = "down"
 			overallStatus = "degraded"
 			statusCode = http.StatusServiceUnavailable
@@ -105,14 +118,6 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, redisClient *redis.Client, cfg
 				"database": dbStatus,
 				"redis":    redisStatus,
 			},
-		})
-	})
-
-	// Ready check endpoint
-	router.GET("/ready", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{
-			"status":  "ok",
-			"message": "Auth server is ready",
 		})
 	})
 
