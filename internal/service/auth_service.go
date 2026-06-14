@@ -112,7 +112,7 @@ func (s *AuthService) hashPassword(password string) (string, error) {
 
 // ForgotPassword initiates the password reset flow
 func (s *AuthService) ForgotPassword(email string) error {
-	user, err := s.userRepo.FindByEmail(normalizedEmail)
+	user, err := s.userRepo.FindByEmail(email)
 	if err != nil {
 		// Return nil to prevent email enumeration
 		return nil
@@ -363,7 +363,7 @@ func (s *AuthService) VerifyLoginMFA(email, code, ipAddress, userAgent string) (
 		}
 	}
 
-	user, err := s.userRepo.FindByEmail(email)
+	user, err := s.userRepo.FindByEmail(normalizedEmail)
 	if err != nil {
 		return nil, ErrUserNotFound
 	}
