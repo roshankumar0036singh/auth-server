@@ -344,7 +344,7 @@ func (s *AuthService) VerifyLoginMFA(email, code, ipAddress, userAgent string) (
 	defer cancel()
 
 	normalizedEmail := strings.ToLower(strings.TrimSpace(email))
-	rateLimitKey := normalizedEmail + ":" + ipAddress
+	rateLimitKey := fmt.Sprintf("%q|%q", normalizedEmail, ipAddress)
 
 	if s.config.Security.RateLimitMax > 0 {
 		attempts, err := s.cacheService.GetLoginAttempts(ctx, rateLimitKey)
@@ -364,14 +364,14 @@ func (s *AuthService) VerifyLoginMFA(email, code, ipAddress, userAgent string) (
 	}
 
 	user, err := s.userRepo.FindByEmail(normalizedEmail)
-if err != nil {
-    if s.config.Security.RateLimitMax > 0 {
-        if _, incErr := s.cacheService.IncrementLoginAttempts(ctx, rateLimitKey); incErr != nil {
-            log.Printf("Warning: Failed to increment login attempts for unknown email: %v", incErr)
-        }
-    }
-    return nil, ErrUserNotFound
-}
+	if err != nil {
+		if s.config.Security.RateLimitMax > 0 {
+			if _, incErr := s.cacheService.IncrementLoginAttempts(ctx, rateLimitKey); incErr != nil {
+				log.Printf("Warning: Failed to increment login attempts for unknown email: %v", incErr)
+			}
+		}
+		return nil, ErrUserNotFound
+	}
 
 	if !user.MFAEnabled {
 		return nil, errors.New("MFA not enabled for this user")
