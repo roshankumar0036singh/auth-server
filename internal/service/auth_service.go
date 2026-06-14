@@ -334,7 +334,9 @@ func (s *AuthService) VerifyEnableMFA(userID, code string) error {
 	return nil
 }
 
-// Sentinel errors
+// Constants and Sentinel errors
+const loginAttemptCacheTimeout = 5 * time.Second
+
 var (
 	ErrTooManyAttempts = errors.New("too many failed attempts, please try again later")
 	ErrInvalidMFACode  = errors.New("invalid TOTP code")
@@ -342,18 +344,34 @@ var (
 
 // VerifyLoginMFA completes the login process with MFA code
 func (s *AuthService) VerifyLoginMFA(email, code, ipAddress, userAgent string) (*dto.LoginResponse, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), loginAttemptCacheTimeout)
 	defer cancel()
 
+	// OWNER FIX: Create a rate limit key that tracks BOTH Email and IP Address
+	rateLimitKey := email + ":" + ipAddress
+
+	// COPILOT FIX: Guard all cache interactions behind the RateLimitMax check
 	if s.config.Security.RateLimitMax > 0 {
-		attempts, err := s.cacheService.GetLoginAttempts(ctx, email)
+		attempts, err := s.cacheService.GetLoginAttempts(ctx, rateLimitKey)
 		if err != nil {
-			log.Printf("Warning: Failed to get login attempts from cache: %v", err)
-		} else if attempts >= int64(s.config.Security.RateLimitMax) {
+			// OWNER FIX: Fail-closed. If cache is down, block the login completely.
+			log.Printf("Error: Failed to get login attempts from cache: %v", err)
+			return nil, errors.New("authentication service temporarily unavailable")
+		} 
+		
+		if attempts >= int64(s.config.Security.RateLimitMax) {
+			// OWNER FIX: Increment even on the rate-limit path to extend the lockout
+			if incErr := s.cacheService.IncrementLoginAttempts(ctx, rateLimitKey); incErr != nil {
+				log.Printf("Warning: Failed to increment login attempts during lockout: %v", incErr)
+			}
+			
+			// COPILOT FIX: Emit an audit event for the rate limit lockout
+			s.auditService.LogEvent(nil, "MFA_RATE_LIMIT_EXCEEDED", "SYSTEM", ipAddress, ipAddress, userAgent, map[string]interface{}{"email": email})
 			return nil, ErrTooManyAttempts
 		}
 	}
 
+	// User existence check happens AFTER rate limit check to protect the database
 	user, err := s.userRepo.FindByEmail(email)
 	if err != nil {
 		return nil, ErrUserNotFound
@@ -364,15 +382,21 @@ func (s *AuthService) VerifyLoginMFA(email, code, ipAddress, userAgent string) (
 	}
 
 	if !s.mfaService.ValidateMFA(user.MFASecret, code) {
-		if err := s.cacheService.IncrementLoginAttempts(ctx, email); err != nil {
-			log.Printf("Warning: Failed to increment login attempts in cache: %v", err)
+		// COPILOT FIX: Only increment if rate limiting is actually turned on
+		if s.config.Security.RateLimitMax > 0 {
+			if err := s.cacheService.IncrementLoginAttempts(ctx, rateLimitKey); err != nil {
+				log.Printf("Warning: Failed to increment login attempts in cache: %v", err)
+			}
 		}
 		s.auditService.LogEvent(&user.ID, "MFA_LOGIN_FAILED", "USER", user.ID, ipAddress, userAgent, nil)
 		return nil, ErrInvalidMFACode
 	}
 
-	if err := s.cacheService.ResetLoginAttempts(ctx, email); err != nil {
-		log.Printf("Warning: Failed to reset login attempts in cache: %v", err)
+	// COPILOT FIX: Only reset if rate limiting is actually turned on
+	if s.config.Security.RateLimitMax > 0 {
+		if err := s.cacheService.ResetLoginAttempts(ctx, rateLimitKey); err != nil {
+			log.Printf("Warning: Failed to reset login attempts in cache: %v", err)
+		}
 	}
 
 	response, err := s.createLoginResponse(user, ipAddress, userAgent)
@@ -383,7 +407,6 @@ func (s *AuthService) VerifyLoginMFA(email, code, ipAddress, userAgent string) (
 	s.auditService.LogEvent(&user.ID, "USER_LOGIN_SUCCESS_MFA", "USER", user.ID, ipAddress, userAgent, nil)
 	return response, nil
 }
-
 // Register creates a new user account and sends verification email
 func (s *AuthService) Register(req *dto.RegisterRequest) (*models.User, error) {
 	// Check if email already exists
