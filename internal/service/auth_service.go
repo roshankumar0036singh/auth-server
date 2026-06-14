@@ -27,15 +27,13 @@ var (
 )
 
 const (
-    errGenAccessToken        = "failed to generate access token"
-    errGenRefreshToken       = "failed to generate refresh token"
-    errStoreRefreshToken     = "failed to store refresh token"
-    errHashPassword          = "failed to hash password"
-	errUserNotFound 		 = "user not found"
-    loginAttemptCacheTimeout = 5 * time.Second
+	errGenAccessToken        = "failed to generate access token"
+	errGenRefreshToken       = "failed to generate refresh token"
+	errStoreRefreshToken     = "failed to store refresh token"
+	errHashPassword          = "failed to hash password"
+	errUserNotFound          = "user not found"
+	loginAttemptCacheTimeout = 5 * time.Second
 )
-
-const errUserNotFound = "user not found"
 
 type AuthService struct {
 	userRepo          *repository.UserRepository
@@ -114,7 +112,7 @@ func (s *AuthService) hashPassword(password string) (string, error) {
 
 // ForgotPassword initiates the password reset flow
 func (s *AuthService) ForgotPassword(email string) error {
-	user, err := s.userRepo.FindByEmail(email)
+	user, err := s.userRepo.FindByEmail(normalizedEmail)
 	if err != nil {
 		// Return nil to prevent email enumeration
 		return nil
