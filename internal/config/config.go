@@ -19,9 +19,10 @@ type Config struct {
 }
 
 type AppConfig struct {
-	Port int
-	Env  string
-	URL  string
+	Port         int
+	Env          string
+	URL          string
+	CookieDomain string
 }
 
 type DatabaseConfig struct {
@@ -34,7 +35,6 @@ type RedisConfig struct {
 	URL string
 	TTL int
 }
-
 
 type JWTConfig struct {
 	AccessSecret  string
@@ -93,9 +93,10 @@ func LoadConfig() *Config {
 
 	return &Config{
 		App: AppConfig{
-			Port: port,
-			Env:  getEnv("APP_ENV", "development"),
-			URL:  appURL,
+			Port:         port,
+			Env:          getEnv("APP_ENV", "development"),
+			CookieDomain: getEnv("COOKIE_DOMAIN", ""),
+			URL:          appURL,
 		},
 		Database: DatabaseConfig{
 			URL:     getEnv("DATABASE_URL", ""),
@@ -107,10 +108,10 @@ func LoadConfig() *Config {
 			TTL: redisTTL,
 		},
 		JWT: JWTConfig{
-    		AccessSecret:  getEnv("JWT_SECRET", ""),
-    		RefreshSecret: getEnv("JWT_REFRESH_SECRET", ""),
-    		AccessExpiry:  getEnv("JWT_ACCESS_EXPIRY", "15m"),
-    		RefreshExpiry: getEnv("JWT_REFRESH_EXPIRY", "168h"),
+			AccessSecret:  getEnv("JWT_SECRET", ""),
+			RefreshSecret: getEnv("JWT_REFRESH_SECRET", ""),
+			AccessExpiry:  getEnv("JWT_ACCESS_EXPIRY", "15m"),
+			RefreshExpiry: getEnv("JWT_REFRESH_EXPIRY", "168h"),
 		},
 		OAuth: OAuthConfig{
 			Google: GoogleOAuthConfig{
