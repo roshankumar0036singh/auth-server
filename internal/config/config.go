@@ -2,8 +2,10 @@ package config
 
 import (
 	"log"
+	"net/url"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/joho/godotenv"
 )
@@ -35,13 +37,13 @@ type RedisConfig struct {
 	TTL int
 }
 
-
 type JWTConfig struct {
 	AccessSecret  string
 	RefreshSecret string
 	AccessExpiry  string
 	RefreshExpiry string
 }
+
 type OAuthConfig struct {
 	Google GoogleOAuthConfig
 	GitHub GitHubOAuthConfig
@@ -66,6 +68,7 @@ type SecurityConfig struct {
 	AccountLockMaxAttempts int
 	AccountLockDuration    int // in minutes
 	EncryptionKey          string
+	AllowedOrigins         []string // Added to store validated, deduplicated origins
 }
 
 func LoadConfig() *Config {
@@ -91,6 +94,42 @@ func LoadConfig() *Config {
 		log.Fatal("ENCRYPTION_KEY must be set to a unique secret")
 	}
 
+	// 1. Fetch, Split, Trim, and Validate CORS allowed origins
+	rawOrigins := getEnv("CORS_ALLOWED_ORIGINS", "")
+	var originList []string
+	originMap := make(map[string]bool)
+
+	if rawOrigins != "" {
+		for _, rawOrigin := range strings.Split(rawOrigins, ",") {
+			trimmed := strings.TrimSpace(rawOrigin)
+			if trimmed == "" {
+				continue
+			}
+
+			// Validate if it is a structurally valid URL
+			parsedURL, err := url.ParseRequestURI(trimmed)
+			if err != nil || parsedURL.Scheme == "" || parsedURL.Host == "" {
+				log.Printf("Warning: Skipping invalid CORS origin configuration: %s", trimmed)
+				continue
+			}
+
+			// Add to unique map tracking to avoid duplicates
+			if !originMap[trimmed] {
+				originMap[trimmed] = true
+				originList = append(originList, trimmed)
+			}
+		}
+	}
+
+	// 2. Safely append appURL if it doesn't already exist to avoid duplicate issues
+	if !originMap[appURL] {
+		originMap[appURL] = true
+		originList = append(originList, appURL)
+	}
+
+	// 3. Log out what was successfully configured
+	log.Printf("Configured CORS Allowed Origins: %v", originList)
+
 	return &Config{
 		App: AppConfig{
 			Port: port,
@@ -107,10 +146,10 @@ func LoadConfig() *Config {
 			TTL: redisTTL,
 		},
 		JWT: JWTConfig{
-    		AccessSecret:  getEnv("JWT_SECRET", ""),
-    		RefreshSecret: getEnv("JWT_REFRESH_SECRET", ""),
-    		AccessExpiry:  getEnv("JWT_ACCESS_EXPIRY", "15m"),
-    		RefreshExpiry: getEnv("JWT_REFRESH_EXPIRY", "168h"),
+			AccessSecret:  getEnv("JWT_SECRET", ""),
+			RefreshSecret: getEnv("JWT_REFRESH_SECRET", ""),
+			AccessExpiry:  getEnv("JWT_ACCESS_EXPIRY", "15m"),
+			RefreshExpiry: getEnv("JWT_REFRESH_EXPIRY", "168h"),
 		},
 		OAuth: OAuthConfig{
 			Google: GoogleOAuthConfig{
@@ -132,6 +171,7 @@ func LoadConfig() *Config {
 			AccountLockMaxAttempts: accountLockMax,
 			AccountLockDuration:    accountLockDuration,
 			EncryptionKey:          encKey,
+			AllowedOrigins:         originList, // Pass the processed slice cleanly here
 		},
 	}
 }
