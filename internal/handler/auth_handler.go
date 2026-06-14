@@ -20,12 +20,14 @@ const (
 type AuthHandler struct {
 	authService  *service.AuthService
 	oauthService *service.OAuthService
+	isProd       bool
 }
 
-func NewAuthHandler(authService *service.AuthService, oauthService *service.OAuthService) *AuthHandler {
+func NewAuthHandler(authService *service.AuthService, oauthService *service.OAuthService, isProd bool) *AuthHandler {
 	return &AuthHandler{
 		authService:  authService,
 		oauthService: oauthService,
+		isProd:         isProd,
 	}
 }
 
@@ -298,7 +300,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 
 	// Set session cookie for browser flows (like OAuth)
 	// MaxAge is 7 days (matching refresh token)
-	c.SetCookie("auth_token", loginResp.AccessToken, 7*24*3600, "/", "", false, true)
+	c.SetCookie("auth_token", loginResp.AccessToken, 7*24*3600, "/", "", h.isProd, true)
 
 	c.JSON(http.StatusOK, utils.SuccessResponse(msgLoginSuccess, loginResp))
 }
