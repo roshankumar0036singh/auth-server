@@ -107,7 +107,7 @@ func LoadConfig() *Config {
 			TTL: redisTTL,
 		},
 		JWT: JWTConfig{
-    		AccessSecret:  getEnv("JWT_SECRET", ""),
+    		AccessSecret:  getEnv("JWT_ACCESS_SECRET", ""),
     		RefreshSecret: getEnv("JWT_REFRESH_SECRET", ""),
     		AccessExpiry:  getEnv("JWT_ACCESS_EXPIRY", "15m"),
     		RefreshExpiry: getEnv("JWT_REFRESH_EXPIRY", "168h"),
