@@ -17,13 +17,14 @@ import (
 )
 
 var (
-	ErrSelfLock              = errors.New("admin cannot lock their own account")
-	ErrAdminLock             = errors.New("admin accounts cannot be locked")
-	ErrAlreadyLocked         = errors.New("account is already locked")
-	ErrNotLocked             = errors.New("account is not locked")
-	ErrTooManyAttempts       = errors.New("too many failed attempts, please try again later")
-	ErrInvalidMFACode        = errors.New("invalid TOTP code")
-	ErrServiceUnavailable    = errors.New("authentication service temporarily unavailable") 
+	ErrSelfLock           = errors.New("admin cannot lock their own account")
+	ErrAdminLock          = errors.New("admin accounts cannot be locked")
+	ErrAlreadyLocked      = errors.New("account is already locked")
+	ErrNotLocked          = errors.New("account is not locked")
+	ErrTooManyAttempts    = errors.New("too many failed attempts, please try again later")
+	ErrInvalidMFACode     = errors.New("invalid TOTP code")
+	ErrServiceUnavailable = errors.New("authentication service temporarily unavailable")
+	ErrUserNotFound       = errors.New("user not found")
 )
 
 const (
@@ -31,7 +32,6 @@ const (
 	errGenRefreshToken       = "failed to generate refresh token"
 	errStoreRefreshToken     = "failed to store refresh token"
 	errHashPassword          = "failed to hash password"
-	errUserNotFound          = "user not found"
 	loginAttemptCacheTimeout = 5 * time.Second
 )
 
@@ -370,6 +370,8 @@ func (s *AuthService) VerifyLoginMFA(email, code, ipAddress, userAgent string) (
 				log.Printf("Warning: Failed to increment login attempts for unknown email: %v", incErr)
 			}
 		}
+		s.auditService.LogEvent(nil, "MFA_LOGIN_UNKNOWN_EMAIL", "SYSTEM", "", ipAddress, userAgent,
+			map[string]interface{}{"email": normalizedEmail})
 		return nil, ErrUserNotFound
 	}
 
@@ -388,7 +390,7 @@ func (s *AuthService) VerifyLoginMFA(email, code, ipAddress, userAgent string) (
 	}
 
 	if s.config.Security.RateLimitMax > 0 {
-		if err := s.cacheService.ResetLoginAttempts(ctx, rateLimitKey); err != nil {
+		if _, err := s.cacheService.ResetLoginAttempts(ctx, rateLimitKey); err != nil {
 			log.Printf("Warning: Failed to reset login attempts in cache: %v", err)
 		}
 	}
@@ -686,7 +688,7 @@ func (s *AuthService) RefreshAccessToken(refreshTokenString string, ipAddress, u
 	// Get user
 	user, err := s.userRepo.FindByID(claims.UserID)
 	if err != nil {
-		return nil, errors.New(errUserNotFound)
+		return nil, ErrUserNotFound
 	}
 
 	// Token rotation: Generate new refresh token
