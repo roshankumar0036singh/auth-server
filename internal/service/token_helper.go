@@ -1,13 +1,10 @@
 package service
 
 import (
-	"crypto/rand"
-	"encoding/base64"
+	"github.com/roshankumar0036singh/auth-server/internal/utils"
 )
 
 // GenerateRandomString generates a random string of specified length
-func (s *TokenService) GenerateRandomString(n int) string {
-	b := make([]byte, n)
-	rand.Read(b)
-	return base64.URLEncoding.EncodeToString(b)
+func (s *TokenService) GenerateRandomString(n int) (string, error) {
+	return utils.GenerateRandomString(n)
 }
