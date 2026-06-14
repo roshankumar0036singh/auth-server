@@ -120,7 +120,7 @@ func (s *AuthService) ForgotPassword(email string) error {
 	// Create new reset token
 	tokenString, err := s.tokenService.GenerateRandomString(32)
 	if err != nil {
-		return err
+		return errors.New("failed to generate password reset token")
 	}
 
 	token := &models.PasswordResetToken{
@@ -419,7 +419,7 @@ func (s *AuthService) sendVerificationEmail(user *models.User) error {
 	// Generate verification token
 	tokenString, err := s.tokenService.GenerateRandomString(32)
 	if err != nil {
-		return err
+		return errors.New("failed to generate verification token")
 	}
 
 	token := &models.VerificationToken{
@@ -552,7 +552,7 @@ func (s *AuthService) LoginWithOAuth(email, oauthID, firstName, lastName, provid
 		// User does not exist, create new one
 		password, err := s.tokenService.GenerateRandomString(32)
 		if err != nil {
-			return nil, err
+			return nil, errors.New("failed to generate temporary password")
 		}
 
 		hashedPassword, err := s.hashPassword(password)
