@@ -334,13 +334,26 @@ func (s *AuthService) VerifyEnableMFA(userID, code string) error {
 	return nil
 }
 
+// Sentinel errors
+var (
+	ErrTooManyAttempts = errors.New("too many failed attempts, please try again later")
+	ErrInvalidMFACode  = errors.New("invalid TOTP code")
+)
+
 // VerifyLoginMFA completes the login process with MFA code
 func (s *AuthService) VerifyLoginMFA(email, code, ipAddress, userAgent string) (*dto.LoginResponse, error) {
-	ctx := context.Background()
-	attempts, err := s.cacheService.GetLoginAttempts(ctx, email)
-	if err == nil && attempts >= int64(s.config.Security.RateLimitMax) {
-		return nil, errors.New("too many failed attempts, please try again later")
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if s.config.Security.RateLimitMax > 0 {
+		attempts, err := s.cacheService.GetLoginAttempts(ctx, email)
+		if err != nil {
+			log.Printf("Warning: Failed to get login attempts from cache: %v", err)
+		} else if attempts >= int64(s.config.Security.RateLimitMax) {
+			return nil, ErrTooManyAttempts
+		}
 	}
+
 	user, err := s.userRepo.FindByEmail(email)
 	if err != nil {
 		return nil, ErrUserNotFound
@@ -351,21 +364,24 @@ func (s *AuthService) VerifyLoginMFA(email, code, ipAddress, userAgent string) (
 	}
 
 	if !s.mfaService.ValidateMFA(user.MFASecret, code) {
-		s.cacheService.IncrementLoginAttempts(ctx, email)
+		if err := s.cacheService.IncrementLoginAttempts(ctx, email); err != nil {
+			log.Printf("Warning: Failed to increment login attempts in cache: %v", err)
+		}
 		s.auditService.LogEvent(&user.ID, "MFA_LOGIN_FAILED", "USER", user.ID, ipAddress, userAgent, nil)
-		return nil, errors.New("invalid TOTP code")
+		return nil, ErrInvalidMFACode
 	}
 
-	s.cacheService.ResetLoginAttempts(ctx, email)
+	if err := s.cacheService.ResetLoginAttempts(ctx, email); err != nil {
+		log.Printf("Warning: Failed to reset login attempts in cache: %v", err)
+	}
+
 	response, err := s.createLoginResponse(user, ipAddress, userAgent)
 	if err != nil {
 		return nil, err
 	}
 
 	s.auditService.LogEvent(&user.ID, "USER_LOGIN_SUCCESS_MFA", "USER", user.ID, ipAddress, userAgent, nil)
-
 	return response, nil
-
 }
 
 // Register creates a new user account and sends verification email
