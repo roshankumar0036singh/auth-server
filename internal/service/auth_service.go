@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"time"
+	"strings"
 
 	"github.com/roshankumar0036singh/auth-server/internal/config"
 	"github.com/roshankumar0036singh/auth-server/internal/dto"
@@ -16,12 +17,13 @@ import (
 )
 
 var (
-	ErrSelfLock        = errors.New("admin cannot lock their own account")
-	ErrAdminLock       = errors.New("admin accounts cannot be locked")
-	ErrAlreadyLocked   = errors.New("account is already locked")
-	ErrNotLocked       = errors.New("account is not locked")
-	ErrTooManyAttempts = errors.New("too many failed attempts, please try again later") // ADD
-	ErrInvalidMFACode  = errors.New("invalid TOTP code")                                // ADD
+	ErrSelfLock              = errors.New("admin cannot lock their own account")
+	ErrAdminLock             = errors.New("admin accounts cannot be locked")
+	ErrAlreadyLocked         = errors.New("account is already locked")
+	ErrNotLocked             = errors.New("account is not locked")
+	ErrTooManyAttempts       = errors.New("too many failed attempts, please try again later")
+	ErrInvalidMFACode        = errors.New("invalid TOTP code")
+	ErrServiceUnavailable    = errors.New("authentication service temporarily unavailable") 
 )
 
 const (
@@ -29,6 +31,7 @@ const (
     errGenRefreshToken       = "failed to generate refresh token"
     errStoreRefreshToken     = "failed to store refresh token"
     errHashPassword          = "failed to hash password"
+	errUserNotFound 		 = "user not found"
     loginAttemptCacheTimeout = 5 * time.Second
 )
 
@@ -342,21 +345,22 @@ func (s *AuthService) VerifyLoginMFA(email, code, ipAddress, userAgent string) (
 	ctx, cancel := context.WithTimeout(context.Background(), loginAttemptCacheTimeout)
 	defer cancel()
 
-	rateLimitKey := email + ":" + ipAddress
+	normalizedEmail := strings.ToLower(strings.TrimSpace(email))
+	rateLimitKey := normalizedEmail + ":" + ipAddress
 
 	if s.config.Security.RateLimitMax > 0 {
 		attempts, err := s.cacheService.GetLoginAttempts(ctx, rateLimitKey)
 		if err != nil {
 			log.Printf("Error: Failed to get login attempts from cache: %v", err)
-			return nil, errors.New("authentication service temporarily unavailable")
+			return nil, ErrServiceUnavailable
 		}
 
 		if attempts >= int64(s.config.Security.RateLimitMax) {
-			if incErr := s.cacheService.IncrementLoginAttempts(ctx, rateLimitKey); incErr != nil {
+			if _, incErr := s.cacheService.IncrementLoginAttempts(ctx, rateLimitKey); incErr != nil {
 				log.Printf("Warning: Failed to increment login attempts during lockout: %v", incErr)
 			}
 			s.auditService.LogEvent(nil, "MFA_RATE_LIMIT_EXCEEDED", "SYSTEM", "", ipAddress, userAgent,
-				map[string]interface{}{"email": email})
+				map[string]interface{}{"email": normalizedEmail})
 			return nil, ErrTooManyAttempts
 		}
 	}
@@ -372,7 +376,7 @@ func (s *AuthService) VerifyLoginMFA(email, code, ipAddress, userAgent string) (
 
 	if !s.mfaService.ValidateMFA(user.MFASecret, code) {
 		if s.config.Security.RateLimitMax > 0 {
-			if err := s.cacheService.IncrementLoginAttempts(ctx, rateLimitKey); err != nil {
+			if _, err := s.cacheService.IncrementLoginAttempts(ctx, rateLimitKey); err != nil {
 				log.Printf("Warning: Failed to increment login attempts in cache: %v", err)
 			}
 		}
