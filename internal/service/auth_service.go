@@ -24,7 +24,7 @@ var (
 	ErrTooManyAttempts    = errors.New("too many failed attempts, please try again later")
 	ErrInvalidMFACode     = errors.New("invalid TOTP code")
 	ErrServiceUnavailable = errors.New("authentication service temporarily unavailable")
-	ErrUserNotFound       = errors.New("user not found")
+	ErrUserNotFound       = repository.ErrUserNotFound
 )
 
 const (
@@ -353,7 +353,7 @@ func (s *AuthService) resetAttempts(ctx context.Context, key string) {
 	if s.config.Security.RateLimitMax <= 0 {
 		return
 	}
-	if _, err := s.cacheService.ResetLoginAttempts(ctx, key); err != nil {
+	if err := s.cacheService.ResetLoginAttempts(ctx, key); err != nil {
 		log.Printf("Warning: Failed to reset login attempts: %v", err)
 	}
 }
