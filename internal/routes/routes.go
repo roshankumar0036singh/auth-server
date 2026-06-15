@@ -6,6 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/go-redis/redis/v8"
 	"gorm.io/gorm"
+	"strings"
 
 	"github.com/roshankumar0036singh/auth-server/internal/config"
 	"github.com/roshankumar0036singh/auth-server/internal/handler"
@@ -62,7 +63,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, redisClient *redis.Client, cfg
 	)
 
 	// Initialize handlers
-	authHandler := handler.NewAuthHandler(authService, oauthService, cfg.App.Env == "production", cfg.App.CookieDomain)
+	authHandler := handler.NewAuthHandler(authService, oauthService, strings.EqualFold(strings.TrimSpace(cfg.App.Env), "production"), cfg.App.CookieDomain)
 	adminHandler := handler.NewAdminHandler(authService)
 	oauthClientHandler := handler.NewOAuthClientHandler(oauthProviderService)
 	oauthHandler := handler.NewOAuthHandler(oauthProviderService, userRepo)
