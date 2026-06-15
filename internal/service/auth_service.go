@@ -429,6 +429,7 @@ func (s *AuthService) VerifyLoginMFA(email, code, ipAddress, userAgent string) (
 	s.auditService.LogEvent(&user.ID, "USER_LOGIN_SUCCESS_MFA", "USER", user.ID, ipAddress, userAgent, nil)
 	return response, nil
 }
+
 // Register creates a new user account and sends verification email
 func (s *AuthService) Register(req *dto.RegisterRequest) (*models.User, error) {
 	// Check if email already exists
