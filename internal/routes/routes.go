@@ -83,7 +83,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, redisClient *redis.Client, cfg
 	router.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
 			"status":  "ok",
-			"message": "Auth server is alive",
+			"message": "Auth server is running",
 		})
 	})
 
@@ -99,7 +99,11 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, redisClient *redis.Client, cfg
 
 		// Check DB
 		sqlDB, err := db.DB()
-		if err != nil || sqlDB.PingContext(ctx) != nil {
+		if err != nil {
+			dbStatus = "down"
+			overallStatus = "degraded"
+			statusCode = http.StatusServiceUnavailable
+		} else if err := sqlDB.PingContext(ctx); err != nil {
 			dbStatus = "down"
 			overallStatus = "degraded"
 			statusCode = http.StatusServiceUnavailable
