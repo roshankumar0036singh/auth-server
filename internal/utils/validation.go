@@ -6,6 +6,8 @@ import (
 	"unicode"
 )
 
+var emailRegex = regexp.MustCompile(`(?i)^[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}$`)
+
 // ValidatePassword checks if the password meets complexity requirements
 func ValidatePassword(password string) error {
 	if len(password) < 8 {
@@ -50,6 +52,5 @@ func ValidatePassword(password string) error {
 
 // ValidateEmail checks if the email format is valid
 func ValidateEmail(email string) bool {
-	regex := regexp.MustCompile(`^[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,4}$`)
-	return regex.MatchString(email)
+	return emailRegex.MatchString(email)
 }
