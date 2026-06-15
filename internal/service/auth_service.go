@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"time"
+	"strings"
 
 	"github.com/roshankumar0036singh/auth-server/internal/config"
 	"github.com/roshankumar0036singh/auth-server/internal/dto"
@@ -16,20 +17,23 @@ import (
 )
 
 var (
-	ErrSelfLock      = errors.New("admin cannot lock their own account")
-	ErrAdminLock     = errors.New("admin accounts cannot be locked")
-	ErrAlreadyLocked = errors.New("account is already locked")
-	ErrNotLocked     = errors.New("account is not locked")
+	ErrSelfLock           = errors.New("admin cannot lock their own account")
+	ErrAdminLock          = errors.New("admin accounts cannot be locked")
+	ErrAlreadyLocked      = errors.New("account is already locked")
+	ErrNotLocked          = errors.New("account is not locked")
+	ErrTooManyAttempts    = errors.New("too many failed attempts, please try again later")
+	ErrInvalidMFACode     = errors.New("invalid TOTP code")
+	ErrServiceUnavailable = errors.New("authentication service temporarily unavailable")
+	ErrUserNotFound       = errors.New("user not found")
 )
 
 const (
-	errGenAccessToken    = "failed to generate access token"
-	errGenRefreshToken   = "failed to generate refresh token"
-	errStoreRefreshToken = "failed to store refresh token"
-	errHashPassword      = "failed to hash password"
+	errGenAccessToken        = "failed to generate access token"
+	errGenRefreshToken       = "failed to generate refresh token"
+	errStoreRefreshToken     = "failed to store refresh token"
+	errHashPassword          = "failed to hash password"
+	loginAttemptCacheTimeout = 5 * time.Second
 )
-
-const errUserNotFound = "user not found"
 
 type AuthService struct {
 	userRepo          *repository.UserRepository
@@ -334,11 +338,54 @@ func (s *AuthService) VerifyEnableMFA(userID, code string) error {
 	return nil
 }
 
+// incrementAttempts increments the rate limit counter if rate limiting is enabled
+func (s *AuthService) incrementAttempts(ctx context.Context, key string) {
+	if s.config.Security.RateLimitMax <= 0 {
+		return
+	}
+	if _, err := s.cacheService.IncrementLoginAttempts(ctx, key); err != nil {
+		log.Printf("Warning: Failed to increment login attempts: %v", err)
+	}
+}
+
+// resetAttempts resets the rate limit counter if rate limiting is enabled
+func (s *AuthService) resetAttempts(ctx context.Context, key string) {
+	if s.config.Security.RateLimitMax <= 0 {
+		return
+	}
+	if _, err := s.cacheService.ResetLoginAttempts(ctx, key); err != nil {
+		log.Printf("Warning: Failed to reset login attempts: %v", err)
+	}
+}
+
 // VerifyLoginMFA completes the login process with MFA code
 func (s *AuthService) VerifyLoginMFA(email, code, ipAddress, userAgent string) (*dto.LoginResponse, error) {
-	user, err := s.userRepo.FindByEmail(email)
+	ctx, cancel := context.WithTimeout(context.Background(), loginAttemptCacheTimeout)
+	defer cancel()
+
+	normalizedEmail := strings.ToLower(strings.TrimSpace(email))
+	rateLimitKey := fmt.Sprintf("%q|%q", normalizedEmail, ipAddress)
+
+	if s.config.Security.RateLimitMax > 0 {
+		attempts, err := s.cacheService.GetLoginAttempts(ctx, rateLimitKey)
+		if err != nil {
+			log.Printf("Error: Failed to get login attempts from cache: %v", err)
+			return nil, ErrServiceUnavailable
+		}
+		if attempts >= int64(s.config.Security.RateLimitMax) {
+			s.incrementAttempts(ctx, rateLimitKey)
+			s.auditService.LogEvent(nil, "MFA_RATE_LIMIT_EXCEEDED", "SYSTEM", "", ipAddress, userAgent,
+				map[string]interface{}{"email": normalizedEmail})
+			return nil, ErrTooManyAttempts
+		}
+	}
+
+	user, err := s.userRepo.FindByEmail(normalizedEmail)
 	if err != nil {
-		return nil, ErrUserNotFound
+		s.incrementAttempts(ctx, rateLimitKey)
+		s.auditService.LogEvent(nil, "MFA_LOGIN_UNKNOWN_EMAIL", "SYSTEM", "", ipAddress, userAgent,
+			map[string]interface{}{"email": normalizedEmail})
+		return nil, ErrInvalidMFACode
 	}
 
 	if !user.MFAEnabled {
@@ -346,9 +393,12 @@ func (s *AuthService) VerifyLoginMFA(email, code, ipAddress, userAgent string) (
 	}
 
 	if !s.mfaService.ValidateMFA(user.MFASecret, code) {
+		s.incrementAttempts(ctx, rateLimitKey)
 		s.auditService.LogEvent(&user.ID, "MFA_LOGIN_FAILED", "USER", user.ID, ipAddress, userAgent, nil)
-		return nil, errors.New("invalid TOTP code")
+		return nil, ErrInvalidMFACode
 	}
+
+	s.resetAttempts(ctx, rateLimitKey)
 
 	response, err := s.createLoginResponse(user, ipAddress, userAgent)
 	if err != nil {
@@ -356,11 +406,8 @@ func (s *AuthService) VerifyLoginMFA(email, code, ipAddress, userAgent string) (
 	}
 
 	s.auditService.LogEvent(&user.ID, "USER_LOGIN_SUCCESS_MFA", "USER", user.ID, ipAddress, userAgent, nil)
-
 	return response, nil
-
 }
-
 // Register creates a new user account and sends verification email
 func (s *AuthService) Register(req *dto.RegisterRequest) (*models.User, error) {
 	// Check if email already exists
@@ -646,7 +693,7 @@ func (s *AuthService) RefreshAccessToken(refreshTokenString string, ipAddress, u
 	// Get user
 	user, err := s.userRepo.FindByID(claims.UserID)
 	if err != nil {
-		return nil, errors.New(errUserNotFound)
+		return nil, ErrUserNotFound
 	}
 
 	// Token rotation: Generate new refresh token
