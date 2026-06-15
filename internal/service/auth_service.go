@@ -364,9 +364,8 @@ func (s *AuthService) DisableMFA(userID, password, code string) error {
 	}
 
 	if err := s.userRepo.Update(userID, map[string]interface{}{
-		"mfa_enabled":  false,
-		"mfa_secret":   "",
-		"backup_codes": nil,
+		"mfa_enabled": false,
+		"mfa_secret":  "",
 	}); err != nil {
 		return fmt.Errorf("failed to disable MFA: %w", err)
 	}
