@@ -35,13 +35,13 @@ type RedisConfig struct {
 	TTL int
 }
 
+
 type JWTConfig struct {
 	AccessSecret  string
 	RefreshSecret string
 	AccessExpiry  string
 	RefreshExpiry string
 }
-
 type OAuthConfig struct {
 	Google GoogleOAuthConfig
 	GitHub GitHubOAuthConfig
@@ -107,10 +107,10 @@ func LoadConfig() *Config {
 			TTL: redisTTL,
 		},
 		JWT: JWTConfig{
-			AccessSecret:  getEnv("JWT_SECRET", ""),
-			RefreshSecret: getEnv("JWT_REFRESH_SECRET", ""),
-			AccessExpiry:  "15m",
-			RefreshExpiry: "168h", // 7 days
+    		AccessSecret:  getEnv("JWT_SECRET", ""),
+    		RefreshSecret: getEnv("JWT_REFRESH_SECRET", ""),
+    		AccessExpiry:  getEnv("JWT_ACCESS_EXPIRY", "15m"),
+    		RefreshExpiry: getEnv("JWT_REFRESH_EXPIRY", "168h"),
 		},
 		OAuth: OAuthConfig{
 			Google: GoogleOAuthConfig{

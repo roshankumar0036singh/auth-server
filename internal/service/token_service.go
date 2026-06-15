@@ -19,20 +19,22 @@ func NewTokenService(cfg *config.Config) *TokenService {
 
 // JWTClaims custom claims for JWT
 type JWTClaims struct {
-	UserID string `json:"sub"`
-	Email  string `json:"email"`
-	Role   string `json:"role"`
+	UserID    string `json:"sub"`
+	SessionID string `json:"session_id"`
+	Email     string `json:"email"`
+	Role      string `json:"role"`
 	jwt.RegisteredClaims
 }
 
 // GenerateAccessToken generates a new JWT access token
-func (s *TokenService) GenerateAccessToken(user *models.User) (string, error) {
+func (s *TokenService) GenerateAccessToken(user *models.User, sessionID string) (string, error) {
 	expirationTime := time.Now().Add(15 * time.Minute) // 15 minutes
 
 	claims := &JWTClaims{
-		UserID: user.ID,
-		Email:  user.Email,
-		Role:   user.Role,
+		UserID:    user.ID,
+		Email:     user.Email,
+		Role:      user.Role,
+		SessionID: sessionID,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(expirationTime),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),

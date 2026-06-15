@@ -1,18 +1,23 @@
-# @authserver/client
+<!-- markdownlint-disable MD013 MD033 MD036 MD041 -->
 
-The official TypeScript/JavaScript SDK for the Auth Server. Production-ready with automatic token refresh, session persistence, SSR-safety, structured error handling, and first-class React bindings.
+<div align="center">
 
-## Features
+# `@authserver/client`
 
-- **Framework Agnostic** — works in vanilla JS, Vue, Svelte, Next.js, or any framework
-- **React Ready** — includes `<AuthProvider>` and `useAuth()` hook
-- **Auto Token Refresh** — transparently refreshes expired access tokens and retries failed requests
-- **Session Persistence** — automatically saves/restores sessions via `localStorage`, `sessionStorage`, or in-memory
-- **OAuth Support** — one-line Google & GitHub social login
-- **MFA** — built-in support for TOTP-based multi-factor authentication
-- **SSR-Safe** — defaults to `memory` storage, safe for server-side rendering
-- **Structured Errors** — `AuthError` class with `code` and `status` for programmatic error handling
-- **Tree-Shakeable** — `sideEffects: false` for optimal bundle size
+**The TypeScript SDK for Auth Server**
+
+[![npm](https://img.shields.io/npm/v/%40authserver%2Fclient?style=flat-square&logo=npm&logoColor=white&color=CB3837)](https://www.npmjs.com/package/@authserver/client)
+[![TypeScript](https://img.shields.io/badge/TypeScript-SDK-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://github.com/roshankumar0036singh/auth-server/tree/main/clients/ts/src)
+[![React](https://img.shields.io/badge/React-18+-149ECA?style=flat-square&logo=react&logoColor=white)](#react-quick-start)
+[![License](https://img.shields.io/badge/license-MIT-22C55E?style=flat-square)](https://github.com/roshankumar0036singh/auth-server/blob/main/LICENSE)
+
+[Quick start](#quick-start) | [React](#react-quick-start) | [Node.js](#nodejs-quick-start) | [API overview](#api-overview) | [Full documentation](https://github.com/roshankumar0036singh/auth-server/blob/main/docs/sdk/ts.md)
+
+</div>
+
+---
+
+`@authserver/client` provides typed authentication methods, session persistence, automatic token refresh after `401` responses, structured errors, and React bindings.
 
 ## Installation
 
@@ -20,9 +25,19 @@ The official TypeScript/JavaScript SDK for the Auth Server. Production-ready wit
 npm install @authserver/client
 ```
 
-## Quick Start (Vanilla JS / TypeScript)
+React applications also need React and React DOM `>=18.0.0`:
 
-```typescript
+```bash
+npm install @authserver/client react react-dom
+```
+
+The package ships ESM, CommonJS, and TypeScript declarations. Node.js applications need a global Fetch API implementation; Node.js 18 and later include one.
+
+## Quick Start
+
+Create one client for your browser application:
+
+```ts
 import { AuthClient, AuthError } from '@authserver/client';
 
 const auth = new AuthClient({
@@ -36,117 +51,195 @@ const unsubscribe = auth.onAuthStateChanged((session) => {
   console.log(session ? 'Logged in' : 'Logged out');
 });
 
-// Login
 try {
-  const session = await auth.login('user@example.com', 'password123');
-  console.log('Access token:', session.access_token);
-} catch (err) {
-  if (err instanceof AuthError) {
-    console.error(`Auth error [${err.code}]: ${err.message}`);
+  const session = await auth.login(
+    'ada@example.com',
+    'correct-horse-battery-staple',
+  );
+
+  console.log('Signed in:', session.user?.email);
+} catch (error) {
+  if (error instanceof AuthError) {
+    console.error(error.code, error.status, error.message);
+  } else {
+    throw error;
   }
 }
+```
 
-// Get user profile
-const user = await auth.getUser();
-console.log(`Hello, ${user.first_name}!`);
+- `serverUrl` is the auth server origin without `/api`.
+- `clientId` is required, including for email/password integrations.
+- Storage defaults to `memory`. Browser applications can choose `localStorage` or `sessionStorage`.
 
-// Social login (browser only — redirects the page)
-auth.loginWithGoogle();
-auth.loginWithGitHub();
+### Observe Auth State
 
-// Cleanup
+```ts
+const unsubscribe = auth.onAuthStateChanged((session) => {
+  console.log(session ? 'Signed in' : 'Signed out');
+});
+
+// Remove the listener when it is no longer needed.
 unsubscribe();
 ```
 
-## Usage with React
+### Read the Current User
 
-### 1. Wrap your app with `<AuthProvider>`
+```ts
+const user = await auth.getUser();
+console.log(`Welcome, ${user.first_name}`);
+```
 
-```tsx
+## React Quick Start
+
+Create the client outside React components so renders do not replace it:
+
+```ts
+// auth.ts
 import { AuthClient } from '@authserver/client';
-import { AuthProvider } from '@authserver/client/react';
 
 const authClient = new AuthClient({
   serverUrl: 'https://auth-server-4nmm.onrender.com',
   clientId: 'your_oauth_client_id',
   storage: 'localStorage',
 });
+```
 
-export default function App() {
+Wrap the application:
+
+```tsx
+// App.tsx
+import { AuthProvider } from '@authserver/client/react';
+import { authClient } from './auth';
+import { Account } from './Account';
+
+export function App() {
   return (
     <AuthProvider client={authClient}>
-      <YourApp />
+      <Account />
     </AuthProvider>
   );
 }
 ```
 
-### 2. Use the `useAuth()` hook
+Use auth state and actions from any descendant:
 
 ```tsx
+// Account.tsx
 import { useAuth } from '@authserver/client/react';
 
-function Dashboard() {
-  const { user, isAuthenticated, isLoading, login, logout, client } = useAuth();
+export function Account() {
+  const { user, isAuthenticated, isLoading, login, logout } = useAuth();
 
-  if (isLoading) return <p>Loading...</p>;
+  if (isLoading) return <p>Loading session...</p>;
 
   if (!isAuthenticated) {
     return (
-      <div>
-        <button onClick={() => login('user@example.com', 'pass')}>Login</button>
-        <button onClick={() => client.loginWithGoogle()}>Login with Google</button>
-      </div>
+      <button
+        type="button"
+        onClick={() => void login('ada@example.com', 'your-password')}
+      >
+        Sign in
+      </button>
     );
   }
 
   return (
-    <div>
-      <h1>Welcome, {user?.first_name}!</h1>
-      <button onClick={logout}>Logout</button>
-    </div>
+    <section>
+      <p>Signed in as {user?.email ?? 'current user'}</p>
+      <button type="button" onClick={() => void logout()}>
+        Sign out
+      </button>
+    </section>
   );
 }
 ```
 
-## API Reference
+## Node.js Quick Start
 
-### `AuthClient`
+Node.js uses in-memory sessions. Create a separate client for each isolated user session; never share a token-bearing client between users.
 
-| Method | Description |
-|--------|-------------|
-| `login(email, password)` | Login with credentials |
-| `register(email, password, firstName, lastName)` | Register a new account |
-| `logout()` | Logout current session |
-| `logoutAll()` | Logout from all devices |
-| `refresh()` | Manually refresh the access token |
-| `getUser()` | Get the authenticated user's profile |
-| `updateProfile(firstName?, lastName?)` | Update profile |
-| `changePassword(current, new)` | Change password |
-| `deleteAccount()` | Delete the user's account |
-| `loginWithGoogle()` | Redirect to Google OAuth (browser only) |
-| `loginWithGitHub()` | Redirect to GitHub OAuth (browser only) |
-| `verifyEmail(token)` | Verify email address |
-| `resendVerification(email)` | Resend verification email |
-| `forgotPassword(email)` | Send password reset email |
-| `resetPassword(token, password)` | Reset password with token |
-| `enableMfa()` | Enable TOTP-based MFA |
-| `verifyMfa(code)` | Verify MFA setup |
-| `loginMfa(email, code)` | Login with MFA code |
-| `getSessions()` | List active sessions |
-| `revokeSession(id)` | Revoke a specific session |
-| `getAuditLogs()` | Get audit logs |
-| `onAuthStateChanged(cb)` | Subscribe to auth state changes |
-| `isAuthenticated()` | Check if user is logged in |
-| `getAccessToken()` | Get current access token |
-| `setSession(session)` | Manually set a session |
+```ts
+import { AuthClient } from '@authserver/client';
 
-### `AuthError`
+const auth = new AuthClient({
+  serverUrl: process.env.AUTH_SERVER_URL ?? 'http://localhost:3000',
+  clientId: process.env.AUTH_CLIENT_ID ?? 'local-node-client',
+});
 
-All SDK errors throw `AuthError` with:
-- `message` — human-readable error
-- `code` — machine-readable code (`NETWORK_ERROR`, `SESSION_EXPIRED`, `API_ERROR`, etc.)
-- `status` — HTTP status code (0 for network errors)
+await auth.login(
+  process.env.AUTH_EMAIL ?? '',
+  process.env.AUTH_PASSWORD ?? '',
+);
+
+const user = await auth.getUser();
+console.log(`Authenticated as ${user.email}`);
+
+await auth.logout();
+```
+
+## Session Behavior
+
+- The client attaches its current access token to SDK requests.
+- After a request returns `401`, the client refreshes and retries once when a refresh token is available.
+- Concurrent refresh calls share one in-flight request.
+- `logout()` clears local tokens even when server-side logout fails.
+- Persisted sessions contain tokens only; fetch the current user with `getUser()`.
+
+> [!CAUTION]
+> Browser storage tokens are readable by JavaScript running on the page. Prevent cross-site scripting, apply a strict Content Security Policy, avoid logging tokens, and select the shortest persistence period your application needs.
+
+## Error Handling
+
+SDK request failures throw `AuthError`:
+
+```ts
+import { AuthError } from '@authserver/client';
+
+try {
+  await auth.getUser();
+} catch (error) {
+  if (error instanceof AuthError) {
+    console.error({
+      code: error.code,
+      status: error.status,
+      message: error.message,
+    });
+  }
+}
+```
+
+Common client-generated codes are `NETWORK_ERROR`, `SESSION_EXPIRED`, `NO_REFRESH_TOKEN`, `BROWSER_ONLY`, and `API_ERROR`.
+
+## API Overview
+
+| Area | Methods |
+| --- | --- |
+| Authentication | `register`, `login`, `loginMfa`, `refresh`, `logout`, `logoutAll` |
+| Session state | `setSession`, `getAccessToken`, `getRefreshToken`, `isAuthenticated`, `onAuthStateChanged` |
+| Social login | `loginWithGoogle`, `loginWithGitHub` |
+| Account | `getUser`, `updateProfile`, `changePassword`, `deleteAccount` |
+| Verification | `verifyEmail`, `resendVerification`, `forgotPassword`, `resetPassword` |
+| MFA | `enableMfa`, `verifyMfa`, `loginMfa` |
+| Security activity | `getSessions`, `revokeSession`, `getAuditLogs` |
+| React | `AuthProvider`, `useAuth` from `@authserver/client/react` |
+
+See the **[complete TypeScript SDK guide and API reference](https://github.com/roshankumar0036singh/auth-server/blob/main/docs/sdk/ts.md)** for configuration, method signatures, exported types, MFA, OAuth redirects, session lifecycle, and production guidance.
+
+## Repository Compatibility
+
+> [!WARNING]
+> The SDK source and Go server source in the current repository checkout use different JSON field casing in several request and response contracts. Social-login callbacks also return JSON rather than automatically restoring the frontend session. Review the [full compatibility notes](https://github.com/roshankumar0036singh/auth-server/blob/main/docs/sdk/ts.md#current-repository-compatibility) before integrating this checkout.
+
+## Local Development
+
+```bash
+cd clients/ts
+npm ci
+npm run build
+```
+
+The build writes ESM, CommonJS, and declaration files to `dist`.
 
 ## License
-MIT
+
+[MIT](https://github.com/roshankumar0036singh/auth-server/blob/main/LICENSE)
