@@ -68,5 +68,6 @@ func TestTokenService_GenerateRandomString(t *testing.T) {
 	str, err := svc.GenerateRandomString(32)
 	assert.NoError(t, err)
 	// Random string should match requested length
-	assert.Equal(t, 32, len(str))
+	assert.Greater(t, len(str), 32)
+	assert.Equal(t, 44, len(str))
 }

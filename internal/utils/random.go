@@ -18,5 +18,5 @@ func GenerateRandomString(length int) (string, error) {
 		return "", errors.New("failed to generate random bytes")
 	}
 
-	return base64.URLEncoding.EncodeToString(bytes)[:length], nil
+	return base64.URLEncoding.EncodeToString(bytes), nil
 }
