@@ -388,7 +388,9 @@ func (s *AuthService) VerifyLoginMFA(email, code, ipAddress, userAgent string) (
 	}
 
 	if !s.mfaService.ValidateMFA(user.MFASecret, code) {
-		s.auditService.LogEvent(&user.ID, "MFA_LOGIN_FAILED", "USER", user.ID, ipAddress, userAgent, nil)
+		if err := s.auditService.LogEvent(&user.ID, "MFA_LOGIN_FAILED", "USER", user.ID, ipAddress, userAgent, nil); err != nil {
+			log.Printf("failed to write MFA_LOGIN_FAILED audit log for user %s: %v", user.ID, err)
+		}
 		return nil, errors.New(errInvalidTOTPCode)
 	}
 
