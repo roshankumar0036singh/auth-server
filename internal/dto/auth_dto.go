@@ -89,7 +89,9 @@ type MFAVerifyRequest struct {
 
 // MFADisableRequest represents the request to disable MFA
 type MFADisableRequest struct {
-	Code string `json:"code" binding:"required,len=6"`
+	// Password re-authenticates the user for this sensitive operation
+	Password string `json:"password" binding:"required"`
+	Code     string `json:"code" binding:"required,len=6"`
 }
 
 // MFALoginRequest represents the request to login with MFA

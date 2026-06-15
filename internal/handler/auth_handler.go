@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -740,20 +741,28 @@ func (h *AuthHandler) VerifyMFA(c *gin.Context) {
 	c.JSON(http.StatusOK, utils.SuccessResponse("MFA enabled successfully", nil))
 }
 
-// DisableMFA verifies the user's TOTP code and disables MFA
+// DisableMFA re-authenticates the user via password and TOTP code, then disables MFA
 // @Summary Disable MFA
 // @Tags auth
 // @Security BearerAuth
 // @Accept json
 // @Produce json
-// @Param request body dto.MFADisableRequest true "TOTP verification code"
+// @Param request body dto.MFADisableRequest true "Current password and TOTP verification code"
 // @Success 200 {object} utils.Response
 // @Failure 400 {object} utils.Response
 // @Failure 401 {object} utils.Response
+// @Failure 404 {object} utils.Response
+// @Failure 500 {object} utils.Response
 // @Router /api/auth/mfa/disable [post]
 func (h *AuthHandler) DisableMFA(c *gin.Context) {
-	userID, exists := c.Get("userID")
+	userIDVal, exists := c.Get("userID")
 	if !exists {
+		c.JSON(http.StatusUnauthorized, utils.UnauthorizedResponse("Unauthorized"))
+		return
+	}
+
+	userID, ok := userIDVal.(string)
+	if !ok {
 		c.JSON(http.StatusUnauthorized, utils.UnauthorizedResponse("Unauthorized"))
 		return
 	}
@@ -764,12 +773,17 @@ func (h *AuthHandler) DisableMFA(c *gin.Context) {
 		return
 	}
 
-	if err := h.authService.DisableMFA(userID.(string), req.Code); err != nil {
-		statusCode := http.StatusBadRequest
-		if err.Error() == "invalid TOTP code" {
-			statusCode = http.StatusUnauthorized
+	if err := h.authService.DisableMFA(userID, req.Password, req.Code); err != nil {
+		switch {
+		case errors.Is(err, service.ErrUserNotFound):
+			c.JSON(http.StatusNotFound, utils.ErrorResponse("User not found", err))
+		case errors.Is(err, service.ErrMFANotEnabled):
+			c.JSON(http.StatusBadRequest, utils.ErrorResponse("Failed to disable MFA", err))
+		case errors.Is(err, service.ErrIncorrectPassword), errors.Is(err, service.ErrInvalidMFACode):
+			c.JSON(http.StatusUnauthorized, utils.ErrorResponse("Failed to disable MFA", err))
+		default:
+			utils.InternalServerErrorResponse(c, "Failed to disable MFA")
 		}
-		c.JSON(statusCode, utils.ErrorResponse("Failed to disable MFA", err))
 		return
 	}
 
