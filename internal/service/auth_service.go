@@ -22,7 +22,7 @@ var (
 	ErrNotLocked     = errors.New("account is not locked")
 
 	ErrMFANotEnabled     = errors.New("MFA is not enabled for this account")
-	ErrInvalidMFACode    = errors.New("invalid TOTP code")
+	ErrInvalidMFACode    = errors.New(errInvalidTOTPCode)
 	ErrIncorrectPassword = errors.New("incorrect password")
 )
 
@@ -31,6 +31,7 @@ const (
 	errGenRefreshToken   = "failed to generate refresh token"
 	errStoreRefreshToken = "failed to store refresh token"
 	errHashPassword      = "failed to hash password"
+	errInvalidTOTPCode   = "invalid TOTP code"
 )
 
 const errUserNotFound = "user not found"
@@ -324,7 +325,7 @@ func (s *AuthService) VerifyEnableMFA(userID, code string) error {
 	}
 
 	if !s.mfaService.ValidateMFA(user.MFASecret, code) {
-		return errors.New("invalid TOTP code")
+		return errors.New(errInvalidTOTPCode)
 	}
 
 	// Enable MFA
@@ -388,7 +389,7 @@ func (s *AuthService) VerifyLoginMFA(email, code, ipAddress, userAgent string) (
 
 	if !s.mfaService.ValidateMFA(user.MFASecret, code) {
 		s.auditService.LogEvent(&user.ID, "MFA_LOGIN_FAILED", "USER", user.ID, ipAddress, userAgent, nil)
-		return nil, errors.New("invalid TOTP code")
+		return nil, errors.New(errInvalidTOTPCode)
 	}
 
 	response, err := s.createLoginResponse(user, ipAddress, userAgent)

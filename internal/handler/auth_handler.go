@@ -13,9 +13,10 @@ import (
 )
 
 const (
-	userAgentHeader = "User-Agent"
-	msgLoginSuccess = "Login successful"
-	msgLoginFailed  = "Login failed"
+	userAgentHeader     = "User-Agent"
+	msgLoginSuccess     = "Login successful"
+	msgLoginFailed      = "Login failed"
+	msgMFADisableFailed = "Failed to disable MFA"
 )
 
 type AuthHandler struct {
@@ -778,11 +779,11 @@ func (h *AuthHandler) DisableMFA(c *gin.Context) {
 		case errors.Is(err, service.ErrUserNotFound):
 			c.JSON(http.StatusNotFound, utils.ErrorResponse("User not found", err))
 		case errors.Is(err, service.ErrMFANotEnabled):
-			c.JSON(http.StatusBadRequest, utils.ErrorResponse("Failed to disable MFA", err))
+			c.JSON(http.StatusBadRequest, utils.ErrorResponse(msgMFADisableFailed, err))
 		case errors.Is(err, service.ErrIncorrectPassword), errors.Is(err, service.ErrInvalidMFACode):
-			c.JSON(http.StatusUnauthorized, utils.ErrorResponse("Failed to disable MFA", err))
+			c.JSON(http.StatusUnauthorized, utils.ErrorResponse(msgMFADisableFailed, err))
 		default:
-			utils.InternalServerErrorResponse(c, "Failed to disable MFA")
+			utils.InternalServerErrorResponse(c, msgMFADisableFailed)
 		}
 		return
 	}
