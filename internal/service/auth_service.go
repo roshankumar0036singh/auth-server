@@ -5,8 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"time"
 	"strings"
+	"time"
 
 	"github.com/roshankumar0036singh/auth-server/internal/config"
 	"github.com/roshankumar0036singh/auth-server/internal/dto"
@@ -343,6 +343,14 @@ func (s *AuthService) incrementAttempts(ctx context.Context, key string) {
 	if s.config.Security.RateLimitMax <= 0 {
 		return
 	}
+	attempts, err := s.cacheService.GetLoginAttempts(ctx, key)
+	if err != nil {
+		log.Printf("Warning: Failed to get login attempts before increment: %v", err)
+		return
+	}
+	if attempts >= int64(s.config.Security.RateLimitMax) {
+		return
+	}
 	if _, err := s.cacheService.IncrementLoginAttempts(ctx, key); err != nil {
 		log.Printf("Warning: Failed to increment login attempts: %v", err)
 	}
@@ -358,13 +366,26 @@ func (s *AuthService) resetAttempts(ctx context.Context, key string) {
 	}
 }
 
+// sanitizeForLog removes control characters and truncates to prevent log injection
+func sanitizeForLog(s string) string {
+	if len(s) > 254 {
+		s = s[:254]
+	}
+	return strings.Map(func(r rune) rune {
+		if r < 32 || r == 127 {
+			return -1
+		}
+		return r
+	}, s)
+}
+
 // VerifyLoginMFA completes the login process with MFA code
 func (s *AuthService) VerifyLoginMFA(email, code, ipAddress, userAgent string) (*dto.LoginResponse, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), loginAttemptCacheTimeout)
 	defer cancel()
 
 	normalizedEmail := strings.ToLower(strings.TrimSpace(email))
-	rateLimitKey := fmt.Sprintf("%q|%q", normalizedEmail, ipAddress)
+	rateLimitKey := fmt.Sprintf("%s|%s", normalizedEmail, ipAddress)
 
 	if s.config.Security.RateLimitMax > 0 {
 		attempts, err := s.cacheService.GetLoginAttempts(ctx, rateLimitKey)
@@ -375,7 +396,7 @@ func (s *AuthService) VerifyLoginMFA(email, code, ipAddress, userAgent string) (
 		if attempts >= int64(s.config.Security.RateLimitMax) {
 			s.incrementAttempts(ctx, rateLimitKey)
 			s.auditService.LogEvent(nil, "MFA_RATE_LIMIT_EXCEEDED", "SYSTEM", "", ipAddress, userAgent,
-				map[string]interface{}{"email": normalizedEmail})
+				map[string]interface{}{"email": sanitizeForLog(normalizedEmail)})
 			return nil, ErrTooManyAttempts
 		}
 	}
@@ -384,7 +405,7 @@ func (s *AuthService) VerifyLoginMFA(email, code, ipAddress, userAgent string) (
 	if err != nil {
 		s.incrementAttempts(ctx, rateLimitKey)
 		s.auditService.LogEvent(nil, "MFA_LOGIN_UNKNOWN_EMAIL", "SYSTEM", "", ipAddress, userAgent,
-			map[string]interface{}{"email": normalizedEmail})
+			map[string]interface{}{"email": sanitizeForLog(normalizedEmail)})
 		return nil, ErrInvalidMFACode
 	}
 
