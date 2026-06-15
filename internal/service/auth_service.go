@@ -342,7 +342,10 @@ func (s *AuthService) VerifyEnableMFA(userID, code string) error {
 func (s *AuthService) DisableMFA(userID, password, code string) error {
 	user, err := s.userRepo.FindByID(userID)
 	if err != nil {
-		return ErrUserNotFound
+		if errors.Is(err, repository.ErrUserNotFound) {
+			return ErrUserNotFound
+		}
+		return err
 	}
 
 	if !user.MFAEnabled {
