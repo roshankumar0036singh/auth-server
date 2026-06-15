@@ -1,8 +1,6 @@
 package service
 
 import (
-	"crypto/rand"
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"strings"
@@ -59,12 +57,12 @@ var ValidScopes = map[string]string{
 // CreateClient creates a new OAuth client
 func (s *OAuthProviderService) CreateClient(name string, redirectURIs []string, scopes []string, ownerID string) (*models.OAuthClient, string, error) {
 	// Generate client ID and secret
-	clientID, err := generateRandomString(32)
+	clientID, err := utils.GenerateRandomString(32)
 	if err != nil {
 		return nil, "", err
 	}
 
-	clientSecret, err := generateRandomString(48)
+	clientSecret, err := utils.GenerateRandomString(48)
 	if err != nil {
 		return nil, "", err
 	}
@@ -153,7 +151,7 @@ func (s *OAuthProviderService) ValidateScopes(scopes []string) error {
 
 // GenerateAuthorizationCode creates an authorization code
 func (s *OAuthProviderService) GenerateAuthorizationCode(clientID, userID, redirectURI string, scopes []string) (string, error) {
-	code, err := generateRandomString(32)
+	code, err := utils.GenerateRandomString(32)
 	if err != nil {
 		return "", err
 	}
@@ -199,7 +197,7 @@ func (s *OAuthProviderService) ExchangeCodeForToken(code, clientID, redirectURI 
 	}
 
 	// Generate access token
-	tokenString, err := generateRandomString(48)
+	tokenString, err := utils.GenerateRandomString(48)
 	if err != nil {
 		return nil, err
 	}
@@ -303,15 +301,6 @@ func ParseScopes(scopeString string) []string {
 		return []string{}
 	}
 	return strings.Split(scopeString, " ")
-}
-
-// Helper function to generate random strings
-func generateRandomString(length int) (string, error) {
-	bytes := make([]byte, length)
-	if _, err := rand.Read(bytes); err != nil {
-		return "", err
-	}
-	return base64.URLEncoding.EncodeToString(bytes)[:length], nil
 }
 
 // CreateOrUpdateProviderConfig creates or updates provider configurations for a client
