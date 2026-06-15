@@ -12,9 +12,11 @@ import (
 	"github.com/roshankumar0036singh/auth-server/internal/dto"
 	"github.com/roshankumar0036singh/auth-server/internal/handler"
 	"github.com/roshankumar0036singh/auth-server/internal/middleware"
+	"github.com/roshankumar0036singh/auth-server/internal/repository"
 	"github.com/roshankumar0036singh/auth-server/internal/service"
 	"github.com/roshankumar0036singh/auth-server/internal/testutils"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func SetupRouter(t *testing.T) (*gin.Engine, *handler.AuthHandler) {
@@ -252,5 +254,136 @@ func TestAuthHandler_GetSessions_NoSessionIDInContext(t *testing.T) {
 			session["isCurrent"].(bool),
 			"expected no session to be marked current when sessionID is missing",
 		)
+	}
+}
+
+func TestAuthHandler_Login_ProductionCookieSecurity(t *testing.T) {
+	authService, _, mr := testutils.SetupIntegrationTest(t)
+	defer mr.Close()
+
+	authHandler := handler.NewAuthHandler(
+		authService,
+		nil,
+		true,
+		"example.com",
+	)
+
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	r.Use(gin.Recovery())
+
+	r.POST("/api/auth/register", authHandler.Register)
+	r.POST("/api/auth/login", authHandler.Login)
+
+	// Register user first
+	regBody := dto.RegisterRequest{
+		Email:     "secure_login@example.com",
+		Password:  "Password123!",
+		FirstName: "Secure",
+		LastName:  "User",
+	}
+
+	regJSON, _ := json.Marshal(regBody)
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/auth/register",
+		bytes.NewBuffer(regJSON),
+	)
+	req.Header.Set("Content-Type", "application/json")
+
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	// Login
+	loginBody := dto.LoginRequest{
+		Email:    "secure_login@example.com",
+		Password: "Password123!",
+	}
+
+	loginJSON, _ := json.Marshal(loginBody)
+
+	req = httptest.NewRequest(
+		http.MethodPost,
+		"/api/auth/login",
+		bytes.NewBuffer(loginJSON),
+	)
+	req.Header.Set("Content-Type", "application/json")
+
+	w = httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	cookies := w.Result().Cookies()
+
+	var authCookie *http.Cookie
+	for _, c := range cookies {
+		if c.Name == "auth_token" {
+			authCookie = c
+			break
+		}
+	}
+
+	require.NotNil(t, authCookie)
+
+	if authCookie != nil {
+		assert.True(t, authCookie.Secure)
+		assert.Equal(t, "example.com", authCookie.Domain)
+	}
+}
+
+func TestAuthHandler_GoogleLogin_ProductionCookieSecurity(t *testing.T) {
+	authService, db, mr := testutils.SetupIntegrationTest(t)
+	defer mr.Close()
+
+	providerRepo := repository.NewOAuthProviderConfigRepository(db)
+
+	oauthService := service.NewOAuthService(
+		&config.Config{
+			App: config.AppConfig{
+				URL: "http://localhost",
+			},
+		},
+		providerRepo,
+	)
+
+	authHandler := handler.NewAuthHandler(
+		authService,
+		oauthService,
+		true,
+		"example.com",
+	)
+
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	r.Use(gin.Recovery())
+
+	r.GET("/api/auth/google/login", authHandler.GoogleLogin)
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/api/auth/google/login?client_id=test-client",
+		nil,
+	)
+
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+
+	var stateCookie *http.Cookie
+	for _, c := range w.Result().Cookies() {
+		if c.Name == "oauth_state" {
+			stateCookie = c
+			break
+		}
+	}
+
+	require.NotNil(t, stateCookie)
+
+	if stateCookie != nil {
+		assert.True(t, stateCookie.Secure)
+		assert.Equal(t, "example.com", stateCookie.Domain)
 	}
 }
