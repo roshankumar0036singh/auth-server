@@ -17,8 +17,8 @@ type AuthorizationCode struct {
 	ExpiresAt   time.Time      `gorm:"not null" json:"expires_at"`
 	Used        bool           `gorm:"default:false" json:"used"`
 	CreatedAt   time.Time      `json:"created_at"`
-        CodeChallenge       string `gorm:"size:128" json:"code_challenge,omitempty"`
-        CodeChallengeMethod string `gorm:"size:10" json:"code_challenge_method,omitempty"`
+        CodeChallenge       *string `gorm:"size:128" json:"code_challenge,omitempty"`
+        CodeChallengeMethod *string `gorm:"size:10" json:"code_challenge_method,omitempty"`
 }
 
 // TableName specifies the table name for AuthorizationCode
