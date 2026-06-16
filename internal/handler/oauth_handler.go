@@ -167,7 +167,6 @@ func (h *OAuthHandler) AuthorizePost(c *gin.Context) {
 	}
 
 	// Generate authorization code
-	// in AuthorizePost:
         code, err := h.oauthProviderService.GenerateAuthorizationCode(clientID, userID.(string), redirectURI, scopes, strPtr(codeChallenge), strPtr(codeChallengeMethod))
 	if err != nil {
 		redirectError(c, redirectURI, "server_error", "Failed to generate authorization code", state)
@@ -198,22 +197,23 @@ func (h *OAuthHandler) Token(c *gin.Context) {
 	}
 
 	// Validate client credentials
-	if clientSecret != "" {
-                if _, err := h.oauthProviderService.ValidateClient(clientID, clientSecret); err != nil {
-                        c.JSON(http.StatusUnauthorized, gin.H{
-                                "error":             "invalid_client",
-                                "error_description": "Invalid client credentials",
-                        })
-                        return
-                }
-        } else {
-                if _, err := h.oauthProviderService.GetPublicClient(clientID); err != nil {
-                        c.JSON(http.StatusUnauthorized, gin.H{
-                                "error":             "invalid_client",
-                                "error_description": "Unknown client",
-                        })
-                        return
-                }
+	client, err := h.oauthProviderService.ResolveClientForToken(clientID, clientSecret)
+        if err != nil {
+                c.JSON(http.StatusUnauthorized, gin.H{
+                        "error":             "invalid_client",
+                        "error_description": err.Error(),
+                })
+                return
+        }
+
+        // Public clients MUST use PKCE — reject if no verifier was sent at all,
+        // independent of whether the stored auth code happens to have a challenge.
+        if client.IsPublic && codeVerifier == "" {
+                c.JSON(http.StatusBadRequest, gin.H{
+                        "error":             "invalid_request",
+                        "error_description": "code_verifier is required for public clients",
+                })
+                return
         }
 
 	// Exchange code for token
