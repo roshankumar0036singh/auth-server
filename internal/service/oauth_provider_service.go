@@ -152,7 +152,7 @@ func (s *OAuthProviderService) ValidateScopes(scopes []string) error {
 }
 
 // GenerateAuthorizationCode creates an authorization code
-func (s *OAuthProviderService) GenerateAuthorizationCode(clientID, userID, redirectURI string, scopes []string) (string, error) {
+func (s *OAuthProviderService) GenerateAuthorizationCode(clientID, userID, redirectURI string, scopes []string, codeChallenge, codeChallengeMethod *string) (string, error) {
 	code, err := generateRandomString(32)
 	if err != nil {
 		return "", err
@@ -166,6 +166,8 @@ func (s *OAuthProviderService) GenerateAuthorizationCode(clientID, userID, redir
 		RedirectURI: redirectURI,
 		ExpiresAt:   time.Now().Add(10 * time.Minute), // 10 minutes
 		Used:        false,
+                CodeChallenge: codeChallenge,
+                CodeChallengeMethod: codeChallengeMethod,
 	}
 
 	if err := s.codeRepo.Create(authCode); err != nil {
@@ -176,7 +178,7 @@ func (s *OAuthProviderService) GenerateAuthorizationCode(clientID, userID, redir
 }
 
 // ExchangeCodeForToken exchanges an authorization code for an access token
-func (s *OAuthProviderService) ExchangeCodeForToken(code, clientID, redirectURI string) (*models.OAuthAccessToken, error) {
+func (s *OAuthProviderService) ExchangeCodeForToken(code, clientID, redirectURI, codeVerifier string) (*models.OAuthAccessToken, error) {
 	// Find the authorization code
 	authCode, err := s.codeRepo.FindByCode(code)
 	if err != nil {
@@ -191,6 +193,20 @@ func (s *OAuthProviderService) ExchangeCodeForToken(code, clientID, redirectURI 
 	// Verify client ID and redirect URI match
 	if authCode.ClientID != clientID || authCode.RedirectURI != redirectURI {
 		return nil, errors.New("invalid client or redirect_uri")
+	}
+
+        // PKCE
+        if authCode.CodeChallenge != nil && *authCode.CodeChallenge != "" {
+		if codeVerifier == "" {
+			return nil, errors.New("code_verifier required for this authorization code")
+		}
+		method := "S256"
+		if authCode.CodeChallengeMethod != nil && *authCode.CodeChallengeMethod != "" {
+			method = *authCode.CodeChallengeMethod
+		}
+		if err := utils.VerifyPKCE(codeVerifier, *authCode.CodeChallenge, method); err != nil {
+			return nil, err
+		}
 	}
 
 	// Mark code as used
