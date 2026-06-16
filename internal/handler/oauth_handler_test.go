@@ -19,6 +19,7 @@ import (
 	"github.com/roshankumar0036singh/auth-server/internal/testutils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+        "github.com/lib/pq"
 )
 
 func setupOAuthUserInfoRouter(t *testing.T) (*gin.Engine, *repository.UserRepository, *repository.OAuthTokenRepository) {
@@ -348,8 +349,8 @@ func TestToken_PublicClient_MissingVerifier_Rejected(t *testing.T) {
 		Name:         "public-app",
 		ClientID:     clientID,
 		ClientSecret: "unused",
-		RedirectURIs: models.StringArray{"http://localhost/cb"},
-		Scopes:       models.StringArray{"read:profile"},
+		RedirectURIs: pq.StringArray{"http://localhost/cb"},
+                Scopes:       pq.StringArray{"read:profile"},
 		IsActive:     true,
 		IsPublic:     true,
 	})
@@ -363,8 +364,8 @@ func TestToken_PublicClient_MissingVerifier_Rejected(t *testing.T) {
 		Code:                code,
 		ClientID:            clientID,
 		UserID:              uuid.NewString(),
-		RedirectURIs:        models.StringArray{"http://localhost/cb"},
-		Scopes:              models.StringArray{"read:profile"},
+		RedirectURI:        "http://localhost/cb",
+		Scopes:              pq.StringArray{"read:profile"},
 		ExpiresAt:           time.Now().Add(10 * time.Minute),
 		CodeChallenge:       &challenge,
 		CodeChallengeMethod: stringPtr("S256"),
@@ -393,8 +394,8 @@ func TestToken_ConfidentialClient_MissingSecret_Rejected(t *testing.T) {
 		Name:         "confidential-app",
 		ClientID:     clientID,
 		ClientSecret: string(hashedSecret),
-		RedirectURIs: models.StringArray{"http://localhost/cb"},
-		Scopes:       models.StringArray{"read:profile"},
+		RedirectURIs: pq.StringArray{"http://localhost/cb"},
+                Scopes:       pq.StringArray{"read:profile"},
 		IsActive:     true,
 		IsPublic:     false,
 	})
@@ -406,8 +407,8 @@ func TestToken_ConfidentialClient_MissingSecret_Rejected(t *testing.T) {
 		Code:        code,
 		ClientID:    clientID,
 		UserID:      uuid.NewString(),
-		RedirectURIs: models.StringArray{"http://localhost/cb"},
-		Scopes:      models.StringArray{"read:profile"},
+		RedirectURI: "http://localhost/cb",
+		Scopes:      pq.StringArray{"read:profile"},
 		ExpiresAt:   time.Now().Add(10 * time.Minute),
 	})
 	require.NoError(t, err)
