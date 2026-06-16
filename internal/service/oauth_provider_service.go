@@ -209,7 +209,7 @@ func (s *OAuthProviderService) GenerateAuthorizationCode(clientID, userID, redir
 }
 
 // ExchangeCodeForToken exchanges an authorization code for an access token
-func (s *OAuthProviderService) ExchangeCodeForToken(code, clientID, redirectURI, codeVerifier string) (*models.OAuthAccessToken, error) {
+func (s *OAuthProviderService) ExchangeCodeForToken(code, clientID, redirectURI, codeVerifier string, isPublic bool) (*models.OAuthAccessToken, error) {
 	// Find the authorization code
 	authCode, err := s.codeRepo.FindByCode(code)
 	if err != nil {
@@ -227,6 +227,10 @@ func (s *OAuthProviderService) ExchangeCodeForToken(code, clientID, redirectURI,
 	}
 
         // PKCE
+        // Public clients must always have used PKCE — no challenge stored means bypass attempt
+        if isPublic && (authCode.CodeChallenge == nil || *authCode.CodeChallenge == "") {
+                return nil, errors.New("public clients must use PKCE")
+        }
         if authCode.CodeChallenge != nil && *authCode.CodeChallenge != "" {
 		if codeVerifier == "" {
 			return nil, errors.New("code_verifier required for this authorization code")

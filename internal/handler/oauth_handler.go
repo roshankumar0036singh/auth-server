@@ -179,6 +179,8 @@ func (h *OAuthHandler) AuthorizePost(c *gin.Context) {
 
 // Token handles the token exchange
 // POST /oauth/token
+// Note: Token endpoint errors follow RFC 6749 §5.2 (error/error_description) rather than
+// the project JSON schema, as required by the OAuth 2.0 specification.
 func (h *OAuthHandler) Token(c *gin.Context) {
 	grantType := c.PostForm("grant_type")
 	code := c.PostForm("code")
@@ -217,7 +219,7 @@ func (h *OAuthHandler) Token(c *gin.Context) {
         }
 
 	// Exchange code for token
-	accessToken, err := h.oauthProviderService.ExchangeCodeForToken(code, clientID, redirectURI, codeVerifier)
+	accessToken, err := h.oauthProviderService.ExchangeCodeForToken(code, clientID, redirectURI, codeVerifier, client.IsPublic)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":             "invalid_grant",
