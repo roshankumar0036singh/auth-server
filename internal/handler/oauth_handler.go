@@ -99,7 +99,8 @@ func (h *OAuthHandler) Authorize(c *gin.Context) {
 	hasConsent, err := h.oauthProviderService.CheckConsent(userID.(string), clientID, scopes)
 	if err == nil && hasConsent {
 		// User has already consented, generate code immediately
-		code, err := h.oauthProviderService.GenerateAuthorizationCode(clientID, userID.(string), redirectURI, scopes, codeChallenge, codeChallengeMethod)
+		// in Authorize GET:
+                code, err := h.oauthProviderService.GenerateAuthorizationCode(clientID, userID.(string), redirectURI, scopes, strPtr(codeChallenge), strPtr(codeChallengeMethod))
 		if err != nil {
 			redirectError(c, redirectURI, "server_error", "Failed to generate authorization code", state)
 			return
@@ -166,7 +167,8 @@ func (h *OAuthHandler) AuthorizePost(c *gin.Context) {
 	}
 
 	// Generate authorization code
-	code, err := h.oauthProviderService.GenerateAuthorizationCode(clientID, userID.(string), redirectURI, scopes, codeChallenge, codeChallengeMethod)
+	// in AuthorizePost:
+        code, err := h.oauthProviderService.GenerateAuthorizationCode(clientID, userID.(string), redirectURI, scopes, strPtr(codeChallenge), strPtr(codeChallengeMethod))
 	if err != nil {
 		redirectError(c, redirectURI, "server_error", "Failed to generate authorization code", state)
 		return
@@ -328,4 +330,11 @@ func redirectError(c *gin.Context, redirectURI, errorCode, errorDesc, state stri
 	}
 	u.RawQuery = q.Encode()
 	c.Redirect(http.StatusFound, u.String())
+}
+
+func strPtr(s string) *string {
+	if s == "" {
+		return nil
+	}
+	return &s
 }
