@@ -32,7 +32,20 @@ func NewOAuthHandler(oauthProviderService *service.OAuthProviderService, userRep
 }
 
 // Authorize handles the OAuth authorization request
-// GET /oauth/authorize?client_id=...&redirect_uri=...&response_type=code&scope=...&state=...
+// @Summary OAuth Authorization Request
+// @Description Redirects user to consent page or returns authorization code
+// @Tags OAuth Provider
+// @Accept  json
+// @Produce html, json
+// @Param   client_id     query    string true  "OAuth Client ID"
+// @Param   redirect_uri  query    string true  "Redirect URI"
+// @Param   response_type query    string true  "Response type (code)"
+// @Param   scope         query    string false "Requested scopes (space separated)"
+// @Param   state         query    string false "OAuth state parameter"
+// @Success 302 "Redirect to consent page or callback"
+// @Failure 400 {object} map[string]string "Invalid request"
+// @Failure 401 {object} map[string]string "Unauthorized - user must be logged in"
+// @Router /oauth/authorize [get]
 func (h *OAuthHandler) Authorize(c *gin.Context) {
 	// Extract query parameters
 	clientID := c.Query("client_id")
@@ -126,7 +139,21 @@ func (h *OAuthHandler) Authorize(c *gin.Context) {
 }
 
 // AuthorizePost handles the consent form submission
-// POST /oauth/authorize
+// @Summary OAuth Authorization Consent
+// @Description User approves or denies the OAuth authorization request
+// @Tags OAuth Provider
+// @Accept  x-www-form-urlencoded
+// @Produce json
+// @Param   client_id     formData string true  "OAuth Client ID"
+// @Param   redirect_uri  formData string true  "Redirect URI"
+// @Param   response_type formData string true  "Response type (code)"
+// @Param   scope         formData string false "Requested scopes (space separated)"
+// @Param   state         formData string false "OAuth state parameter"
+// @Param   action        formData string true  "Consent action (approve/deny)"
+// @Success 302 "Redirect to callback with code or error"
+// @Failure 400 {object} map[string]string "Invalid request"
+// @Failure 401 {object} map[string]string "Unauthorized"
+// @Router /oauth/authorize [post]
 func (h *OAuthHandler) AuthorizePost(c *gin.Context) {
 	action := c.PostForm("action")
 	clientID := c.PostForm("client_id")
@@ -170,7 +197,20 @@ func (h *OAuthHandler) AuthorizePost(c *gin.Context) {
 }
 
 // Token handles the token exchange
-// POST /oauth/token
+// @Summary OAuth Token Exchange
+// @Description Exchanges authorization code for access token
+// @Tags OAuth Provider
+// @Accept  x-www-form-urlencoded
+// @Produce json
+// @Param   grant_type    formData string true  "Grant type (authorization_code)"
+// @Param   code          formData string true  "Authorization code"
+// @Param   redirect_uri  formData string true  "Redirect URI"
+// @Param   client_id     formData string true  "OAuth Client ID"
+// @Param   client_secret formData string true  "OAuth Client Secret"
+// @Success 200 {object} TokenResponse "Access token response"
+// @Failure 400 {object} map[string]string "Invalid request"
+// @Failure 401 {object} map[string]string "Invalid client credentials"
+// @Router /oauth/token [post]
 func (h *OAuthHandler) Token(c *gin.Context) {
 	grantType := c.PostForm("grant_type")
 	code := c.PostForm("code")
@@ -216,7 +256,16 @@ func (h *OAuthHandler) Token(c *gin.Context) {
 }
 
 // UserInfo returns user information based on the access token
-// GET /oauth/userinfo
+// @Summary OAuth User Info
+// @Description Returns user profile information for the provided access token
+// @Tags OAuth Provider
+// @Accept  json
+// @Produce json
+// @Param   Authorization  header  string  true  "Bearer {access_token}"
+// @Success 200 {object} UserInfoResponse "User profile information"
+// @Failure 401 {object} map[string]string "Invalid or expired token"
+// @Failure 404 {object} map[string]string "User not found"
+// @Router /oauth/userinfo [get]
 func (h *OAuthHandler) UserInfo(c *gin.Context) {
 	token, err := extractBearerToken(c)
 	if err != nil {
@@ -310,4 +359,24 @@ func redirectError(c *gin.Context, redirectURI, errorCode, errorDesc, state stri
 	}
 	u.RawQuery = q.Encode()
 	c.Redirect(http.StatusFound, u.String())
+}
+
+// TokenResponse represents the OAuth token exchange response
+type TokenResponse struct {
+	AccessToken  string `json:"access_token"`
+	TokenType    string `json:"token_type"`
+	ExpiresIn    int    `json:"expires_in"`
+	RefreshToken string `json:"refresh_token,omitempty"`
+	Scope        string `json:"scope,omitempty"`
+}
+
+// UserInfoResponse represents the OAuth user info response
+type UserInfoResponse struct {
+	Sub           string `json:"sub"`
+	Name          string `json:"name"`
+	Email         string `json:"email,omitempty"`
+	EmailVerified bool   `json:"email_verified,omitempty"`
+	Picture       string `json:"picture,omitempty"`
+	GivenName     string `json:"given_name,omitempty"`
+	FamilyName    string `json:"family_name,omitempty"`
 }
