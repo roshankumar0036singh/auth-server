@@ -2,7 +2,6 @@ package utils
 
 import (
 	"errors"
-	"regexp"
 	"unicode"
 	"net/mail"
 )

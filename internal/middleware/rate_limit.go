@@ -43,11 +43,20 @@ func getRateLimitKey(c *gin.Context) string {
 	cleanPath := strings.ReplaceAll(strings.Trim(path, "/"), "/", ":")
 
 	switch path {
-	case "/api/auth/forgot-password":
+		case "/api/auth/forgot-password":
 		var req dto.ForgotPasswordRequest
 
+		if c.Request.ContentLength == 0 {
+			return fmt.Sprintf("ratelimit:forgot:%s", ip)
+		}
+
 		if err := c.ShouldBindBodyWithJSON(&req); err != nil {
-			return fmt.Sprintf("ratelimit:forgot:invalid:%s", ip)
+			c.JSON(
+				http.StatusBadRequest,
+				utils.ErrorResponse("Invalid request body", nil),
+			)
+			c.Abort()
+			return ""
 		}
 
 		if req.Email == "" {
@@ -65,7 +74,6 @@ func getRateLimitKey(c *gin.Context) string {
 // RateLimitMiddleware applies rate limiting to requests based on IP address
 func RateLimitMiddleware(cacheService *service.CacheService, cfg *config.Config) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		ip := c.ClientIP()
 		key := getRateLimitKey(c)
 		path := c.FullPath()
 
