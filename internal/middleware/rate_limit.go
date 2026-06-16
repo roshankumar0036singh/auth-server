@@ -46,13 +46,16 @@ func getRateLimitKey(c *gin.Context) string {
 	case "/api/auth/forgot-password":
 		var req dto.ForgotPasswordRequest
 
-		if err := c.ShouldBindBodyWithJSON(&req); err == nil && req.Email != "" {
-			// Rate limit forgot-password requests by email instead of IP
-			cleanEmail := strings.ToLower(strings.TrimSpace(req.Email))
-			return fmt.Sprintf("ratelimit:forgot:%s", cleanEmail)
+		if err := c.ShouldBindBodyWithJSON(&req); err != nil {
+			return fmt.Sprintf("ratelimit:forgot:invalid:%s", ip)
 		}
 
-		return fmt.Sprintf("ratelimit:forgot:%s", ip)
+		if req.Email == "" {
+			return fmt.Sprintf("ratelimit:forgot:invalid:%s", ip)
+		}
+
+		cleanEmail := strings.ToLower(strings.TrimSpace(req.Email))
+		return fmt.Sprintf("ratelimit:forgot:%s", cleanEmail)
 
 	default:
 		return fmt.Sprintf("ratelimit:%s:%s", cleanPath, ip)
