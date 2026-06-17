@@ -16,9 +16,14 @@ type LoginRequest struct {
 
 // LoginResponse represents the login response
 type LoginResponse struct {
-	AccessToken  string      `json:"accessToken"`
-	RefreshToken string      `json:"refreshToken"`
-	User         interface{} `json:"user"`
+	AccessToken  string      `json:"accessToken,omitempty"`
+	RefreshToken string      `json:"refreshToken,omitempty"`
+	User         interface{} `json:"user,omitempty"`
+	// MFARequired is true when the password step succeeded but an MFA code is
+	// still required. In that case AccessToken/RefreshToken are empty and
+	// MFAToken must be presented to /login/mfa to complete authentication.
+	MFARequired bool   `json:"mfaRequired,omitempty"`
+	MFAToken    string `json:"mfaToken,omitempty"`
 }
 
 // RefreshTokenRequest represents the refresh token request
@@ -87,10 +92,20 @@ type MFAVerifyRequest struct {
 	Code string `json:"code" binding:"required,len=6"`
 }
 
-// MFALoginRequest represents the request to login with MFA
+// MFADisableRequest represents the request to disable MFA
+type MFADisableRequest struct {
+	// Password re-authenticates the user for this sensitive operation
+	Password string `json:"password" binding:"required"`
+	Code     string `json:"code" binding:"required,len=6"`
+}
+
+// MFALoginRequest represents the request to login with MFA. The MFAToken is
+// the short-lived token returned by the password step (proving the password
+// was verified); the email is no longer accepted here to prevent bypassing
+// the password step.
 type MFALoginRequest struct {
-	Email string `json:"email" binding:"required,email"`
-	Code  string `json:"code" binding:"required,len=6"`
+	MFAToken string `json:"mfaToken" binding:"required"`
+	Code     string `json:"code" binding:"required,len=6"`
 }
 
 // LoginResponse represents the login response (updated for MFA)

@@ -22,7 +22,7 @@ var (
 	ErrAlreadyLocked      = errors.New("account is already locked")
 	ErrNotLocked          = errors.New("account is not locked")
 	ErrTooManyAttempts    = errors.New("too many failed attempts, please try again later")
-	ErrInvalidMFACode     = errors.New("invalid TOTP code")
+	ErrInvalidMFACode    = errors.New(errInvalidTOTPCode)
 	ErrServiceUnavailable = errors.New("authentication service temporarily unavailable")
 )
 
@@ -323,7 +323,7 @@ func (s *AuthService) VerifyEnableMFA(userID, code string) error {
 	}
 
 	if !s.mfaService.ValidateMFA(user.MFASecret, code) {
-		return errors.New("invalid TOTP code")
+		return errors.New(errInvalidTOTPCode)
 	}
 
 	// Enable MFA
@@ -337,70 +337,62 @@ func (s *AuthService) VerifyEnableMFA(userID, code string) error {
 	return nil
 }
 
-// incrementAttempts increments the rate limit counter if rate limiting is enabled
-func (s *AuthService) incrementAttempts(ctx context.Context, key string) {
-	if s.config.Security.RateLimitMax <= 0 {
-		return
-	}
-	attempts, err := s.cacheService.GetLoginAttempts(ctx, key)
+// DisableMFA re-authenticates the user via password and TOTP code, then disables MFA on their account
+func (s *AuthService) DisableMFA(userID, password, code string) error {
+	user, err := s.userRepo.FindByID(userID)
 	if err != nil {
-		log.Printf("Warning: Failed to get login attempts before increment: %v", err)
-		return
+		if errors.Is(err, repository.ErrUserNotFound) {
+			return ErrUserNotFound
+		}
+		return err
 	}
-	if attempts >= int64(s.config.Security.RateLimitMax) {
-		return
+
+	if !user.MFAEnabled {
+		return ErrMFANotEnabled
 	}
-	if _, err := s.cacheService.IncrementLoginAttempts(ctx, key); err != nil {
-		log.Printf("Warning: Failed to increment login attempts: %v", err)
+
+	// Disabling MFA is security-sensitive: require a fresh password check
+	// in addition to the TOTP code.
+	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password)); err != nil {
+		return ErrIncorrectPassword
 	}
+
+	if !s.mfaService.ValidateMFA(user.MFASecret, code) {
+		return ErrInvalidMFACode
+	}
+
+	if err := s.userRepo.Update(userID, map[string]interface{}{
+		"mfa_enabled": false,
+		"mfa_secret":  "",
+	}); err != nil {
+		return fmt.Errorf("failed to disable MFA: %w", err)
+	}
+
+	if err := s.auditService.LogEvent(&userID, "MFA_DISABLED", "USER", userID, "", "", nil); err != nil {
+		return fmt.Errorf("failed to write MFA_DISABLED audit log for user %s: %w", userID, err)
+	}
+	return nil
 }
 
-// resetAttempts resets the rate limit counter if rate limiting is enabled
-func (s *AuthService) resetAttempts(ctx context.Context, key string) {
-	if s.config.Security.RateLimitMax <= 0 {
-		return
-	}
-	if err := s.cacheService.ResetLoginAttempts(ctx, key); err != nil {
-		log.Printf("Warning: Failed to reset login attempts: %v", err)
-	}
-}
+// VerifyLoginMFA completes the login process with an MFA code. It requires the
+// short-lived MFA-pending token issued by the password step (Login), so the
+// password cannot be bypassed, and rate-limits code attempts to prevent
+// brute-forcing the 6-digit TOTP.
+func (s *AuthService) VerifyLoginMFA(mfaToken, code, ipAddress, userAgent string) (*dto.LoginResponse, error) {
+	ctx := context.Background()
 
-// sanitizeForLog removes control characters and truncates to prevent log injection
-func sanitizeForLog(s string) string {
-	if len(s) > 254 {
-		s = s[:254]
-	}
-	return strings.Map(func(r rune) rune {
-		if r < 32 || r == 127 {
-			return -1
-		}
-		return r
-	}, s)
-}
-
-// VerifyLoginMFA completes the login process with MFA code
-func (s *AuthService) VerifyLoginMFA(email, code, ipAddress, userAgent string) (*dto.LoginResponse, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), loginAttemptCacheTimeout)
-	defer cancel()
-
-	normalizedEmail := strings.ToLower(strings.TrimSpace(email))
-	rateLimitKey := fmt.Sprintf("%s|%s", normalizedEmail, ipAddress)
-
-	if s.config.Security.RateLimitMax > 0 {
-		attempts, err := s.cacheService.GetLoginAttempts(ctx, rateLimitKey)
-		if err != nil {
-			log.Printf("Error: Failed to get login attempts from cache: %v", err)
-			return nil, ErrServiceUnavailable
-		}
-		if attempts >= int64(s.config.Security.RateLimitMax) {
-			s.incrementAttempts(ctx, rateLimitKey)
-			s.auditService.LogEvent(nil, "MFA_RATE_LIMIT_EXCEEDED", "SYSTEM", "", ipAddress, userAgent,
-				map[string]interface{}{"email": sanitizeForLog(normalizedEmail)})
-			return nil, ErrTooManyAttempts
-		}
+	userID, err := s.tokenService.ValidateMFAToken(mfaToken)
+	if err != nil {
+		return nil, errors.New("invalid or expired MFA session")
 	}
 
-	user, err := s.userRepo.FindByEmail(normalizedEmail)
+	// Rate-limit MFA code attempts per user.
+	attempts, err := s.cacheService.GetMFAAttempts(ctx, userID)
+	if err == nil && attempts >= int64(s.config.Security.RateLimitMax) {
+		return nil, errors.New("too many MFA attempts, please try again later")
+	}
+
+	user, err := s.userRepo.FindByID(userID)
 	if err != nil {
 		s.incrementAttempts(ctx, rateLimitKey)
 		s.auditService.LogEvent(nil, "MFA_LOGIN_UNKNOWN_EMAIL", "SYSTEM", "", ipAddress, userAgent,
@@ -413,12 +405,14 @@ func (s *AuthService) VerifyLoginMFA(email, code, ipAddress, userAgent string) (
 	}
 
 	if !s.mfaService.ValidateMFA(user.MFASecret, code) {
-		s.incrementAttempts(ctx, rateLimitKey)
-		s.auditService.LogEvent(&user.ID, "MFA_LOGIN_FAILED", "USER", user.ID, ipAddress, userAgent, nil)
-		return nil, ErrInvalidMFACode
+		s.cacheService.IncrementMFAAttempts(ctx, userID)
+		if err := s.auditService.LogEvent(&user.ID, "MFA_LOGIN_FAILED", "USER", user.ID, ipAddress, userAgent, nil); err != nil {
+			log.Printf("failed to write MFA_LOGIN_FAILED audit log for user %s: %v", user.ID, err)
+		}
+		return nil, errors.New(errInvalidTOTPCode)
 	}
 
-	s.resetAttempts(ctx, rateLimitKey)
+	s.cacheService.ResetMFAAttempts(ctx, userID)
 
 	response, err := s.createLoginResponse(user, ipAddress, userAgent)
 	if err != nil {
@@ -582,9 +576,15 @@ func (s *AuthService) Login(req *dto.LoginRequest, ipAddress, userAgent string) 
 		return nil, errors.New("account is deactivated")
 	}
 
-	// Check MFA
+	// Check MFA. The password step has succeeded; issue a short-lived
+	// MFA-pending token the client must present to /login/mfa. No access or
+	// refresh token is issued until the MFA code is verified.
 	if user.MFAEnabled {
-		return nil, errors.New("mfa_required")
+		mfaToken, err := s.tokenService.GenerateMFAToken(user.ID)
+		if err != nil {
+			return nil, err
+		}
+		return &dto.LoginResponse{MFARequired: true, MFAToken: mfaToken}, nil
 	}
 
 	// Update last login
