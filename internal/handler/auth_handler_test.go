@@ -301,7 +301,8 @@ func TestAuthHandler_OAuthRedirectFlow(t *testing.T) {
 		cookieFound := false
 		for _, c := range w.Result().Cookies() {
 			if c.Name == "oauth_redirect" {
-				assert.Equal(t, "http://localhost:5173/callback", c.Value)
+				val, _ := url.QueryUnescape(c.Value)
+				assert.Equal(t, "http://localhost:5173/callback", val)
 				cookieFound = true
 			}
 		}
