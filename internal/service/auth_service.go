@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"strings"
 	"time"
 
 	"github.com/roshankumar0036singh/auth-server/internal/config"
@@ -22,7 +21,9 @@ var (
 	ErrAlreadyLocked      = errors.New("account is already locked")
 	ErrNotLocked          = errors.New("account is not locked")
 	ErrTooManyAttempts    = errors.New("too many failed attempts, please try again later")
-	ErrInvalidMFACode    = errors.New(errInvalidTOTPCode)
+	ErrInvalidMFACode     = errors.New("invalid MFA code")
+	ErrMFANotEnabled      = errors.New("MFA not enabled")
+	ErrIncorrectPassword  = errors.New("incorrect current password")
 	ErrServiceUnavailable = errors.New("authentication service temporarily unavailable")
 )
 
@@ -323,7 +324,7 @@ func (s *AuthService) VerifyEnableMFA(userID, code string) error {
 	}
 
 	if !s.mfaService.ValidateMFA(user.MFASecret, code) {
-		return errors.New(errInvalidTOTPCode)
+		return ErrInvalidMFACode
 	}
 
 	// Enable MFA
@@ -394,9 +395,9 @@ func (s *AuthService) VerifyLoginMFA(mfaToken, code, ipAddress, userAgent string
 
 	user, err := s.userRepo.FindByID(userID)
 	if err != nil {
-		s.incrementAttempts(ctx, rateLimitKey)
-		s.auditService.LogEvent(nil, "MFA_LOGIN_UNKNOWN_EMAIL", "SYSTEM", "", ipAddress, userAgent,
-			map[string]interface{}{"email": sanitizeForLog(normalizedEmail)})
+		s.cacheService.IncrementMFAAttempts(ctx, userID)
+		s.auditService.LogEvent(nil, "MFA_LOGIN_UNKNOWN_USER", "SYSTEM", "", ipAddress, userAgent,
+			map[string]interface{}{"user_id": userID})
 		return nil, ErrInvalidMFACode
 	}
 
@@ -409,7 +410,7 @@ func (s *AuthService) VerifyLoginMFA(mfaToken, code, ipAddress, userAgent string
 		if err := s.auditService.LogEvent(&user.ID, "MFA_LOGIN_FAILED", "USER", user.ID, ipAddress, userAgent, nil); err != nil {
 			log.Printf("failed to write MFA_LOGIN_FAILED audit log for user %s: %v", user.ID, err)
 		}
-		return nil, errors.New(errInvalidTOTPCode)
+		return nil, ErrInvalidMFACode
 	}
 
 	s.cacheService.ResetMFAAttempts(ctx, userID)

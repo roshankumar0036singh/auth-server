@@ -538,43 +538,50 @@ func (h *AuthHandler) storeOAuthRedirect(c *gin.Context, clientID, redirectURI s
 	return nil
 }
 
+// validateOAuthRedirectURI validates the OAuth redirect URI against the client configuration.
+func (h *AuthHandler) validateOAuthRedirectURI(clientID, redirectURI string) bool {
+	if clientID == "" || h.oauthProviderService == nil {
+		return false
+	}
+	client, err := h.oauthProviderService.GetPublicClient(clientID)
+	if err != nil {
+		return false
+	}
+	return h.oauthProviderService.ValidateRedirectURI(client, redirectURI) == nil
+}
+
 // completeOAuthLogin finishes a social-login callback. When a validated
 // redirect_uri was stored, it redirects the browser back to the app with the
 // tokens as query parameters; otherwise it returns the tokens as JSON.
 func (h *AuthHandler) completeOAuthLogin(c *gin.Context, loginResp *dto.LoginResponse, clientID string) {
 	isProd := gin.Mode() == gin.ReleaseMode
 	redirectURI, err := c.Cookie("oauth_redirect")
-	if err == nil && redirectURI != "" {
-		c.SetCookie("oauth_redirect", "", -1, "/", "", isProd, true)
-
-		// Re-validate to prevent open redirect via cookie tampering
-		isValid := false
-		if clientID != "" && h.oauthProviderService != nil {
-			client, cerr := h.oauthProviderService.GetPublicClient(clientID)
-			if cerr == nil && h.oauthProviderService.ValidateRedirectURI(client, redirectURI) == nil {
-				isValid = true
-			}
-		}
-		
-		if !isValid {
-			c.JSON(http.StatusBadRequest, utils.ErrorResponse("Invalid redirect URI", nil))
-			return
-		}
-
-		if target, perr := url.Parse(redirectURI); perr == nil {
-			if target.Scheme == "http" || target.Scheme == "https" {
-				q := target.Query()
-				q.Set("access_token", loginResp.AccessToken)
-				if loginResp.RefreshToken != "" {
-					q.Set("refresh_token", loginResp.RefreshToken)
-				}
-				target.RawQuery = q.Encode()
-				c.Redirect(http.StatusFound, target.String())
-				return
-			}
-		}
+	
+	if err != nil || redirectURI == "" {
+		c.JSON(http.StatusOK, utils.SuccessResponse(msgLoginSuccess, loginResp))
+		return
 	}
-	c.JSON(http.StatusOK, utils.SuccessResponse(msgLoginSuccess, loginResp))
+	
+	c.SetCookie("oauth_redirect", "", -1, "/", "", isProd, true)
+
+	if !h.validateOAuthRedirectURI(clientID, redirectURI) {
+		c.JSON(http.StatusBadRequest, utils.ErrorResponse("Invalid redirect URI", nil))
+		return
+	}
+
+	target, perr := url.Parse(redirectURI)
+	if perr != nil || (target.Scheme != "http" && target.Scheme != "https") {
+		c.JSON(http.StatusBadRequest, utils.ErrorResponse("Invalid redirect URI scheme", nil))
+		return
+	}
+
+	q := target.Query()
+	q.Set("access_token", loginResp.AccessToken)
+	if loginResp.RefreshToken != "" {
+		q.Set("refresh_token", loginResp.RefreshToken)
+	}
+	target.RawQuery = q.Encode()
+	c.Redirect(http.StatusFound, target.String())
 }
 
 // GoogleLogin initiates Google OAuth login
