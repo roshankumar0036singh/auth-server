@@ -1,0 +1,11 @@
+{
+  "name": "authserver-client-node-example",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node --env-file=../.env index.mjs"
+  },
+  "dependencies": {
+    "@authserver/client": "^1.0.2"
+  }
+}
