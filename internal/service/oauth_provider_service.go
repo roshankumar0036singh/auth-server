@@ -57,7 +57,7 @@ var ValidScopes = map[string]string{
 }
 
 // CreateClient creates a new OAuth client
-func (s *OAuthProviderService) CreateClient(name string, redirectURIs []string, scopes []string, ownerID string) (*models.OAuthClient, string, error) {
+func (s *OAuthProviderService) CreateClient(name string, redirectURIs []string, scopes []string, ownerID string, isPublic bool) (*models.OAuthClient, string, error) {
 	// Generate client ID and secret
 	clientID, err := generateRandomString(32)
 	if err != nil {
@@ -88,6 +88,7 @@ func (s *OAuthProviderService) CreateClient(name string, redirectURIs []string, 
 		Scopes:       pq.StringArray(scopes),
 		OwnerID:      ownerID,
 		IsActive:     true,
+                IsPublic:     isPublic,
 	}
 
 	if err := s.clientRepo.Create(client); err != nil {
@@ -131,6 +132,36 @@ func (s *OAuthProviderService) GetPublicClient(clientID string) (*models.OAuthCl
 	return client, nil
 }
 
+// ResolveClientForToken validates the client for token exchange.
+// It returns the client and enforces that public clients cannot bypass
+// authentication — they must have used PKCE during /authorize.
+func (s *OAuthProviderService) ResolveClientForToken(clientID, clientSecret string) (*models.OAuthClient, error) {
+	client, err := s.clientRepo.FindByClientID(clientID)
+	if err != nil {
+		return nil, errors.New("invalid client credentials")
+	}
+
+	if !client.IsActive {
+		return nil, errors.New("client is inactive")
+	}
+
+	if client.IsPublic {
+		// Public clients must NOT send a client_secret successfully validated;
+		// they are authenticated via PKCE instead, enforced later against the stored code.
+		return client, nil
+	}
+
+	// Confidential client — secret is mandatory, no exceptions
+	if clientSecret == "" {
+		return nil, errors.New("client_secret required for confidential client")
+	}
+	if err := bcrypt.CompareHashAndPassword([]byte(client.ClientSecret), []byte(clientSecret)); err != nil {
+		return nil, errors.New("invalid client credentials")
+	}
+
+	return client, nil
+}
+
 // ValidateRedirectURI checks if the redirect URI is allowed for the client
 func (s *OAuthProviderService) ValidateRedirectURI(client *models.OAuthClient, redirectURI string) error {
 	for _, uri := range client.RedirectURIs {
@@ -152,7 +183,7 @@ func (s *OAuthProviderService) ValidateScopes(scopes []string) error {
 }
 
 // GenerateAuthorizationCode creates an authorization code
-func (s *OAuthProviderService) GenerateAuthorizationCode(clientID, userID, redirectURI string, scopes []string) (string, error) {
+func (s *OAuthProviderService) GenerateAuthorizationCode(clientID, userID, redirectURI string, scopes []string, codeChallenge, codeChallengeMethod *string) (string, error) {
 	code, err := generateRandomString(32)
 	if err != nil {
 		return "", err
@@ -166,6 +197,8 @@ func (s *OAuthProviderService) GenerateAuthorizationCode(clientID, userID, redir
 		RedirectURI: redirectURI,
 		ExpiresAt:   time.Now().Add(10 * time.Minute), // 10 minutes
 		Used:        false,
+                CodeChallenge: codeChallenge,
+                CodeChallengeMethod: codeChallengeMethod,
 	}
 
 	if err := s.codeRepo.Create(authCode); err != nil {
@@ -176,7 +209,7 @@ func (s *OAuthProviderService) GenerateAuthorizationCode(clientID, userID, redir
 }
 
 // ExchangeCodeForToken exchanges an authorization code for an access token
-func (s *OAuthProviderService) ExchangeCodeForToken(code, clientID, redirectURI string) (*models.OAuthAccessToken, error) {
+func (s *OAuthProviderService) ExchangeCodeForToken(code, clientID, redirectURI, codeVerifier string, isPublic bool) (*models.OAuthAccessToken, error) {
 	// Find the authorization code
 	authCode, err := s.codeRepo.FindByCode(code)
 	if err != nil {
@@ -191,6 +224,24 @@ func (s *OAuthProviderService) ExchangeCodeForToken(code, clientID, redirectURI 
 	// Verify client ID and redirect URI match
 	if authCode.ClientID != clientID || authCode.RedirectURI != redirectURI {
 		return nil, errors.New("invalid client or redirect_uri")
+	}
+
+        // PKCE
+        // Public clients must always have used PKCE — no challenge stored means bypass attempt
+        if isPublic && (authCode.CodeChallenge == nil || *authCode.CodeChallenge == "") {
+                return nil, errors.New("public clients must use PKCE")
+        }
+        if authCode.CodeChallenge != nil && *authCode.CodeChallenge != "" {
+		if codeVerifier == "" {
+			return nil, errors.New("code_verifier required for this authorization code")
+		}
+		method := "S256"
+		if authCode.CodeChallengeMethod != nil && *authCode.CodeChallengeMethod != "" {
+			method = *authCode.CodeChallengeMethod
+		}
+		if err := utils.VerifyPKCE(codeVerifier, *authCode.CodeChallenge, method); err != nil {
+			return nil, err
+		}
 	}
 
 	// Mark code as used

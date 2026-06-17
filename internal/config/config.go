@@ -86,6 +86,15 @@ func LoadConfig() *Config {
 
 	appURL := getEnv("APP_URL", "http://localhost:3000")
 
+	accessSecret := getEnv("JWT_SECRET", "")
+	refreshSecret := getEnv("JWT_REFRESH_SECRET", "")
+	if len(accessSecret) < 32 {
+		log.Fatal("JWT_SECRET must be set and at least 32 bytes long")
+	}
+	if len(refreshSecret) < 32 {
+		log.Fatal("JWT_REFRESH_SECRET must be set and at least 32 bytes long")
+	}
+
 	encKey := getEnv("ENCRYPTION_KEY", "")
 	if encKey == "" || encKey == "0123456789abcdef0123456789abcdef" {
 		log.Fatal("ENCRYPTION_KEY must be set to a unique secret")
@@ -107,8 +116,8 @@ func LoadConfig() *Config {
 			TTL: redisTTL,
 		},
 		JWT: JWTConfig{
-    		AccessSecret:  getEnv("JWT_SECRET", ""),
-    		RefreshSecret: getEnv("JWT_REFRESH_SECRET", ""),
+    		AccessSecret:  accessSecret,
+    		RefreshSecret: refreshSecret,
     		AccessExpiry:  getEnv("JWT_ACCESS_EXPIRY", "15m"),
     		RefreshExpiry: getEnv("JWT_REFRESH_EXPIRY", "168h"),
 		},

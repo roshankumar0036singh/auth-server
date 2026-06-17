@@ -32,7 +32,20 @@ func NewOAuthHandler(oauthProviderService *service.OAuthProviderService, userRep
 }
 
 // Authorize handles the OAuth authorization request
-// GET /oauth/authorize?client_id=...&redirect_uri=...&response_type=code&scope=...&state=...
+// @Summary OAuth Authorization Request
+// @Description Redirects user to consent page or returns authorization code
+// @Tags OAuth Provider
+// @Accept  json
+// @Produce html, json
+// @Param   client_id     query    string true  "OAuth Client ID"
+// @Param   redirect_uri  query    string true  "Redirect URI"
+// @Param   response_type query    string true  "Response type (code)"
+// @Param   scope         query    string false "Requested scopes (space separated)"
+// @Param   state         query    string false "OAuth state parameter"
+// @Success 302 "Redirect" @header Location {string} "Redirect URL with code or error"
+// @Failure 400 {object} ErrorResponse "Invalid request"
+// @Failure 401 {object} ErrorResponse "Unauthorized - user must be logged in"
+// @Router /oauth/authorize [get]
 func (h *OAuthHandler) Authorize(c *gin.Context) {
 	// Extract query parameters
 	clientID := c.Query("client_id")
@@ -40,6 +53,11 @@ func (h *OAuthHandler) Authorize(c *gin.Context) {
 	responseType := c.Query("response_type")
 	scope := c.Query("scope")
 	state := c.Query("state")
+        codeChallenge := c.Query("code_challenge")
+        codeChallengeMethod := c.Query("code_challenge_method")
+        if codeChallenge != "" && codeChallengeMethod == "" {
+            codeChallengeMethod = "S256"
+        }
 
 	// Validate required parameters
 	if clientID == "" || redirectURI == "" || responseType == "" {
@@ -94,7 +112,8 @@ func (h *OAuthHandler) Authorize(c *gin.Context) {
 	hasConsent, err := h.oauthProviderService.CheckConsent(userID.(string), clientID, scopes)
 	if err == nil && hasConsent {
 		// User has already consented, generate code immediately
-		code, err := h.oauthProviderService.GenerateAuthorizationCode(clientID, userID.(string), redirectURI, scopes)
+		// in Authorize GET:
+                code, err := h.oauthProviderService.GenerateAuthorizationCode(clientID, userID.(string), redirectURI, scopes, strPtr(codeChallenge), strPtr(codeChallengeMethod))
 		if err != nil {
 			redirectError(c, redirectURI, "server_error", "Failed to generate authorization code", state)
 			return
@@ -116,23 +135,45 @@ func (h *OAuthHandler) Authorize(c *gin.Context) {
 	}
 
 	c.HTML(http.StatusOK, "oauth_consent.html", gin.H{
-		"ClientName":  client.Name,
-		"ClientID":    clientID,
-		"RedirectURI": redirectURI,
-		"Scope":       scope,
-		"Scopes":      scopeDescriptions,
-		"State":       state,
+		"ClientName":          client.Name,
+		"ClientID":            clientID,
+		"RedirectURI":         redirectURI,
+		"Scope":               scope,
+		"Scopes":              scopeDescriptions,
+		"State":               state,
+		"CodeChallenge":       codeChallenge,
+		"CodeChallengeMethod": codeChallengeMethod,
 	})
 }
 
 // AuthorizePost handles the consent form submission
-// POST /oauth/authorize
+// @Summary OAuth Authorization Consent
+// @Description User approves or denies the OAuth authorization request
+// @Tags OAuth Provider
+// @Accept  x-www-form-urlencoded
+// @Produce json
+// @Param   client_id     formData string true  "OAuth Client ID"
+// @Param   redirect_uri  formData string true  "Redirect URI"
+// @Param   response_type formData string true  "Response type (code)"
+// @Param   scope         formData string false "Requested scopes (space separated)"
+// @Param   state         formData string false "OAuth state parameter"
+// @Param   action        formData string true  "Consent action (approve/deny)"
+// @Success 302 "Redirect" @header Location {string} "Redirect URL with code or error"
+// @Failure 400 {object} ErrorResponse "Invalid request"
+// @Failure 401 {object} ErrorResponse "Unauthorized"
+// @Router /oauth/authorize [post]
 func (h *OAuthHandler) AuthorizePost(c *gin.Context) {
 	action := c.PostForm("action")
 	clientID := c.PostForm("client_id")
-	redirectURI := c.PostForm("redirect_uri")
-	scope := c.PostForm("scope")
+        redirectURI := c.PostForm("redirect_uri")
+        scope := c.PostForm("scope")
 	state := c.PostForm("state")
+        codeChallenge := c.PostForm("code_challenge")
+        codeChallengeMethod := c.PostForm("code_challenge_method")
+
+	if codeChallenge != "" && codeChallengeMethod == "" {
+		codeChallengeMethod = "S256"
+	}
 
 	// Check if user denied
 	if action == "deny" {
@@ -159,7 +200,7 @@ func (h *OAuthHandler) AuthorizePost(c *gin.Context) {
 	}
 
 	// Generate authorization code
-	code, err := h.oauthProviderService.GenerateAuthorizationCode(clientID, userID.(string), redirectURI, scopes)
+        code, err := h.oauthProviderService.GenerateAuthorizationCode(clientID, userID.(string), redirectURI, scopes, strPtr(codeChallenge), strPtr(codeChallengeMethod))
 	if err != nil {
 		redirectError(c, redirectURI, "server_error", "Failed to generate authorization code", state)
 		return
@@ -170,13 +211,27 @@ func (h *OAuthHandler) AuthorizePost(c *gin.Context) {
 }
 
 // Token handles the token exchange
-// POST /oauth/token
+// @Summary OAuth Token Exchange
+// @Description Exchanges authorization code for access token
+// @Tags OAuth Provider
+// @Accept  x-www-form-urlencoded
+// @Produce json
+// @Param   grant_type    formData string true  "Grant type (authorization_code)"
+// @Param   code          formData string true  "Authorization code"
+// @Param   redirect_uri  formData string true  "Redirect URI"
+// @Param   client_id     formData string true  "OAuth Client ID"
+// @Param   client_secret formData string true  "OAuth Client Secret"
+// @Success 200 {object} TokenResponse "Access token response"
+// @Failure 400 {object} ErrorResponse "Invalid request"
+// @Failure 401 {object} ErrorResponse "Invalid client credentials"
+// @Router /oauth/token [post]
 func (h *OAuthHandler) Token(c *gin.Context) {
 	grantType := c.PostForm("grant_type")
 	code := c.PostForm("code")
 	clientID := c.PostForm("client_id")
 	clientSecret := c.PostForm("client_secret")
 	redirectURI := c.PostForm("redirect_uri")
+        codeVerifier := c.PostForm("code_verifier")
 
 	// Validate grant type
 	if grantType != "authorization_code" {
@@ -188,16 +243,27 @@ func (h *OAuthHandler) Token(c *gin.Context) {
 	}
 
 	// Validate client credentials
-	if _, err := h.oauthProviderService.ValidateClient(clientID, clientSecret); err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"error":             "invalid_client",
-			"error_description": "Invalid client credentials",
-		})
-		return
-	}
+	client, err := h.oauthProviderService.ResolveClientForToken(clientID, clientSecret)
+        if err != nil {
+                c.JSON(http.StatusUnauthorized, gin.H{
+                        "error":             "invalid_client",
+                        "error_description": err.Error(),
+                })
+                return
+        }
+
+        // Public clients MUST use PKCE — reject if no verifier was sent at all,
+        // independent of whether the stored auth code happens to have a challenge.
+        if client.IsPublic && codeVerifier == "" {
+                c.JSON(http.StatusBadRequest, gin.H{
+                        "error":             "invalid_request",
+                        "error_description": "code_verifier is required for public clients",
+                })
+                return
+        }
 
 	// Exchange code for token
-	accessToken, err := h.oauthProviderService.ExchangeCodeForToken(code, clientID, redirectURI)
+	accessToken, err := h.oauthProviderService.ExchangeCodeForToken(code, clientID, redirectURI, codeVerifier, client.IsPublic)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":             "invalid_grant",
@@ -216,7 +282,16 @@ func (h *OAuthHandler) Token(c *gin.Context) {
 }
 
 // UserInfo returns user information based on the access token
-// GET /oauth/userinfo
+// @Summary OAuth User Info
+// @Description Returns user profile information for the provided access token
+// @Tags OAuth Provider
+// @Accept  json
+// @Produce json
+// @Param   Authorization  header  string  true  "Bearer {access_token}"
+// @Success 200 {object} UserInfoResponse "User profile information"
+// @Failure 401 {object} ErrorResponse "Invalid or expired token"
+// @Failure 404 {object} ErrorResponse "User not found"
+// @Router /oauth/userinfo [get]
 func (h *OAuthHandler) UserInfo(c *gin.Context) {
 	token, err := extractBearerToken(c)
 	if err != nil {
@@ -310,4 +385,39 @@ func redirectError(c *gin.Context, redirectURI, errorCode, errorDesc, state stri
 	}
 	u.RawQuery = q.Encode()
 	c.Redirect(http.StatusFound, u.String())
+}
+
+// ErrorResponse represents the standard error response
+type ErrorResponse struct {
+	Error   string `json:"error"`
+	Code    string `json:"code"`
+	Message string `json:"message,omitempty"`
+}
+
+// TokenResponse represents the OAuth token exchange response
+type TokenResponse struct {
+	AccessToken  string `json:"access_token"`
+	TokenType    string `json:"token_type"`
+	ExpiresIn    int    `json:"expires_in"`
+	RefreshToken string `json:"refresh_token,omitempty"`
+	Scope        string `json:"scope,omitempty"`
+}
+
+// UserInfoResponse represents the OAuth user info response
+type UserInfoResponse struct {
+	Sub           string   `json:"sub"`
+	Name          string   `json:"name,omitempty"`
+	Email         string   `json:"email,omitempty"`
+	EmailVerified bool     `json:"email_verified,omitempty"`
+	Picture       string   `json:"picture,omitempty"`
+	GivenName     string   `json:"given_name,omitempty"`
+	FamilyName    string   `json:"family_name,omitempty"`
+	Scopes        []string `json:"scopes"`
+}
+
+func strPtr(s string) *string {
+	if s == "" {
+		return nil
+	}
+	return &s
 }
