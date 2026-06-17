@@ -77,6 +77,14 @@ type SecurityConfig struct {
     ForgotRateLimitWindow int
 }
 
+func mustAtoi(key string, defaultValue int) int {
+	v, err := strconv.Atoi(getEnv(key, strconv.Itoa(defaultValue)))
+	if err != nil || v <= 0 {
+		return defaultValue
+	}
+	return v
+}
+
 func LoadConfig() *Config {
 	// Load .env file (ignore error if file doesn't exist)
 	if err := godotenv.Load(); err != nil {
@@ -93,14 +101,14 @@ func LoadConfig() *Config {
 	accountLockMax, _ := strconv.Atoi(getEnv("ACCOUNT_LOCK_MAX_ATTEMPTS", "5"))
 	accountLockDuration, _ := strconv.Atoi(getEnv("ACCOUNT_LOCK_DURATION", "30")) // Minutes
 
-	loginRateLimitMax, _ := strconv.Atoi(getEnv("LOGIN_RATE_LIMIT_MAX", "5"))
-	loginRateLimitWindow, _ := strconv.Atoi(getEnv("LOGIN_RATE_LIMIT_WINDOW", "900000"))
+	loginRateLimitMax := mustAtoi("LOGIN_RATE_LIMIT_MAX", 5)
+	loginRateLimitWindow := mustAtoi("LOGIN_RATE_LIMIT_WINDOW", 900000)
 
-	registerRateLimitMax, _ := strconv.Atoi(getEnv("REGISTER_RATE_LIMIT_MAX", "3"))
-	registerRateLimitWindow, _ := strconv.Atoi(getEnv("REGISTER_RATE_LIMIT_WINDOW", "3600000"))
+	registerRateLimitMax := mustAtoi("REGISTER_RATE_LIMIT_MAX", 3)
+	registerRateLimitWindow := mustAtoi("REGISTER_RATE_LIMIT_WINDOW", 3600000)
 
-	forgotRateLimitMax, _ := strconv.Atoi(getEnv("FORGOT_RATE_LIMIT_MAX", "3"))
-	forgotRateLimitWindow, _ := strconv.Atoi(getEnv("FORGOT_RATE_LIMIT_WINDOW", "3600000"))
+	forgotRateLimitMax := mustAtoi("FORGOT_RATE_LIMIT_MAX", 3)
+	forgotRateLimitWindow := mustAtoi("FORGOT_RATE_LIMIT_WINDOW", 3600000)
 
 	appURL := getEnv("APP_URL", "http://localhost:3000")
 

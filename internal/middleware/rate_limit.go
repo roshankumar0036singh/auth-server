@@ -36,7 +36,7 @@ func getLimits(cfg *config.Config, path string) (int, time.Duration) {
 	}
 }
 
-func getRateLimitKey(c *gin.Context) string {
+func getRateLimitKey(c *gin.Context) (string, bool) {
 	path := c.FullPath()
 	ip := c.ClientIP()
 
@@ -44,40 +44,41 @@ func getRateLimitKey(c *gin.Context) string {
 
 	switch path {
 		case "/api/auth/forgot-password":
-		var req dto.ForgotPasswordRequest
+			var req dto.ForgotPasswordRequest
 
-		if c.Request.ContentLength == 0 {
-			return fmt.Sprintf("ratelimit:forgot:%s", ip)
-		}
+			if err := c.ShouldBindBodyWithJSON(&req); err != nil {
+				c.Abort()
+				return "", false
+			}
 
-		if err := c.ShouldBindBodyWithJSON(&req); err != nil {
-			c.JSON(
-				http.StatusBadRequest,
-				utils.ErrorResponse("Invalid request body", nil),
-			)
-			c.Abort()
-			return ""
-		}
+			cleanEmail := strings.ToLower(strings.TrimSpace(req.Email))
+			if cleanEmail == "" {
+				return "", false
+			}
+			return fmt.Sprintf("ratelimit:forgot:%s:%s", ip, cleanEmail), true
+		
+		case "/api/auth/login":
+			return fmt.Sprintf("ratelimit:login:%s", ip), true
+		
+		case "/api/auth/google/login", "/api/auth/github/login":
+			return fmt.Sprintf("ratelimit:oauth:%s", ip), true
 
-		if req.Email == "" {
-			return fmt.Sprintf("ratelimit:forgot:invalid:%s", ip)
-		}
-
-		cleanEmail := strings.ToLower(strings.TrimSpace(req.Email))
-		return fmt.Sprintf("ratelimit:forgot:%s", cleanEmail)
-
-	default:
-		return fmt.Sprintf("ratelimit:%s:%s", cleanPath, ip)
+		default:
+			return fmt.Sprintf("ratelimit:%s:%s", strings.Trim(cleanPath, "/"), ip), true
 	}
 }
 
 // RateLimitMiddleware applies rate limiting to requests based on IP address
 func RateLimitMiddleware(cacheService *service.CacheService, cfg *config.Config) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		key := getRateLimitKey(c)
+		key, ok := getRateLimitKey(c)
+
+		if !ok || key == "" {
+			c.Abort()
+			return
+		}
 		path := c.FullPath()
 
-		// Use configured values (converted to proper types)
 		limit, window := getLimits(cfg, path)
 
 		allowed, err := cacheService.AllowRequest(c.Request.Context(), key, limit, window)
