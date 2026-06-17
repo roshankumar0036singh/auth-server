@@ -1,14 +1,18 @@
 export interface User {
   id: string;
   email: string;
-  firstName: string;
-  lastName: string;
-  isVerified: boolean;
-  role: string;
-  createdAt: string;
-  updatedAt: string;
+  /** Present when the user has a name on file (server omits when empty). */
+  firstName?: string;
+  /** Present when the user has a name on file (server omits when empty). */
+  lastName?: string;
+  /** Whether the user's email address has been verified. */
+  emailVerified: boolean;
+  /** Whether time-based one-time-password MFA is enabled. */
   mfaEnabled: boolean;
-  profileImage?: string;
+  /** ISO 8601 timestamp of account creation. */
+  createdAt: string;
+  /** ISO 8601 timestamp of the last successful login, when available. */
+  lastLoginAt?: string;
 }
 
 export interface Session {

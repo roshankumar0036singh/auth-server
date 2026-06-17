@@ -11,6 +11,7 @@ import (
 const (
 	cacheKeySession       = "session:%s"
 	cacheKeyLoginAttempts = "login_attempts:%s"
+	cacheKeyMFAAttempts   = "mfa_attempts:%s"
 )
 
 type CacheService struct {
@@ -90,6 +91,39 @@ func (s *CacheService) GetLoginAttempts(ctx context.Context, email string) (int6
 // ResetLoginAttempts resets failed login attempts for an email
 func (s *CacheService) ResetLoginAttempts(ctx context.Context, email string) error {
 	key := fmt.Sprintf(cacheKeyLoginAttempts, email)
+	return s.client.Del(ctx, key).Err()
+}
+
+// IncrementMFAAttempts increments failed MFA code attempts for a user.
+func (s *CacheService) IncrementMFAAttempts(ctx context.Context, userID string) (int64, error) {
+	key := fmt.Sprintf(cacheKeyMFAAttempts, userID)
+	count, err := s.client.Incr(ctx, key).Result()
+	if err != nil {
+		return 0, err
+	}
+
+	// Set expiry on first attempt (15 minutes)
+	if count == 1 {
+		s.client.Expire(ctx, key, 15*time.Minute)
+	}
+
+	return count, nil
+}
+
+// GetMFAAttempts gets the number of failed MFA code attempts for a user.
+func (s *CacheService) GetMFAAttempts(ctx context.Context, userID string) (int64, error) {
+	key := fmt.Sprintf(cacheKeyMFAAttempts, userID)
+	count, err := s.client.Get(ctx, key).Int64()
+
+	if err == redis.Nil {
+		return 0, nil
+	}
+	return count, err
+}
+
+// ResetMFAAttempts resets failed MFA code attempts for a user.
+func (s *CacheService) ResetMFAAttempts(ctx context.Context, userID string) error {
+	key := fmt.Sprintf(cacheKeyMFAAttempts, userID)
 	return s.client.Del(ctx, key).Err()
 }
 

@@ -35,7 +35,6 @@ type RedisConfig struct {
 	TTL int
 }
 
-
 type JWTConfig struct {
 	AccessSecret  string
 	RefreshSecret string
@@ -66,6 +65,23 @@ type SecurityConfig struct {
 	AccountLockMaxAttempts int
 	AccountLockDuration    int // in minutes
 	EncryptionKey          string
+
+	LoginRateLimitMax    int
+	LoginRateLimitWindow int
+
+	RegisterRateLimitMax    int
+	RegisterRateLimitWindow int
+
+	ForgotRateLimitMax    int
+	ForgotRateLimitWindow int
+}
+
+func mustAtoi(key string, defaultValue int) int {
+	v, err := strconv.Atoi(getEnv(key, strconv.Itoa(defaultValue)))
+	if err != nil || v <= 0 {
+		return defaultValue
+	}
+	return v
 }
 
 func LoadConfig() *Config {
@@ -84,7 +100,25 @@ func LoadConfig() *Config {
 	accountLockMax, _ := strconv.Atoi(getEnv("ACCOUNT_LOCK_MAX_ATTEMPTS", "5"))
 	accountLockDuration, _ := strconv.Atoi(getEnv("ACCOUNT_LOCK_DURATION", "30")) // Minutes
 
+	loginRateLimitMax := mustAtoi("LOGIN_RATE_LIMIT_MAX", 5)
+	loginRateLimitWindow := mustAtoi("LOGIN_RATE_LIMIT_WINDOW", 900000)
+
+	registerRateLimitMax := mustAtoi("REGISTER_RATE_LIMIT_MAX", 3)
+	registerRateLimitWindow := mustAtoi("REGISTER_RATE_LIMIT_WINDOW", 3600000)
+
+	forgotRateLimitMax := mustAtoi("FORGOT_RATE_LIMIT_MAX", 3)
+	forgotRateLimitWindow := mustAtoi("FORGOT_RATE_LIMIT_WINDOW", 3600000)
+
 	appURL := getEnv("APP_URL", "http://localhost:3000")
+
+	accessSecret := getEnv("JWT_SECRET", "")
+	refreshSecret := getEnv("JWT_REFRESH_SECRET", "")
+	if len(accessSecret) < 32 {
+		log.Fatal("JWT_SECRET must be set and at least 32 bytes long")
+	}
+	if len(refreshSecret) < 32 {
+		log.Fatal("JWT_REFRESH_SECRET must be set and at least 32 bytes long")
+	}
 
 	encKey := getEnv("ENCRYPTION_KEY", "")
 	if encKey == "" || encKey == "0123456789abcdef0123456789abcdef" {
@@ -107,10 +141,10 @@ func LoadConfig() *Config {
 			TTL: redisTTL,
 		},
 		JWT: JWTConfig{
-    		AccessSecret:  getEnv("JWT_SECRET", ""),
-    		RefreshSecret: getEnv("JWT_REFRESH_SECRET", ""),
-    		AccessExpiry:  getEnv("JWT_ACCESS_EXPIRY", "15m"),
-    		RefreshExpiry: getEnv("JWT_REFRESH_EXPIRY", "168h"),
+			AccessSecret:  getEnv("JWT_SECRET", ""),
+			RefreshSecret: getEnv("JWT_REFRESH_SECRET", ""),
+			AccessExpiry:  getEnv("JWT_ACCESS_EXPIRY", "15m"),
+			RefreshExpiry: getEnv("JWT_REFRESH_EXPIRY", "168h"),
 		},
 		OAuth: OAuthConfig{
 			Google: GoogleOAuthConfig{
@@ -132,6 +166,15 @@ func LoadConfig() *Config {
 			AccountLockMaxAttempts: accountLockMax,
 			AccountLockDuration:    accountLockDuration,
 			EncryptionKey:          encKey,
+
+			LoginRateLimitMax:    loginRateLimitMax,
+			LoginRateLimitWindow: loginRateLimitWindow,
+
+			RegisterRateLimitMax:    registerRateLimitMax,
+			RegisterRateLimitWindow: registerRateLimitWindow,
+
+			ForgotRateLimitMax:    forgotRateLimitMax,
+			ForgotRateLimitWindow: forgotRateLimitWindow,
 		},
 	}
 }
