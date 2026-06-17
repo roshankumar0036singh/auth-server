@@ -24,7 +24,6 @@ var (
 	ErrTooManyAttempts    = errors.New("too many failed attempts, please try again later")
 	ErrInvalidMFACode     = errors.New("invalid TOTP code")
 	ErrServiceUnavailable = errors.New("authentication service temporarily unavailable")
-	ErrUserNotFound       = repository.ErrUserNotFound
 )
 
 const (
