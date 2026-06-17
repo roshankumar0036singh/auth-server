@@ -298,6 +298,13 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
+	// MFA required: return the MFA-pending token without issuing tokens or a
+	// session cookie. The client must complete /api/auth/login/mfa.
+	if loginResp.MFARequired {
+		c.JSON(http.StatusOK, utils.SuccessResponse("MFA required", loginResp))
+		return
+	}
+
 	// Set session cookie for browser flows (like OAuth)
 	// MaxAge is 7 days (matching refresh token)
 	c.SetCookie("auth_token", loginResp.AccessToken, 7*24*3600, "/", "", false, true)
@@ -463,7 +470,7 @@ func (h *AuthHandler) GetSessions(c *gin.Context) {
 			UserAgent: session.UserAgent,
 			CreatedAt: session.CreatedAt.Format("2006-01-02 15:04:05"),
 			ExpiresAt: session.ExpiresAt.Format("2006-01-02 15:04:05"),
-			IsCurrent: session.ID == currentID, 
+			IsCurrent: session.ID == currentID,
 		}
 	}
 
@@ -809,7 +816,7 @@ func (h *AuthHandler) LoginMFA(c *gin.Context) {
 	ipAddress := c.ClientIP()
 	userAgent := c.GetHeader("User-Agent")
 
-	resp, err := h.authService.VerifyLoginMFA(req.Email, req.Code, ipAddress, userAgent)
+	resp, err := h.authService.VerifyLoginMFA(req.MFAToken, req.Code, ipAddress, userAgent)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, utils.ErrorResponse("MFA login failed", err))
 		return
