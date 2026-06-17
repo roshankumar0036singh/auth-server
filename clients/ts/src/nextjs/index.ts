@@ -235,7 +235,7 @@ export function createAuthServer(config: NextAuthConfig): AuthServer {
   }
 
   async function dispatch(req: Request): Promise<Response> {
-    const action = new URL(req.url).pathname.split('/').filter(Boolean).pop();
+    const action = new URL(req.url).pathname.split('/').findLast(Boolean);
     switch (action) {
       case 'login':
         return req.method === 'POST' ? handleLogin(req) : jsonResponse({ error: 'Method not allowed' }, 405);
@@ -319,15 +319,22 @@ async function nodeRequestToWeb(req: NodeReq, origin: string): Promise<Request> 
   const method = req.method ?? 'GET';
   let body: string | undefined;
   if (method !== 'GET' && method !== 'HEAD') {
-    if (req.body !== undefined && req.body !== null) {
-      body = typeof req.body === 'string' ? req.body : JSON.stringify(req.body);
-      if (typeof req.body !== 'string') headers.set('content-type', 'application/json');
-    } else if (typeof req.on === 'function') {
-      body = await readNodeStream(req);
-    }
+    body = await parseNodeBody(req, headers);
   }
   // A base origin is required to construct a URL from a path-only req.url.
   return new Request(new URL(req.url ?? '/', origin), { method, headers, body });
+}
+
+async function parseNodeBody(req: NodeReq, headers: Headers): Promise<string | undefined> {
+  if (req.body !== undefined && req.body !== null) {
+    const bodyStr = typeof req.body === 'string' ? req.body : JSON.stringify(req.body);
+    if (typeof req.body !== 'string') headers.set('content-type', 'application/json');
+    return bodyStr;
+  }
+  if (typeof req.on === 'function') {
+    return await readNodeStream(req);
+  }
+  return undefined;
 }
 
 function readNodeStream(req: NodeReq): Promise<string> {

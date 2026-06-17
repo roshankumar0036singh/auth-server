@@ -338,7 +338,7 @@ export class AuthClient {
    * @param href Optional URL to parse instead of `window.location.href`.
    */
   public completeOAuthRedirect(href?: string): Session | null {
-    const source = href ?? (typeof globalThis.window === 'undefined' ? undefined : globalThis.window.location.href);
+    const source = href ?? (globalThis.window === undefined ? undefined : globalThis.window.location.href);
     if (!source) return null;
 
     const parsed = new URL(source);
@@ -349,7 +349,7 @@ export class AuthClient {
     const session: Session = { accessToken, refreshToken };
     this.saveSession(session);
 
-    if (!href && typeof globalThis.window !== 'undefined') {
+    if (!href && globalThis.window !== undefined) {
       parsed.searchParams.delete('access_token');
       parsed.searchParams.delete('refresh_token');
       globalThis.window.history.replaceState({}, '', parsed.pathname + parsed.search + parsed.hash);

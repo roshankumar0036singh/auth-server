@@ -98,7 +98,7 @@ export function readCookie(source: CookieSource | undefined, name: string): stri
 
   // Plain name→value map.
   if (typeof anySource[name] === 'string') {
-    return anySource[name] as string;
+    return anySource[name];
   }
 
   return undefined;

@@ -119,4 +119,4 @@ function printSuccess(plan, root) {
   stdout.write('\n');
 }
 
-main();
+await main();

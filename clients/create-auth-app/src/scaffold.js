@@ -24,6 +24,9 @@ export function toPackageName(input) {
 export function planScaffold(options) {
   const dir = (options.dir || '').trim();
   if (!dir) throw new Error('A target directory is required.');
+  if (dir.includes('..') || path.isAbsolute(dir)) {
+    throw new Error('Directory must be a relative path without ".."');
+  }
 
   const template = options.template;
   if (!templateNames.includes(template)) {

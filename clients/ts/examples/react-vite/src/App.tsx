@@ -29,7 +29,7 @@ export function App() {
           <p>
             Signed in as <strong>{user?.firstName ?? user?.email}</strong>
           </p>
-          <button type="button" onClick={() => void logout()}>
+          <button type="button" onClick={() => logout()}>
             Sign out
           </button>
         </section>

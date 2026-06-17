@@ -534,11 +534,26 @@ func (h *AuthHandler) storeOAuthRedirect(c *gin.Context, clientID, redirectURI s
 // completeOAuthLogin finishes a social-login callback. When a validated
 // redirect_uri was stored, it redirects the browser back to the app with the
 // tokens as query parameters; otherwise it returns the tokens as JSON.
-func (h *AuthHandler) completeOAuthLogin(c *gin.Context, loginResp *dto.LoginResponse) {
+func (h *AuthHandler) completeOAuthLogin(c *gin.Context, loginResp *dto.LoginResponse, clientID string) {
 	isProd := gin.Mode() == gin.ReleaseMode
 	redirectURI, err := c.Cookie("oauth_redirect")
 	if err == nil && redirectURI != "" {
 		c.SetCookie("oauth_redirect", "", -1, "/", "", isProd, true)
+
+		// Re-validate to prevent open redirect via cookie tampering
+		isValid := false
+		if clientID != "" && h.oauthProviderService != nil {
+			client, cerr := h.oauthProviderService.GetPublicClient(clientID)
+			if cerr == nil && h.oauthProviderService.ValidateRedirectURI(client, redirectURI) == nil {
+				isValid = true
+			}
+		}
+		
+		if !isValid {
+			c.JSON(http.StatusBadRequest, utils.ErrorResponse("Invalid redirect URI", nil))
+			return
+		}
+
 		if target, perr := url.Parse(redirectURI); perr == nil {
 			q := target.Query()
 			q.Set("access_token", loginResp.AccessToken)
@@ -644,7 +659,7 @@ func (h *AuthHandler) GoogleCallback(c *gin.Context) {
 		return
 	}
 
-	h.completeOAuthLogin(c, loginResp)
+	h.completeOAuthLogin(c, loginResp, clientID)
 }
 
 // GitHubLogin initiates GitHub OAuth login
@@ -743,7 +758,7 @@ func (h *AuthHandler) GitHubCallback(c *gin.Context) {
 		return
 	}
 
-	h.completeOAuthLogin(c, loginResp)
+	h.completeOAuthLogin(c, loginResp, clientID)
 }
 
 // EnableMFA initates MFA setup
