@@ -7,12 +7,18 @@ export const HOSTED_SERVER_URL = 'https://auth-server-4nmm.onrender.com';
 
 /** Convert an arbitrary directory name into a valid npm package name. */
 export function toPackageName(input) {
-  const cleaned = String(input)
+  let cleaned = String(input)
     .trim()
     .toLowerCase()
-    .replace(/[^a-z0-9._-]+/g, '-')
-    .replace(/^[-_.]+/, '')
-    .replace(/[-_.]+$/, '');
+    .replace(/[^a-z0-9._-]+/g, '-');
+    
+  while (cleaned.length > 0 && /[-_.]/.test(cleaned[0])) {
+    cleaned = cleaned.slice(1);
+  }
+  while (cleaned.length > 0 && /[-_.]/.test(cleaned[cleaned.length - 1])) {
+    cleaned = cleaned.slice(0, -1);
+  }
+  
   return cleaned || 'my-auth-app';
 }
 
