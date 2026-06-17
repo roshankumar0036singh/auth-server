@@ -235,7 +235,7 @@ export function createAuthServer(config: NextAuthConfig): AuthServer {
   }
 
   async function dispatch(req: Request): Promise<Response> {
-    const action = new URL(req.url).pathname.split('/').findLast(Boolean);
+    const action = new URL(req.url).pathname.split('/').reverse().find(Boolean);
     switch (action) {
       case 'login':
         return req.method === 'POST' ? handleLogin(req) : jsonResponse({ error: 'Method not allowed' }, 405);
