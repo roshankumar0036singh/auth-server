@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -61,7 +62,7 @@ func main() {
 	redisClient := config.InitRedis(cfg)
 
 	// Setup Gin
-	if cfg.App.Env == "production" {
+	if strings.EqualFold(strings.TrimSpace(cfg.App.Env), "production") {
 		gin.SetMode(gin.ReleaseMode)
 	}
 
