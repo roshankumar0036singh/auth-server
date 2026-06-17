@@ -28,11 +28,19 @@ func (r *AuthorizationCodeRepository) FindByCode(code string) (*models.Authoriza
 	return &authCode, nil
 }
 
-// MarkAsUsed marks an authorization code as used
-func (r *AuthorizationCodeRepository) MarkAsUsed(code string) error {
-	return r.db.Model(&models.AuthorizationCode{}).
-		Where("code = ?", code).
-		Update("used", true).Error
+// MarkAsUsed atomically marks an authorization code as used. It returns
+// (true, nil) only when this call is the one that flipped used from false to
+// true; (false, nil) means the code was already used (a replay), and a
+// non-nil error indicates a database failure. Callers must treat a false
+// result as a single-use violation and refuse to issue a token.
+func (r *AuthorizationCodeRepository) MarkAsUsed(code string) (bool, error) {
+	result := r.db.Model(&models.AuthorizationCode{}).
+		Where("code = ? AND used = ?", code, false).
+		Update("used", true)
+	if result.Error != nil {
+		return false, result.Error
+	}
+	return result.RowsAffected == 1, nil
 }
 
 // DeleteExpired deletes all expired authorization codes

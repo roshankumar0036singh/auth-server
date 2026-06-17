@@ -376,9 +376,25 @@ func (s *AuthService) DisableMFA(userID, password, code string) error {
 	return nil
 }
 
-// VerifyLoginMFA completes the login process with MFA code
-func (s *AuthService) VerifyLoginMFA(email, code, ipAddress, userAgent string) (*dto.LoginResponse, error) {
-	user, err := s.userRepo.FindByEmail(email)
+// VerifyLoginMFA completes the login process with an MFA code. It requires the
+// short-lived MFA-pending token issued by the password step (Login), so the
+// password cannot be bypassed, and rate-limits code attempts to prevent
+// brute-forcing the 6-digit TOTP.
+func (s *AuthService) VerifyLoginMFA(mfaToken, code, ipAddress, userAgent string) (*dto.LoginResponse, error) {
+	ctx := context.Background()
+
+	userID, err := s.tokenService.ValidateMFAToken(mfaToken)
+	if err != nil {
+		return nil, errors.New("invalid or expired MFA session")
+	}
+
+	// Rate-limit MFA code attempts per user.
+	attempts, err := s.cacheService.GetMFAAttempts(ctx, userID)
+	if err == nil && attempts >= int64(s.config.Security.RateLimitMax) {
+		return nil, errors.New("too many MFA attempts, please try again later")
+	}
+
+	user, err := s.userRepo.FindByID(userID)
 	if err != nil {
 		return nil, ErrUserNotFound
 	}
@@ -388,11 +404,14 @@ func (s *AuthService) VerifyLoginMFA(email, code, ipAddress, userAgent string) (
 	}
 
 	if !s.mfaService.ValidateMFA(user.MFASecret, code) {
+		s.cacheService.IncrementMFAAttempts(ctx, userID)
 		if err := s.auditService.LogEvent(&user.ID, "MFA_LOGIN_FAILED", "USER", user.ID, ipAddress, userAgent, nil); err != nil {
 			log.Printf("failed to write MFA_LOGIN_FAILED audit log for user %s: %v", user.ID, err)
 		}
 		return nil, errors.New(errInvalidTOTPCode)
 	}
+
+	s.cacheService.ResetMFAAttempts(ctx, userID)
 
 	response, err := s.createLoginResponse(user, ipAddress, userAgent)
 	if err != nil {
@@ -558,9 +577,15 @@ func (s *AuthService) Login(req *dto.LoginRequest, ipAddress, userAgent string) 
 		return nil, errors.New("account is deactivated")
 	}
 
-	// Check MFA
+	// Check MFA. The password step has succeeded; issue a short-lived
+	// MFA-pending token the client must present to /login/mfa. No access or
+	// refresh token is issued until the MFA code is verified.
 	if user.MFAEnabled {
-		return nil, errors.New("mfa_required")
+		mfaToken, err := s.tokenService.GenerateMFAToken(user.ID)
+		if err != nil {
+			return nil, err
+		}
+		return &dto.LoginResponse{MFARequired: true, MFAToken: mfaToken}, nil
 	}
 
 	// Update last login

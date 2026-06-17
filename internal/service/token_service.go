@@ -23,8 +23,17 @@ type JWTClaims struct {
 	SessionID string `json:"session_id"`
 	Email     string `json:"email"`
 	Role      string `json:"role"`
+	// Purpose marks special-purpose tokens (e.g. an MFA-pending token).
+	// A normal access/refresh token leaves this empty; the access-token
+	// validator rejects any token with a non-empty Purpose so a purpose
+	// token can never be used as a bearer credential.
+	Purpose string `json:"purpose,omitempty"`
 	jwt.RegisteredClaims
 }
+
+// mfaPendingPurpose is the Purpose value of the short-lived token issued after
+// a successful password step, required to complete MFA login.
+const mfaPendingPurpose = "mfa_pending"
 
 // GenerateAccessToken generates a new JWT access token
 func (s *TokenService) GenerateAccessToken(user *models.User, sessionID string) (string, error) {
@@ -89,10 +98,54 @@ func (s *TokenService) ValidateAccessToken(tokenString string) (*JWTClaims, erro
 	}
 
 	if claims, ok := token.Claims.(*JWTClaims); ok && token.Valid {
+		// Purpose-scoped tokens (e.g. the MFA-pending token) must never be
+		// accepted as access tokens.
+		if claims.Purpose != "" {
+			return nil, errors.New("invalid token")
+		}
 		return claims, nil
 	}
 
 	return nil, errors.New("invalid token")
+}
+
+// GenerateMFAToken issues a short-lived token proving the password step of
+// login succeeded. It must be presented to complete MFA login and cannot be
+// used as an access token (see Purpose handling in ValidateAccessToken).
+func (s *TokenService) GenerateMFAToken(userID string) (string, error) {
+	claims := &JWTClaims{
+		UserID:  userID,
+		Purpose: mfaPendingPurpose,
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(5 * time.Minute)),
+			IssuedAt:  jwt.NewNumericDate(time.Now()),
+			Issuer:    "auth-server",
+		},
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	return token.SignedString([]byte(s.cfg.JWT.AccessSecret))
+}
+
+// ValidateMFAToken validates an MFA-pending token and returns the user ID it
+// was issued for. It rejects any token whose Purpose is not the MFA-pending
+// marker, so access/refresh tokens cannot stand in for it.
+func (s *TokenService) ValidateMFAToken(tokenString string) (string, error) {
+	token, err := jwt.ParseWithClaims(tokenString, &JWTClaims{}, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, errors.New("invalid signing method")
+		}
+		return []byte(s.cfg.JWT.AccessSecret), nil
+	})
+	if err != nil {
+		return "", err
+	}
+
+	claims, ok := token.Claims.(*JWTClaims)
+	if !ok || !token.Valid || claims.Purpose != mfaPendingPurpose {
+		return "", errors.New("invalid mfa token")
+	}
+	return claims.UserID, nil
 }
 
 // ValidateRefreshToken validates and parses a refresh token
