@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"html/template"
 	"net/smtp"
+	"os"
 	"path/filepath"
 
 	"github.com/roshankumar0036singh/auth-server/internal/config"
@@ -16,23 +17,63 @@ type EmailSender interface {
 }
 
 type EmailService struct {
-	config config.EmailConfig
+	config    config.EmailConfig
+	templates map[string]*template.Template
 }
 
-func NewEmailService(cfg *config.Config) *EmailService {
-	return &EmailService{
-		config: cfg.Email,
-	}
-}
-
-// SendEmail sends an email using SMTP
-func (s *EmailService) SendEmail(to []string, subject string, templateName string, data interface{}) error {
-	// Parse template
-	// In production, templates should be cached on startup
-	tmplPath := filepath.Join("templates", templateName)
-	t, err := template.ParseFiles(tmplPath)
+// NewEmailService initializes EmailService and pre-parses all templates from
+// the templates/ directory at startup. Returns an error if the directory is
+// missing or any template fails to parse.
+func NewEmailService(cfg *config.Config) (*EmailService, error) {
+	templates, err := loadTemplates("templates")
 	if err != nil {
-		return fmt.Errorf("failed to parse email template: %w", err)
+		return nil, fmt.Errorf("failed to load email templates: %w", err)
+	}
+
+	return &EmailService{
+		config:    cfg.Email,
+		templates: templates,
+	}, nil
+}
+
+// loadTemplates reads all files in dir and parses each as an HTML template.
+// Returns a map of filename -> *template.Template.
+func loadTemplates(dir string) (map[string]*template.Template, error) {
+	cache := make(map[string]*template.Template)
+
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil, fmt.Errorf("could not read templates directory %q: %w", dir, err)
+	}
+
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+
+		name := entry.Name()
+		tmplPath := filepath.Join(dir, name)
+
+		t, err := template.ParseFiles(tmplPath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse template %q: %w", name, err)
+		}
+
+		cache[name] = t
+	}
+
+	if len(cache) == 0 {
+		return nil, fmt.Errorf("no templates found in directory %q", dir)
+	}
+
+	return cache, nil
+}
+
+// SendEmail sends an HTML email using a pre-cached template.
+func (s *EmailService) SendEmail(to []string, subject string, templateName string, data interface{}) error {
+	t, ok := s.templates[templateName]
+	if !ok {
+		return fmt.Errorf("email template %q not found in cache", templateName)
 	}
 
 	var body bytes.Buffer

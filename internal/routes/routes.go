@@ -32,7 +32,10 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, redisClient *redis.Client, cfg
 	// Initialize services
 	tokenService := service.NewTokenService(cfg)
 	cacheService := service.NewCacheService(redisClient)
-	emailService := service.NewEmailService(cfg)
+	emailService, err := service.NewEmailService(cfg)
+	if err != nil {
+		log.Fatalf("failed to initialize email service: %v", err)
+	}
 	auditService := service.NewAuditService(auditRepo)
 	oauthService := service.NewOAuthService(cfg, oauthProviderConfigRepo)
 	mfaService := service.NewMFAService(cfg)
