@@ -35,6 +35,12 @@ type JWTClaims struct {
 // a successful password step, required to complete MFA login.
 const mfaPendingPurpose = "mfa_pending"
 
+const (
+	issuerAuthServer     = "auth-server"
+	errInvalidSignMethod = "invalid signing method"
+	errInvalidToken      = "invalid token"
+)
+
 // GenerateAccessToken generates a new JWT access token
 func (s *TokenService) GenerateAccessToken(user *models.User, sessionID string) (string, error) {
 	expirationTime := time.Now().Add(15 * time.Minute) // 15 minutes
@@ -47,7 +53,7 @@ func (s *TokenService) GenerateAccessToken(user *models.User, sessionID string) 
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(expirationTime),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
-			Issuer:    "auth-server",
+			Issuer:    issuerAuthServer,
 		},
 	}
 
@@ -71,7 +77,7 @@ func (s *TokenService) GenerateRefreshToken(user *models.User) (string, error) {
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(expirationTime),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
-			Issuer:    "auth-server",
+			Issuer:    issuerAuthServer,
 		},
 	}
 
@@ -88,7 +94,7 @@ func (s *TokenService) GenerateRefreshToken(user *models.User) (string, error) {
 func (s *TokenService) ValidateAccessToken(tokenString string) (*JWTClaims, error) {
 	token, err := jwt.ParseWithClaims(tokenString, &JWTClaims{}, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, errors.New("invalid signing method")
+			return nil, errors.New(errInvalidSignMethod)
 		}
 		return []byte(s.cfg.JWT.AccessSecret), nil
 	})
@@ -101,12 +107,12 @@ func (s *TokenService) ValidateAccessToken(tokenString string) (*JWTClaims, erro
 		// Purpose-scoped tokens (e.g. the MFA-pending token) must never be
 		// accepted as access tokens.
 		if claims.Purpose != "" {
-			return nil, errors.New("invalid token")
+			return nil, errors.New(errInvalidToken)
 		}
 		return claims, nil
 	}
 
-	return nil, errors.New("invalid token")
+	return nil, errors.New(errInvalidToken)
 }
 
 // GenerateMFAToken issues a short-lived token proving the password step of
@@ -119,7 +125,7 @@ func (s *TokenService) GenerateMFAToken(userID string) (string, error) {
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(5 * time.Minute)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
-			Issuer:    "auth-server",
+			Issuer:    issuerAuthServer,
 		},
 	}
 
@@ -133,7 +139,7 @@ func (s *TokenService) GenerateMFAToken(userID string) (string, error) {
 func (s *TokenService) ValidateMFAToken(tokenString string) (string, error) {
 	token, err := jwt.ParseWithClaims(tokenString, &JWTClaims{}, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, errors.New("invalid signing method")
+			return nil, errors.New(errInvalidSignMethod)
 		}
 		return []byte(s.cfg.JWT.AccessSecret), nil
 	})
@@ -152,7 +158,7 @@ func (s *TokenService) ValidateMFAToken(tokenString string) (string, error) {
 func (s *TokenService) ValidateRefreshToken(tokenString string) (*JWTClaims, error) {
 	token, err := jwt.ParseWithClaims(tokenString, &JWTClaims{}, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, errors.New("invalid signing method")
+			return nil, errors.New(errInvalidSignMethod)
 		}
 		return []byte(s.cfg.JWT.RefreshSecret), nil
 	})
@@ -165,5 +171,5 @@ func (s *TokenService) ValidateRefreshToken(tokenString string) (*JWTClaims, err
 		return claims, nil
 	}
 
-	return nil, errors.New("invalid token")
+	return nil, errors.New(errInvalidToken)
 }
