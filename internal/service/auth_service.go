@@ -684,6 +684,19 @@ func (s *AuthService) RefreshAccessToken(refreshTokenString string, ipAddress, u
 
 	// Verify token is valid (not revoked and not expired)
 	if !storedToken.IsValid() {
+		if storedToken.IsRevoked {
+			// Token reuse detected! Revoke all tokens for this user.
+			log.Printf("Security Alert: Refresh token reuse detected for user %s. Revoking all active sessions.", storedToken.UserID)
+			if err := s.tokenRepo.RevokeAllUserTokens(storedToken.UserID); err != nil {
+				log.Printf("Error revoking all tokens for user %s: %v", storedToken.UserID, err)
+			}
+			// Log audit event
+			if err := s.auditService.LogEvent(&storedToken.UserID, "REFRESH_TOKEN_REUSE_DETECTED", "USER", storedToken.UserID, ipAddress, userAgent, map[string]interface{}{
+				"token_id": storedToken.ID,
+			}); err != nil {
+				log.Printf("Error logging REFRESH_TOKEN_REUSE_DETECTED audit event: %v", err)
+			}
+		}
 		return nil, errors.New("refresh token is invalid or expired")
 	}
 
