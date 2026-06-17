@@ -36,6 +36,7 @@ export function node(opts) {
             name: opts.packageName,
             private: true,
             type: 'module',
+            engines: { node: '>=20.6.0' },
             scripts: { start: 'node --env-file=.env index.mjs' },
             dependencies: { '@authserver/client': SDK_VERSION },
           },
@@ -217,7 +218,14 @@ export function App() {
 
   if (!isAuthenticated) {
     return (
-      <form onSubmit={(e) => { e.preventDefault(); void login(email, password); }}>
+      <form onSubmit={async (e) => {
+        e.preventDefault();
+        try {
+          await login(email, password);
+        } catch (err) {
+          alert('Login failed: ' + (err instanceof Error ? err.message : String(err)));
+        }
+      }}>
         <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="email" />
         <input value={password} type="password" onChange={(e) => setPassword(e.target.value)} placeholder="password" />
         <button type="submit">Sign in</button>
@@ -255,7 +263,7 @@ export function next(opts) {
             scripts: { dev: 'next dev', build: 'next build', start: 'next start' },
             dependencies: {
               '@authserver/client': SDK_VERSION,
-              next: '^14.2.0',
+              next: '^15.0.0',
               react: '^18.3.1',
               'react-dom': '^18.3.1',
             },

@@ -21,7 +21,7 @@
 
 `@authserver/client` is a complete authentication client for the [Auth Server](https://github.com/roshankumar0036singh/auth-server): email/password, social login (Google, GitHub), MFA, email verification, password reset, session management, and audit logs — fully typed, with React bindings.
 
-### Why this SDK
+## Why this SDK
 
 - **Zero runtime dependencies** — uses the native Fetch API; nothing to audit, tiny install.
 - **Automatic token refresh** — transparently refreshes and retries once after a `401`; concurrent refreshes are de-duplicated.
@@ -57,7 +57,7 @@ The package ships ESM, CommonJS, and TypeScript declarations. Node.js applicatio
 
 Every client needs two things: a **`serverUrl`** (which auth server to talk to) and a **`clientId`** (which application is talking to it). The fastest way to start is the **hosted server** — no infrastructure to run:
 
-```
+```yaml
 serverUrl: https://auth-server-4nmm.onrender.com
 ```
 

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, FormEvent } from 'react';
 import { AuthError } from '@authserver/client';
 import { useAuth } from '@authserver/client/react';
 
@@ -10,7 +10,7 @@ export function App() {
 
   if (isLoading) return <p style={{ fontFamily: 'sans-serif' }}>Loading session…</p>;
 
-  async function onSubmit(e: React.FormEvent) {
+  async function onSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
     try {

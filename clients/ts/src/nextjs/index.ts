@@ -153,36 +153,44 @@ export function createAuthServer(config: NextAuthConfig): AuthServer {
   }
 
   async function handleLogin(req: Request): Promise<Response> {
-    const body = (await req.json().catch(() => ({}))) as { email?: string; password?: string };
-    const res = await fetch(`${cfg.serverUrl}/api/auth/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: body.email, password: body.password }),
-    });
-    const data = (await res.json().catch(() => ({}))) as {
-      data?: { accessToken?: string; refreshToken?: string; user?: User };
-    };
-    if (!res.ok || !data.data?.accessToken) {
-      return jsonResponse(data, res.status === 200 ? 502 : res.status);
+    try {
+      const body = (await req.json().catch(() => ({}))) as { email?: string; password?: string };
+      const res = await fetch(`${cfg.serverUrl}/api/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: body.email, password: body.password }),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        data?: { accessToken?: string; refreshToken?: string; user?: User };
+      };
+      if (!res.ok || !data.data?.accessToken) {
+        return jsonResponse(data, res.status === 200 ? 502 : res.status);
+      }
+      return jsonResponse({ user: data.data.user ?? null }, 200, sessionCookies(data.data.accessToken, data.data.refreshToken));
+    } catch (err) {
+      return jsonResponse({ error: 'Network or internal error during login' }, 502);
     }
-    return jsonResponse({ user: data.data.user ?? null }, 200, sessionCookies(data.data.accessToken, data.data.refreshToken));
   }
 
   async function handleRefresh(req: Request): Promise<Response> {
     const refreshToken = readCookie(req, cfg.rtName);
     if (!refreshToken) return jsonResponse({ error: 'No refresh token' }, 401, [clearCookie(cfg.atName), clearCookie(cfg.rtName)]);
-    const res = await fetch(`${cfg.serverUrl}/api/auth/refresh`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ refreshToken }),
-    });
-    const data = (await res.json().catch(() => ({}))) as {
-      data?: { accessToken?: string; refreshToken?: string };
-    };
-    if (!res.ok || !data.data?.accessToken) {
-      return jsonResponse({ error: 'Refresh failed' }, 401, [clearCookie(cfg.atName), clearCookie(cfg.rtName)]);
+    try {
+      const res = await fetch(`${cfg.serverUrl}/api/auth/refresh`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refreshToken }),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        data?: { accessToken?: string; refreshToken?: string };
+      };
+      if (!res.ok || !data.data?.accessToken) {
+        return jsonResponse({ error: 'Refresh failed' }, 401, [clearCookie(cfg.atName), clearCookie(cfg.rtName)]);
+      }
+      return jsonResponse({ ok: true }, 200, sessionCookies(data.data.accessToken, data.data.refreshToken));
+    } catch (err) {
+      return jsonResponse({ error: 'Network or internal error during refresh' }, 502, [clearCookie(cfg.atName), clearCookie(cfg.rtName)]);
     }
-    return jsonResponse({ ok: true }, 200, sessionCookies(data.data.accessToken, data.data.refreshToken));
   }
 
   async function handleLogout(req: Request): Promise<Response> {
@@ -278,7 +286,14 @@ export function createAuthServer(config: NextAuthConfig): AuthServer {
 
   function toNodeHandler() {
     return async (req: NodeReq, res: NodeRes): Promise<void> => {
-      const request = await nodeRequestToWeb(req, cfg.serverUrl);
+      let host = req.headers.host;
+      if (Array.isArray(host)) host = host[0];
+      let origin = cfg.serverUrl;
+      if (host) {
+        const protocol = host.includes('localhost') ? 'http' : 'https';
+        origin = `${protocol}://${host}`;
+      }
+      const request = await nodeRequestToWeb(req, origin);
       const response = await dispatch(request);
       await writeWebResponseToNode(response, res);
     };

@@ -4,7 +4,7 @@
 //   2. npm install
 //   3. npm start
 //
-// Node 18+ is required (it provides a global fetch). The script logs in with the
+// Node 20.6+ is required (it provides a global fetch and --env-file). The script logs in with the
 // credentials from .env, reads the current user, then logs out.
 
 import { AuthClient, AuthError } from '@authserver/client';

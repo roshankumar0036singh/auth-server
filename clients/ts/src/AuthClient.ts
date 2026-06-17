@@ -341,7 +341,12 @@ export class AuthClient {
     const source = href ?? (globalThis.window === undefined ? undefined : globalThis.window.location.href);
     if (!source) return null;
 
-    const parsed = new URL(source);
+    let parsed: URL;
+    try {
+      parsed = new URL(source);
+    } catch {
+      return null;
+    }
     const accessToken = parsed.searchParams.get('access_token');
     if (!accessToken) return null;
 

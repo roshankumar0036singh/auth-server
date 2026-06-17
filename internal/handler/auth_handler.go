@@ -555,14 +555,16 @@ func (h *AuthHandler) completeOAuthLogin(c *gin.Context, loginResp *dto.LoginRes
 		}
 
 		if target, perr := url.Parse(redirectURI); perr == nil {
-			q := target.Query()
-			q.Set("access_token", loginResp.AccessToken)
-			if loginResp.RefreshToken != "" {
-				q.Set("refresh_token", loginResp.RefreshToken)
+			if target.Scheme == "http" || target.Scheme == "https" {
+				q := target.Query()
+				q.Set("access_token", loginResp.AccessToken)
+				if loginResp.RefreshToken != "" {
+					q.Set("refresh_token", loginResp.RefreshToken)
+				}
+				target.RawQuery = q.Encode()
+				c.Redirect(http.StatusFound, target.String())
+				return
 			}
-			target.RawQuery = q.Encode()
-			c.Redirect(http.StatusFound, target.String())
-			return
 		}
 	}
 	c.JSON(http.StatusOK, utils.SuccessResponse(msgLoginSuccess, loginResp))
