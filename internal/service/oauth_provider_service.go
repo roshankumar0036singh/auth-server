@@ -273,10 +273,16 @@ func (s *OAuthProviderService) ExchangeCodeForToken(code, clientID, redirectURI,
 
 // ValidateAccessToken validates an OAuth access token
 func (s *OAuthProviderService) ValidateAccessToken(tokenString string) (*models.OAuthAccessToken, error) {
+	// Try finding by hashed token first
 	hashedToken := utils.HashToken(tokenString)
 	token, err := s.tokenRepo.FindByToken(hashedToken)
 	if err != nil {
-		return nil, errors.New("invalid access token")
+		// Fallback to raw token lookup for backward compatibility
+		var fallbackErr error
+		token, fallbackErr = s.tokenRepo.FindByToken(tokenString)
+		if fallbackErr != nil {
+			return nil, errors.New("invalid access token")
+		}
 	}
 
 	if token.IsExpired() {
