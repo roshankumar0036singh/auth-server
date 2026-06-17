@@ -94,7 +94,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, redisClient *redis.Client, cfg
 		overallStatus := "ok"
 		statusCode := http.StatusOK
 
-		dbCtx, dbCancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+		dbCtx, dbCancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer dbCancel()
 
 		// Check DB
@@ -109,7 +109,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, redisClient *redis.Client, cfg
 			statusCode = http.StatusServiceUnavailable
 		}
 
-		redisCtx, redisCancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+		redisCtx, redisCancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer redisCancel()
 
 		// Check Redis
