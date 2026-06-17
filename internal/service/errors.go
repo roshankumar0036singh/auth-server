@@ -1,5 +1,5 @@
 package service
 
-import "errors"
+import "github.com/roshankumar0036singh/auth-server/internal/repository"
 
-var ErrUserNotFound = errors.New("user not found")
+var ErrUserNotFound = repository.ErrUserNotFound

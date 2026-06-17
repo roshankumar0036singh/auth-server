@@ -297,23 +297,70 @@ export class AuthClient {
   /**
    * Initiates Google OAuth login by redirecting the browser.
    * This method only works in browser environments.
+   *
+   * @param redirectUri Where the auth server sends the browser back to after
+   *   login (must be registered on your OAuth client). The callback receives
+   *   `access_token`/`refresh_token` query params — call
+   *   {@link AuthClient.completeOAuthRedirect} there. When omitted, the server
+   *   returns the session as JSON (legacy behavior).
    */
-  public loginWithGoogle(): void {
-    if (typeof globalThis.window === 'undefined') {
-      throw new AuthError('loginWithGoogle() can only be used in a browser', 'BROWSER_ONLY', 0);
-    }
-    globalThis.window.location.href = `${this.serverUrl}/api/auth/google/login?client_id=${encodeURIComponent(this.clientId)}`;
+  public loginWithGoogle(redirectUri?: string): void {
+    this.redirectToSocialLogin('google', redirectUri);
   }
 
   /**
    * Initiates GitHub OAuth login by redirecting the browser.
    * This method only works in browser environments.
+   *
+   * @param redirectUri See {@link AuthClient.loginWithGoogle}.
    */
-  public loginWithGitHub(): void {
+  public loginWithGitHub(redirectUri?: string): void {
+    this.redirectToSocialLogin('github', redirectUri);
+  }
+
+  private redirectToSocialLogin(provider: 'google' | 'github', redirectUri?: string): void {
     if (typeof globalThis.window === 'undefined') {
-      throw new AuthError('loginWithGitHub() can only be used in a browser', 'BROWSER_ONLY', 0);
+      throw new AuthError(`loginWith${provider === 'google' ? 'Google' : 'GitHub'}() can only be used in a browser`, 'BROWSER_ONLY', 0);
     }
-    globalThis.window.location.href = `${this.serverUrl}/api/auth/github/login?client_id=${encodeURIComponent(this.clientId)}`;
+    let url = `${this.serverUrl}/api/auth/${provider}/login?client_id=${encodeURIComponent(this.clientId)}`;
+    if (redirectUri) {
+      url += `&redirect_uri=${encodeURIComponent(redirectUri)}`;
+    }
+    globalThis.window.location.href = url;
+  }
+
+  /**
+   * Completes a social-login redirect in the browser. Reads `access_token` and
+   * `refresh_token` from the current URL's query string (set by the auth server
+   * after Google/GitHub login), stores the session, and strips the tokens from
+   * the visible URL. Returns the session, or `null` when no tokens are present.
+   *
+   * @param href Optional URL to parse instead of `window.location.href`.
+   */
+  public completeOAuthRedirect(href?: string): Session | null {
+    const source = href ?? (globalThis.window === undefined ? undefined : globalThis.window.location.href);
+    if (!source) return null;
+
+    let parsed: URL;
+    try {
+      parsed = new URL(source);
+    } catch {
+      return null;
+    }
+    const accessToken = parsed.searchParams.get('access_token');
+    if (!accessToken) return null;
+
+    const refreshToken = parsed.searchParams.get('refresh_token') ?? undefined;
+    const session: Session = { accessToken, refreshToken };
+    this.saveSession(session);
+
+    if (!href && globalThis.window !== undefined) {
+      parsed.searchParams.delete('access_token');
+      parsed.searchParams.delete('refresh_token');
+      globalThis.window.history.replaceState({}, '', parsed.pathname + parsed.search + parsed.hash);
+    }
+
+    return session;
   }
 
   // --- User Profile & Account ---

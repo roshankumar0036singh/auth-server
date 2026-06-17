@@ -1,26 +1,27 @@
-package handler_test
+package handler
 
 import (
 	"bytes"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 
 	"github.com/gin-gonic/gin"
 	"github.com/roshankumar0036singh/auth-server/internal/config"
 	"github.com/roshankumar0036singh/auth-server/internal/dto"
-	"github.com/roshankumar0036singh/auth-server/internal/handler"
 	"github.com/roshankumar0036singh/auth-server/internal/middleware"
+	"github.com/roshankumar0036singh/auth-server/internal/repository"
 	"github.com/roshankumar0036singh/auth-server/internal/service"
 	"github.com/roshankumar0036singh/auth-server/internal/testutils"
 	"github.com/stretchr/testify/assert"
 )
 
-func SetupRouter(t *testing.T) (*gin.Engine, *handler.AuthHandler) {
+func SetupRouter(t *testing.T) (*gin.Engine, *AuthHandler) {
 	authService, _, mr := testutils.SetupIntegrationTest(t)
 	// mock OAuth service or pass nil if not needed for these tests
-	authHandler := handler.NewAuthHandler(authService, nil)
+	authHandler := NewAuthHandler(authService, nil, nil)
 
 	t.Cleanup(func() { mr.Close() }) // Ensure mr is closed after tests in this Setup config
 
@@ -102,7 +103,7 @@ func TestAuthHandler_GetSessions_CurrentSessionFlag(t *testing.T) {
 	authService, _, mr := testutils.SetupIntegrationTest(t)
 	defer mr.Close()
 
-	authHandler := handler.NewAuthHandler(authService, nil)
+	authHandler := NewAuthHandler(authService, nil, nil)
 
 	cfg := &config.Config{
 		JWT: config.JWTConfig{
@@ -191,7 +192,7 @@ func TestAuthHandler_GetSessions_NoSessionIDInContext(t *testing.T) {
 	authService, _, mr := testutils.SetupIntegrationTest(t)
 	defer mr.Close()
 
-	authHandler := handler.NewAuthHandler(authService, nil)
+	authHandler := NewAuthHandler(authService, nil, nil)
 
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
@@ -253,4 +254,138 @@ func TestAuthHandler_GetSessions_NoSessionIDInContext(t *testing.T) {
 			"expected no session to be marked current when sessionID is missing",
 		)
 	}
+}
+
+func TestAuthHandler_OAuthRedirectFlow(t *testing.T) {
+	authService, db, mr := testutils.SetupIntegrationTest(t)
+	defer mr.Close()
+
+	clientRepo := repository.NewOAuthClientRepository(db)
+	codeRepo := repository.NewAuthorizationCodeRepository(db)
+	tokenRepo := repository.NewOAuthTokenRepository(db)
+	consentRepo := repository.NewUserConsentRepository(db)
+	configRepo := repository.NewOAuthProviderConfigRepository(db)
+	cfg := &config.Config{}
+	tokenService := service.NewTokenService(cfg)
+	oauthProviderService := service.NewOAuthProviderService(
+		clientRepo, codeRepo, tokenRepo, consentRepo, configRepo, tokenService, cfg,
+	)
+
+	client, _, err := oauthProviderService.CreateClient("Test Client", []string{"http://localhost:5173/callback"}, []string{"read:profile"}, "user-1", true)
+	assert.NoError(t, err)
+
+	h := NewAuthHandler(authService, nil, oauthProviderService)
+	gin.SetMode(gin.TestMode)
+
+	executeReq := func(r *gin.Engine, path string) *httptest.ResponseRecorder {
+		req, _ := http.NewRequest(http.MethodGet, path, nil)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		return w
+	}
+
+	t.Run("storeOAuthRedirect stores valid URI", func(t *testing.T) {
+		r := gin.New()
+		r.GET("/test-store", func(c *gin.Context) {
+			err := h.storeOAuthRedirect(c, client.ClientID, "http://localhost:5173/callback")
+			if err != nil {
+				c.Status(http.StatusBadRequest)
+			} else {
+				c.Status(http.StatusOK)
+			}
+		})
+
+		w := executeReq(r, "/test-store")
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		cookieFound := false
+		for _, c := range w.Result().Cookies() {
+			if c.Name == "oauth_redirect" {
+				assert.Equal(t, "http://localhost:5173/callback", c.Value)
+				cookieFound = true
+			}
+		}
+		assert.True(t, cookieFound)
+	})
+
+	t.Run("storeOAuthRedirect rejects invalid URI", func(t *testing.T) {
+		r := gin.New()
+		r.GET("/test-store", func(c *gin.Context) {
+			err := h.storeOAuthRedirect(c, client.ClientID, "http://attacker.com/callback")
+			if err != nil {
+				c.Status(http.StatusBadRequest)
+			} else {
+				c.Status(http.StatusOK)
+			}
+		})
+
+		w := executeReq(r, "/test-store")
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("completeOAuthLogin with valid cookie redirects", func(t *testing.T) {
+		r := gin.New()
+		r.GET("/test-complete", func(c *gin.Context) {
+			c.Request.AddCookie(&http.Cookie{
+				Name:  "oauth_redirect",
+				Value: "http://localhost:5173/callback",
+			})
+			resp := &dto.LoginResponse{AccessToken: "acc123", RefreshToken: "ref123"}
+			h.completeOAuthLogin(c, resp, client.ClientID)
+		})
+
+		w := executeReq(r, "/test-complete")
+
+		assert.Equal(t, http.StatusFound, w.Code)
+		loc := w.Header().Get("Location")
+		parsed, _ := url.Parse(loc)
+		assert.Equal(t, "http://localhost:5173/callback", parsed.Scheme+"://"+parsed.Host+parsed.Path)
+		assert.Equal(t, "acc123", parsed.Query().Get("access_token"))
+		assert.Equal(t, "ref123", parsed.Query().Get("refresh_token"))
+	})
+
+	t.Run("completeOAuthLogin invalidates bad cookie", func(t *testing.T) {
+		r := gin.New()
+		r.GET("/test-complete", func(c *gin.Context) {
+			c.Request.AddCookie(&http.Cookie{
+				Name:  "oauth_redirect",
+				Value: "http://attacker.com/bad",
+			})
+			resp := &dto.LoginResponse{AccessToken: "acc123", RefreshToken: "ref123"}
+			h.completeOAuthLogin(c, resp, client.ClientID)
+		})
+
+		w := executeReq(r, "/test-complete")
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("completeOAuthLogin blocks non-http scheme", func(t *testing.T) {
+		r := gin.New()
+		r.GET("/test-complete", func(c *gin.Context) {
+			c.Request.AddCookie(&http.Cookie{
+				Name:  "oauth_redirect",
+				Value: "javascript:alert(1)",
+			})
+			resp := &dto.LoginResponse{AccessToken: "acc123"}
+			h.completeOAuthLogin(c, resp, client.ClientID)
+		})
+
+		w := executeReq(r, "/test-complete")
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("completeOAuthLogin fallback to JSON", func(t *testing.T) {
+		r := gin.New()
+		r.GET("/test-complete", func(c *gin.Context) {
+			resp := &dto.LoginResponse{AccessToken: "acc123"}
+			h.completeOAuthLogin(c, resp, client.ClientID)
+		})
+
+		w := executeReq(r, "/test-complete")
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		var b map[string]interface{}
+		json.Unmarshal(w.Body.Bytes(), &b)
+		assert.True(t, b["success"].(bool))
+	})
 }
