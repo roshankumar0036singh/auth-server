@@ -53,6 +53,11 @@ func (h *OAuthHandler) Authorize(c *gin.Context) {
 	responseType := c.Query("response_type")
 	scope := c.Query("scope")
 	state := c.Query("state")
+        codeChallenge := c.Query("code_challenge")
+        codeChallengeMethod := c.Query("code_challenge_method")
+        if codeChallenge != "" && codeChallengeMethod == "" {
+            codeChallengeMethod = "S256"
+        }
 
 	// Validate required parameters
 	if clientID == "" || redirectURI == "" || responseType == "" {
@@ -107,7 +112,8 @@ func (h *OAuthHandler) Authorize(c *gin.Context) {
 	hasConsent, err := h.oauthProviderService.CheckConsent(userID.(string), clientID, scopes)
 	if err == nil && hasConsent {
 		// User has already consented, generate code immediately
-		code, err := h.oauthProviderService.GenerateAuthorizationCode(clientID, userID.(string), redirectURI, scopes)
+		// in Authorize GET:
+                code, err := h.oauthProviderService.GenerateAuthorizationCode(clientID, userID.(string), redirectURI, scopes, strPtr(codeChallenge), strPtr(codeChallengeMethod))
 		if err != nil {
 			redirectError(c, redirectURI, "server_error", "Failed to generate authorization code", state)
 			return
@@ -157,9 +163,11 @@ func (h *OAuthHandler) Authorize(c *gin.Context) {
 func (h *OAuthHandler) AuthorizePost(c *gin.Context) {
 	action := c.PostForm("action")
 	clientID := c.PostForm("client_id")
-	redirectURI := c.PostForm("redirect_uri")
-	scope := c.PostForm("scope")
+        redirectURI := c.PostForm("redirect_uri")
+        scope := c.PostForm("scope")
 	state := c.PostForm("state")
+        codeChallenge := c.PostForm("code_challenge")
+        codeChallengeMethod := c.PostForm("code_challenge_method")
 
 	// Check if user denied
 	if action == "deny" {
@@ -186,7 +194,7 @@ func (h *OAuthHandler) AuthorizePost(c *gin.Context) {
 	}
 
 	// Generate authorization code
-	code, err := h.oauthProviderService.GenerateAuthorizationCode(clientID, userID.(string), redirectURI, scopes)
+        code, err := h.oauthProviderService.GenerateAuthorizationCode(clientID, userID.(string), redirectURI, scopes, strPtr(codeChallenge), strPtr(codeChallengeMethod))
 	if err != nil {
 		redirectError(c, redirectURI, "server_error", "Failed to generate authorization code", state)
 		return
@@ -217,6 +225,7 @@ func (h *OAuthHandler) Token(c *gin.Context) {
 	clientID := c.PostForm("client_id")
 	clientSecret := c.PostForm("client_secret")
 	redirectURI := c.PostForm("redirect_uri")
+        codeVerifier := c.PostForm("code_verifier")
 
 	// Validate grant type
 	if grantType != "authorization_code" {
@@ -228,16 +237,27 @@ func (h *OAuthHandler) Token(c *gin.Context) {
 	}
 
 	// Validate client credentials
-	if _, err := h.oauthProviderService.ValidateClient(clientID, clientSecret); err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"error":             "invalid_client",
-			"error_description": "Invalid client credentials",
-		})
-		return
-	}
+	client, err := h.oauthProviderService.ResolveClientForToken(clientID, clientSecret)
+        if err != nil {
+                c.JSON(http.StatusUnauthorized, gin.H{
+                        "error":             "invalid_client",
+                        "error_description": err.Error(),
+                })
+                return
+        }
+
+        // Public clients MUST use PKCE — reject if no verifier was sent at all,
+        // independent of whether the stored auth code happens to have a challenge.
+        if client.IsPublic && codeVerifier == "" {
+                c.JSON(http.StatusBadRequest, gin.H{
+                        "error":             "invalid_request",
+                        "error_description": "code_verifier is required for public clients",
+                })
+                return
+        }
 
 	// Exchange code for token
-	accessToken, err := h.oauthProviderService.ExchangeCodeForToken(code, clientID, redirectURI)
+	accessToken, err := h.oauthProviderService.ExchangeCodeForToken(code, clientID, redirectURI, codeVerifier, client.IsPublic)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":             "invalid_grant",
