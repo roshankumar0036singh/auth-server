@@ -11,7 +11,8 @@ export function toPackageName(input) {
     .trim()
     .toLowerCase()
     .replace(/[^a-z0-9._-]+/g, '-')
-    .replace(/^[-_.]+|[-_.]+$/g, '');
+    .replace(/^[-_.]+/, '')
+    .replace(/[-_.]+$/, '');
   return cleaned || 'my-auth-app';
 }
 
