@@ -256,7 +256,8 @@ func (s *OAuthProviderService) ExchangeCodeForToken(code, clientID, redirectURI,
 	}
 
 	accessToken := &models.OAuthAccessToken{
-		Token:     tokenString,
+		Token:     utils.HashToken(tokenString),
+		RawToken:  tokenString,
 		ClientID:  authCode.ClientID,
 		UserID:    authCode.UserID,
 		Scopes:    models.StringArray(authCode.Scopes),
@@ -272,7 +273,8 @@ func (s *OAuthProviderService) ExchangeCodeForToken(code, clientID, redirectURI,
 
 // ValidateAccessToken validates an OAuth access token
 func (s *OAuthProviderService) ValidateAccessToken(tokenString string) (*models.OAuthAccessToken, error) {
-	token, err := s.tokenRepo.FindByToken(tokenString)
+	hashedToken := utils.HashToken(tokenString)
+	token, err := s.tokenRepo.FindByToken(hashedToken)
 	if err != nil {
 		return nil, errors.New("invalid access token")
 	}

@@ -17,6 +17,7 @@ import (
 	"github.com/roshankumar0036singh/auth-server/internal/repository"
 	"github.com/roshankumar0036singh/auth-server/internal/service"
 	"github.com/roshankumar0036singh/auth-server/internal/testutils"
+	"github.com/roshankumar0036singh/auth-server/internal/utils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
         "github.com/lib/pq"
@@ -51,7 +52,8 @@ func createOAuthAccessToken(t *testing.T, tokenRepo *repository.OAuthTokenReposi
 	token := "oauth-token-" + uuid.NewString()
 	err := tokenRepo.Create(&models.OAuthAccessToken{
 		ID:        uuid.NewString(),
-		Token:     token,
+		Token:     utils.HashToken(token),
+		RawToken:  token,
 		ClientID:  uuid.NewString(),
 		UserID:    userID,
 		Scopes:    models.StringArray(scopes),

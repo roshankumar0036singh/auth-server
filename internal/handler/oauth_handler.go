@@ -274,7 +274,7 @@ func (h *OAuthHandler) Token(c *gin.Context) {
 
 	// Return access token
 	c.JSON(http.StatusOK, gin.H{
-		"access_token": accessToken.Token,
+		"access_token": accessToken.RawToken,
 		"token_type":   "Bearer",
 		"expires_in":   3600, // 1 hour
 		"scope":        strings.Join(accessToken.Scopes, " "),
