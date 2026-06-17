@@ -277,6 +277,13 @@ func TestAuthHandler_OAuthRedirectFlow(t *testing.T) {
 	h := NewAuthHandler(authService, nil, oauthProviderService)
 	gin.SetMode(gin.TestMode)
 
+	executeReq := func(r *gin.Engine, path string) *httptest.ResponseRecorder {
+		req, _ := http.NewRequest(http.MethodGet, path, nil)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		return w
+	}
+
 	t.Run("storeOAuthRedirect stores valid URI", func(t *testing.T) {
 		r := gin.New()
 		r.GET("/test-store", func(c *gin.Context) {
@@ -288,9 +295,7 @@ func TestAuthHandler_OAuthRedirectFlow(t *testing.T) {
 			}
 		})
 
-		req, _ := http.NewRequest(http.MethodGet, "/test-store", nil)
-		w := httptest.NewRecorder()
-		r.ServeHTTP(w, req)
+		w := executeReq(r, "/test-store")
 
 		assert.Equal(t, http.StatusOK, w.Code)
 		cookieFound := false
@@ -314,10 +319,7 @@ func TestAuthHandler_OAuthRedirectFlow(t *testing.T) {
 			}
 		})
 
-		req, _ := http.NewRequest(http.MethodGet, "/test-store", nil)
-		w := httptest.NewRecorder()
-		r.ServeHTTP(w, req)
-
+		w := executeReq(r, "/test-store")
 		assert.Equal(t, http.StatusBadRequest, w.Code)
 	})
 
@@ -332,9 +334,7 @@ func TestAuthHandler_OAuthRedirectFlow(t *testing.T) {
 			h.completeOAuthLogin(c, resp, client.ClientID)
 		})
 
-		req, _ := http.NewRequest(http.MethodGet, "/test-complete", nil)
-		w := httptest.NewRecorder()
-		r.ServeHTTP(w, req)
+		w := executeReq(r, "/test-complete")
 
 		assert.Equal(t, http.StatusFound, w.Code)
 		loc := w.Header().Get("Location")
@@ -355,10 +355,7 @@ func TestAuthHandler_OAuthRedirectFlow(t *testing.T) {
 			h.completeOAuthLogin(c, resp, client.ClientID)
 		})
 
-		req, _ := http.NewRequest(http.MethodGet, "/test-complete", nil)
-		w := httptest.NewRecorder()
-		r.ServeHTTP(w, req)
-
+		w := executeReq(r, "/test-complete")
 		assert.Equal(t, http.StatusBadRequest, w.Code)
 	})
 
@@ -373,10 +370,7 @@ func TestAuthHandler_OAuthRedirectFlow(t *testing.T) {
 			h.completeOAuthLogin(c, resp, client.ClientID)
 		})
 
-		req, _ := http.NewRequest(http.MethodGet, "/test-complete", nil)
-		w := httptest.NewRecorder()
-		r.ServeHTTP(w, req)
-
+		w := executeReq(r, "/test-complete")
 		assert.Equal(t, http.StatusBadRequest, w.Code)
 	})
 
@@ -387,9 +381,7 @@ func TestAuthHandler_OAuthRedirectFlow(t *testing.T) {
 			h.completeOAuthLogin(c, resp, client.ClientID)
 		})
 
-		req, _ := http.NewRequest(http.MethodGet, "/test-complete", nil)
-		w := httptest.NewRecorder()
-		r.ServeHTTP(w, req)
+		w := executeReq(r, "/test-complete")
 
 		assert.Equal(t, http.StatusOK, w.Code)
 		var b map[string]interface{}
