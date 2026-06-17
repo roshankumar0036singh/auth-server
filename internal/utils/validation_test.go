@@ -1,9 +1,10 @@
 package utils
 
 import (
-	"testing"
+    "testing"
 
-	"github.com/stretchr/testify/assert"
+    "github.com/stretchr/testify/assert"
+    "github.com/stretchr/testify/require"
 )
 
 func TestValidatePassword(t *testing.T) {
@@ -55,7 +56,7 @@ func TestValidatePassword(t *testing.T) {
 			err := ValidatePassword(tt.password)
 
 			if tt.expectError {
-				assert.Error(t, err)
+				require.Error(t, err)
 				assert.Equal(t, tt.errorMsg, err.Error())
 			} else {
 				assert.NoError(t, err)
