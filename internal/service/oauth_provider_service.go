@@ -75,7 +75,12 @@ func (s *OAuthProviderService) CreateClient(name string, redirectURIs []string, 
 	}
 
 	// Hash the client secret
-	hashedSecret, err := bcrypt.GenerateFromPassword([]byte(clientSecret), s.cfg.Security.BcryptRounds)
+	rounds := s.cfg.Security.BcryptRounds
+	if rounds < bcrypt.MinCost || rounds > bcrypt.MaxCost {
+		rounds = bcrypt.DefaultCost
+	}
+
+	hashedSecret, err := bcrypt.GenerateFromPassword([]byte(clientSecret), rounds)
 	if err != nil {
 		return nil, "", err
 	}
