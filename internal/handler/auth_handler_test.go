@@ -20,7 +20,7 @@ import (
 func SetupRouter(t *testing.T) (*gin.Engine, *handler.AuthHandler) {
 	authService, _, mr := testutils.SetupIntegrationTest(t)
 	// mock OAuth service or pass nil if not needed for these tests
-	authHandler := handler.NewAuthHandler(authService, nil)
+	authHandler := handler.NewAuthHandler(authService, nil, nil)
 
 	t.Cleanup(func() { mr.Close() }) // Ensure mr is closed after tests in this Setup config
 
@@ -102,7 +102,7 @@ func TestAuthHandler_GetSessions_CurrentSessionFlag(t *testing.T) {
 	authService, _, mr := testutils.SetupIntegrationTest(t)
 	defer mr.Close()
 
-	authHandler := handler.NewAuthHandler(authService, nil)
+	authHandler := handler.NewAuthHandler(authService, nil, nil)
 
 	cfg := &config.Config{
 		JWT: config.JWTConfig{
@@ -191,7 +191,7 @@ func TestAuthHandler_GetSessions_NoSessionIDInContext(t *testing.T) {
 	authService, _, mr := testutils.SetupIntegrationTest(t)
 	defer mr.Close()
 
-	authHandler := handler.NewAuthHandler(authService, nil)
+	authHandler := handler.NewAuthHandler(authService, nil, nil)
 
 	gin.SetMode(gin.TestMode)
 	r := gin.New()

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -20,14 +21,16 @@ const (
 )
 
 type AuthHandler struct {
-	authService  *service.AuthService
-	oauthService *service.OAuthService
+	authService          *service.AuthService
+	oauthService         *service.OAuthService
+	oauthProviderService *service.OAuthProviderService
 }
 
-func NewAuthHandler(authService *service.AuthService, oauthService *service.OAuthService) *AuthHandler {
+func NewAuthHandler(authService *service.AuthService, oauthService *service.OAuthService, oauthProviderService *service.OAuthProviderService) *AuthHandler {
 	return &AuthHandler{
-		authService:  authService,
-		oauthService: oauthService,
+		authService:          authService,
+		oauthService:         oauthService,
+		oauthProviderService: oauthProviderService,
 	}
 }
 
@@ -502,12 +505,65 @@ func (h *AuthHandler) RevokeSession(c *gin.Context) {
 	c.JSON(http.StatusOK, utils.SuccessResponse("Session revoked successfully", nil))
 }
 
+// storeOAuthRedirect validates a requested social-login redirect_uri against the
+// client's registered redirect URIs and, when valid, stores it in a short-lived
+// cookie for the callback to consume. An empty redirect_uri is a no-op (the
+// callback falls back to returning JSON, preserving backward compatibility).
+func (h *AuthHandler) storeOAuthRedirect(c *gin.Context, clientID, redirectURI string) error {
+	if redirectURI == "" {
+		return nil
+	}
+	if h.oauthProviderService == nil {
+		return errors.New("redirect_uri is not supported on this server")
+	}
+	if clientID == "" {
+		return errors.New("client_id is required when redirect_uri is provided")
+	}
+	client, err := h.oauthProviderService.GetPublicClient(clientID)
+	if err != nil {
+		return err
+	}
+	if err := h.oauthProviderService.ValidateRedirectURI(client, redirectURI); err != nil {
+		return err
+	}
+	isProd := gin.Mode() == gin.ReleaseMode
+	c.SetCookie("oauth_redirect", redirectURI, 3600, "/", "", isProd, true)
+	return nil
+}
+
+// completeOAuthLogin finishes a social-login callback. When a validated
+// redirect_uri was stored, it redirects the browser back to the app with the
+// tokens as query parameters; otherwise it returns the tokens as JSON.
+func (h *AuthHandler) completeOAuthLogin(c *gin.Context, loginResp *dto.LoginResponse) {
+	isProd := gin.Mode() == gin.ReleaseMode
+	redirectURI, err := c.Cookie("oauth_redirect")
+	if err == nil && redirectURI != "" {
+		c.SetCookie("oauth_redirect", "", -1, "/", "", isProd, true)
+		if target, perr := url.Parse(redirectURI); perr == nil {
+			q := target.Query()
+			q.Set("access_token", loginResp.AccessToken)
+			if loginResp.RefreshToken != "" {
+				q.Set("refresh_token", loginResp.RefreshToken)
+			}
+			target.RawQuery = q.Encode()
+			c.Redirect(http.StatusFound, target.String())
+			return
+		}
+	}
+	c.JSON(http.StatusOK, utils.SuccessResponse(msgLoginSuccess, loginResp))
+}
+
 // GoogleLogin initiates Google OAuth login
 // @Summary Login with Google
 // @Tags auth
 // @Router /api/auth/google/login [get]
 func (h *AuthHandler) GoogleLogin(c *gin.Context) {
 	clientID := c.Query("client_id")
+
+	if err := h.storeOAuthRedirect(c, clientID, c.Query("redirect_uri")); err != nil {
+		c.JSON(http.StatusBadRequest, utils.ErrorResponse("Invalid redirect_uri", err))
+		return
+	}
 
 	rawState, err := h.oauthService.GenerateState()
 	if err != nil {
@@ -588,11 +644,7 @@ func (h *AuthHandler) GoogleCallback(c *gin.Context) {
 		return
 	}
 
-	// Redirect to frontend with tokens? Or return JSON?
-	// Usually callback redirects to frontend with query params or sets cookies
-	// For this API, let's return JSON if caller can handle it, but standard Browser flow needs redirect.
-	// We'll return JSON for now as per API design, but in real app we'd redirect to frontend app URL
-	c.JSON(http.StatusOK, utils.SuccessResponse(msgLoginSuccess, loginResp))
+	h.completeOAuthLogin(c, loginResp)
 }
 
 // GitHubLogin initiates GitHub OAuth login
@@ -601,6 +653,11 @@ func (h *AuthHandler) GoogleCallback(c *gin.Context) {
 // @Router /api/auth/github/login [get]
 func (h *AuthHandler) GitHubLogin(c *gin.Context) {
 	clientID := c.Query("client_id")
+
+	if err := h.storeOAuthRedirect(c, clientID, c.Query("redirect_uri")); err != nil {
+		c.JSON(http.StatusBadRequest, utils.ErrorResponse("Invalid redirect_uri", err))
+		return
+	}
 
 	rawState, err := h.oauthService.GenerateState()
 	if err != nil {
@@ -686,7 +743,7 @@ func (h *AuthHandler) GitHubCallback(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, utils.SuccessResponse(msgLoginSuccess, loginResp))
+	h.completeOAuthLogin(c, loginResp)
 }
 
 // EnableMFA initates MFA setup

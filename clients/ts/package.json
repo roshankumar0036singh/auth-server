@@ -8,7 +8,9 @@
   "sideEffects": false,
   "files": [
     "dist",
-    "README.md"
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
   ],
   "exports": {
     ".": {
@@ -20,29 +22,57 @@
       "types": "./dist/react/index.d.ts",
       "import": "./dist/react/index.mjs",
       "require": "./dist/react/index.js"
+    },
+    "./nextjs": {
+      "types": "./dist/nextjs/index.d.ts",
+      "import": "./dist/nextjs/index.mjs",
+      "require": "./dist/nextjs/index.js"
     }
   },
   "scripts": {
-    "build": "tsup src/index.ts src/react/index.tsx --format cjs,esm --dts --clean",
-    "dev": "tsup src/index.ts src/react/index.tsx --format cjs,esm --dts --watch",
+    "build": "tsup src/index.ts src/react/index.tsx src/nextjs/index.ts --format cjs,esm --dts --clean",
+    "dev": "tsup src/index.ts src/react/index.tsx src/nextjs/index.ts --format cjs,esm --dts --watch",
     "prepublishOnly": "npm run build",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [
     "auth",
     "authentication",
+    "authorization",
     "sdk",
     "oauth",
+    "oauth2",
+    "pkce",
     "react",
+    "react-hooks",
+    "nextjs",
+    "next",
+    "ssr",
     "typescript",
     "jwt",
-    "mfa"
+    "mfa",
+    "2fa",
+    "totp",
+    "session",
+    "login",
+    "signin",
+    "signup",
+    "passwordless",
+    "auth-provider",
+    "social-login"
   ],
   "author": "Roshan Kumar Singh",
   "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
   "repository": {
     "type": "git",
-    "url": "https://github.com/roshankumar0036singh/auth-server"
+    "url": "git+https://github.com/roshankumar0036singh/auth-server.git",
+    "directory": "clients/ts"
+  },
+  "bugs": {
+    "url": "https://github.com/roshankumar0036singh/auth-server/issues"
   },
   "homepage": "https://github.com/roshankumar0036singh/auth-server/tree/main/clients/ts#readme",
   "devDependencies": {
@@ -52,10 +82,14 @@
     "typescript": "^5.4.5"
   },
   "peerDependencies": {
+    "next": ">=13.0.0",
     "react": ">=18.0.0",
     "react-dom": ">=18.0.0"
   },
   "peerDependenciesMeta": {
+    "next": {
+      "optional": true
+    },
     "react": {
       "optional": true
     },
