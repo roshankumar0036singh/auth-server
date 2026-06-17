@@ -579,7 +579,7 @@ func (h *AuthHandler) GoogleCallback(c *gin.Context) {
 
 	email, ok := userInfo["email"].(string)
 	if !ok || email == "" {
-		c.JSON(http.StatusBadRequest, utils.ErrorResponse("Google email not available", fmt.Errorf("missing or invalid email")))
+		c.JSON(http.StatusBadRequest, utils.ErrorResponse("Google email not available", errors.New("missing or invalid email")))
 		return
 	}
 	firstName, ok := userInfo["given_name"].(string)
@@ -593,7 +593,7 @@ func (h *AuthHandler) GoogleCallback(c *gin.Context) {
 	}
 	oauthID, ok := userInfo["id"].(string)
 	if !ok || oauthID == "" {
-		c.JSON(http.StatusBadRequest, utils.ErrorResponse("Invalid Google user data", fmt.Errorf("missing or invalid id")))
+		c.JSON(http.StatusBadRequest, utils.ErrorResponse("Invalid Google user data", errors.New("missing or invalid id")))
 		return
 	}
 
@@ -644,6 +644,26 @@ func (h *AuthHandler) GitHubLogin(c *gin.Context) {
 	c.Redirect(http.StatusTemporaryRedirect, url)
 }
 
+func getGitHubNames(userInfo map[string]interface{}) (string, string, error) {
+	if name, ok := userInfo["name"].(string); ok && name != "" {
+		parts := strings.SplitN(name, " ", 2)
+
+		lastName := ""
+		if len(parts) > 1 {
+			lastName = parts[1]
+		}
+
+		return parts[0], lastName, nil
+	}
+
+	login, ok := userInfo["login"].(string)
+	if !ok || login == "" {
+		return "", "", errors.New("missing or invalid login")
+	}
+
+	return login, "", nil
+}
+
 // GitHubCallback handles GitHub OAuth callback
 // @Summary GitHub OAuth callback
 // @Tags auth
@@ -681,31 +701,21 @@ func (h *AuthHandler) GitHubCallback(c *gin.Context) {
 
 	email, ok := userInfo["email"].(string)
 	if !ok || email == "" {
-		c.JSON(http.StatusBadRequest, utils.ErrorResponse("GitHub email not available", fmt.Errorf("missing or invalid email")))
+		c.JSON(http.StatusBadRequest, utils.ErrorResponse("GitHub email not available", errors.New("missing or invalid email")))
 		return
 	}
 
 	// GitHub names are often one string "Name" or just login
-	firstName := ""
-	lastName := ""
-	if name, ok := userInfo["name"].(string); ok && name != "" {
-		parts := strings.SplitN(name, " ", 2)
-		firstName = parts[0]
-		if len(parts) > 1 {
-			lastName = parts[1]
-		}
-	} else {
-		login, ok := userInfo["login"].(string)
-		if !ok || login == "" {
-			c.JSON(http.StatusBadRequest, utils.ErrorResponse("Invalid GitHub user data", fmt.Errorf("missing or invalid login")))
-			return
-		}
-		firstName = login
+	firstName, lastName, err := getGitHubNames(userInfo)
+	if err != nil {
+		c.JSON(http.StatusBadRequest,
+			utils.ErrorResponse("Invalid GitHub user data", err))
+		return
 	}
 
 	idValue, ok := userInfo["id"].(float64)
 	if !ok {
-		c.JSON(http.StatusBadRequest, utils.ErrorResponse("Invalid GitHub user data", fmt.Errorf("missing or invalid id")))
+		c.JSON(http.StatusBadRequest, utils.ErrorResponse("Invalid GitHub user data", errors.New("missing or invalid id")))
 		return
 	}
 
