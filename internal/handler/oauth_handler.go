@@ -42,7 +42,7 @@ func NewOAuthHandler(oauthProviderService *service.OAuthProviderService, userRep
 // @Param   response_type query    string true  "Response type (code)"
 // @Param   scope         query    string false "Requested scopes (space separated)"
 // @Param   state         query    string false "OAuth state parameter"
-// @Success 302 "Redirect to consent page or callback"
+// @Success 302 {string} string "Redirect" "Location: {redirect_uri}?code={code}&state={state}"
 // @Failure 400 {object} map[string]string "Invalid request"
 // @Failure 401 {object} map[string]string "Unauthorized - user must be logged in"
 // @Router /oauth/authorize [get]
