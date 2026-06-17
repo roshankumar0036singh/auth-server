@@ -84,13 +84,14 @@ func TestReadyCheck_Success(t *testing.T) {
 
 func TestReadyCheck_RedisDown(t *testing.T) {
 	_, db, mr := testutils.SetupIntegrationTest(t)
-	// Close miniredis immediately to simulate redis down
-	mr.Close()
 
 	rdb := redis.NewClient(&redis.Options{
-		Addr: "localhost:12345", // closed port
+		Addr: mr.Addr(),
 	})
 	defer rdb.Close()
+	
+	// Close miniredis immediately to simulate redis down
+	mr.Close()
 
 	cfg := &config.Config{
 		JWT:      config.JWTConfig{AccessSecret: "secret", RefreshSecret: "refresh"},
