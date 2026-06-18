@@ -7,7 +7,7 @@ export const metadata: Metadata = {
 
 export default function DocsPage() {
   return (
-    <div className="mx-auto max-w-3xl px-6 py-16">
+    <div className="mx-auto max-w-3xl px-6 pb-16 pt-24 sm:pt-28">
       <h1 className="text-3xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">
         Getting started
       </h1>

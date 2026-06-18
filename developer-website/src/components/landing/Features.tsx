@@ -51,7 +51,7 @@ export function Features() {
   return (
     <section id="features" className="scroll-mt-28 py-16 sm:py-20">
       <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
-        <h2 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">
+        <h2 className="text-2xl font-bold tracking-tight text-zinc-50">
           Features
         </h2>
 
@@ -61,15 +61,15 @@ export function Features() {
             return (
               <article
                 key={feature.title}
-                className="group rounded-2xl border border-zinc-200/80 bg-white p-5 transition-colors hover:border-accent/30 dark:border-zinc-800/80 dark:bg-zinc-900/40 dark:hover:border-accent/30"
+                className="group rounded-2xl border border-zinc-800 bg-zinc-900/40 p-5 transition-colors hover:border-accent/30"
               >
-                <div className="inline-flex rounded-xl border border-zinc-200/80 bg-zinc-50 p-2 text-accent dark:border-zinc-700/80 dark:bg-zinc-800/50">
+                <div className="inline-flex rounded-xl border border-zinc-700 bg-zinc-800/50 p-2 text-accent">
                   <Icon className="h-4 w-4" />
                 </div>
-                <h3 className="mt-3 font-semibold text-zinc-900 dark:text-zinc-100">
+                <h3 className="mt-3 font-semibold text-zinc-100">
                   {feature.title}
                 </h3>
-                <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
+                <p className="mt-1 text-sm text-zinc-400">
                   {feature.description}
                 </p>
               </article>

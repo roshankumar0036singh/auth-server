@@ -37,10 +37,10 @@ const nav = [
 ] as const;
 
 const navLinkClass =
-  "relative inline-flex items-center gap-1.5 py-1 text-sm text-zinc-500 transition-colors after:absolute after:bottom-0 after:left-0 after:h-0.5 after:w-full after:origin-left after:scale-x-0 after:bg-accent after:transition-transform after:duration-200 hover:text-zinc-900 hover:after:scale-x-100 dark:text-zinc-400 dark:hover:text-zinc-100";
+  "relative inline-flex items-center gap-1.5 py-1 text-sm text-zinc-400 transition-colors after:absolute after:bottom-0 after:left-0 after:h-0.5 after:w-full after:origin-left after:scale-x-0 after:bg-accent after:transition-transform after:duration-200 hover:text-zinc-100 hover:after:scale-x-100";
 
 const mobileNavLinkClass =
-  "relative flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium text-zinc-700 transition-colors after:absolute after:bottom-1.5 after:left-3 after:right-3 after:h-0.5 after:origin-left after:scale-x-0 after:bg-accent after:transition-transform after:duration-200 hover:bg-zinc-100 hover:after:scale-x-100 dark:text-zinc-300 dark:hover:bg-zinc-800";
+  "relative flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium text-zinc-300 transition-colors after:absolute after:bottom-1.5 after:left-3 after:right-3 after:h-0.5 after:origin-left after:scale-x-0 after:bg-accent after:transition-transform after:duration-200 hover:bg-zinc-800 hover:after:scale-x-100";
 
 function NavLink({
   item,
@@ -98,7 +98,7 @@ export function Header() {
 
   return (
     <header className="fixed inset-x-0 top-0 z-50 px-4 pt-4 sm:px-6 md:px-8 lg:px-10">
-      <div className="mx-auto w-full max-w-5xl overflow-hidden rounded-2xl border border-zinc-200/70 bg-white/75 shadow-[0_8px_32px_rgba(0,0,0,0.08)] backdrop-blur-xl dark:border-zinc-800/70 dark:bg-zinc-950/75 dark:shadow-[0_8px_32px_rgba(0,0,0,0.35)]">
+      <div className="mx-auto w-full max-w-5xl overflow-hidden rounded-2xl border border-zinc-800/70 bg-black/80 shadow-[0_8px_32px_rgba(0,0,0,0.5)] backdrop-blur-xl">
         <nav
           aria-label="Main"
           className="flex items-center justify-between gap-4 px-4 py-2.5 sm:px-6 sm:py-3"
@@ -108,7 +108,7 @@ export function Header() {
             className="group flex shrink-0 items-center gap-3"
             onClick={closeMenu}
           >
-            <div className="relative h-9 w-9 shrink-0 overflow-hidden rounded-lg ring-1 ring-zinc-200/80 dark:ring-zinc-700">
+            <div className="relative h-9 w-9 shrink-0 overflow-hidden rounded-lg ring-1 ring-zinc-700">
               <Image
                 src="/logo.png"
                 alt=""
@@ -119,7 +119,7 @@ export function Header() {
               />
             </div>
             <span
-              className={`${navLinkClass} text-base font-bold tracking-tight text-zinc-900 after:bg-accent dark:text-zinc-100`}
+              className={`${navLinkClass} text-base font-bold tracking-tight text-zinc-100 after:bg-accent`}
             >
               Auth Server
             </span>
@@ -180,7 +180,7 @@ export function Header() {
 
         <div
           id="mobile-menu"
-          className={`grid border-t border-zinc-200/70 transition-[grid-template-rows,opacity] duration-200 md:hidden dark:border-zinc-800/70 ${
+          className={`grid border-t border-zinc-800/70 transition-[grid-template-rows,opacity] duration-200 md:hidden ${
             open
               ? "grid-rows-[1fr] opacity-100"
               : "grid-rows-[0fr] opacity-0"

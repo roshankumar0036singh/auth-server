@@ -31,11 +31,11 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full`}
+      className={`${geistSans.variable} ${geistMono.variable} dark h-full`}
     >
       <body>
         <Header />
-        <main className="flex-1 pt-24 sm:pt-28">{children}</main>
+        <main className="flex-1">{children}</main>
         <Footer />
       </body>
     </html>

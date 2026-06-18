@@ -14,23 +14,100 @@
   }
 
   body {
-    @apply flex min-h-full flex-col bg-zinc-50 font-sans text-zinc-900 antialiased dark:bg-zinc-950 dark:text-zinc-100;
+    @apply flex min-h-full flex-col font-sans text-zinc-100 antialiased;
+    background-color: #000;
+    background-image:
+      linear-gradient(to right, rgb(39 39 42 / 0.22) 1px, transparent 1px),
+      linear-gradient(to bottom, rgb(39 39 42 / 0.22) 1px, transparent 1px),
+      radial-gradient(circle at center, rgb(113 113 122 / 0.45) 1px, transparent 1px),
+      radial-gradient(ellipse 120% 80% at 50% -25%, rgb(99 102 241 / 0.14), transparent 55%);
+    background-size: 72px 72px, 72px 72px, 24px 24px, 100% 100%;
+    background-position: center top;
+    background-attachment: fixed;
   }
 }
 
 @layer components {
   .landing-hero {
-    background-color: rgb(250 250 250);
-    background-image:
-      radial-gradient(circle at 1px 1px, rgb(228 228 231 / 0.55) 1px, transparent 0),
-      radial-gradient(ellipse 80% 50% at 50% -20%, rgb(99 102 241 / 0.12), transparent);
-    background-size: 24px 24px, 100% 100%;
+    position: relative;
+    isolation: isolate;
   }
 
-  :is(.dark) .landing-hero {
-    background-color: rgb(9 9 11);
-    background-image:
-      radial-gradient(circle at 1px 1px, rgb(39 39 42 / 0.65) 1px, transparent 0),
-      radial-gradient(ellipse 80% 50% at 50% -20%, rgb(99 102 241 / 0.15), transparent);
+  .landing-hero::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    background: radial-gradient(
+      ellipse 90% 70% at 50% 15%,
+      rgb(99 102 241 / 0.1),
+      transparent 65%
+    );
+    pointer-events: none;
+  }
+
+  .landing-hero > * {
+    position: relative;
+    z-index: 1;
+  }
+
+  .terminal-screen {
+    min-height: 8.5rem;
+    text-shadow: 0 0 12px rgb(34 197 94 / 0.08);
+  }
+
+  .terminal-cursor {
+    animation: terminal-blink 1s step-end infinite;
+  }
+
+  .hero-fade-in {
+    animation: hero-fade-in 0.65s ease-out both;
+  }
+
+  .hero-fade-in-delay-1 {
+    animation-delay: 0.08s;
+  }
+
+  .hero-fade-in-delay-2 {
+    animation-delay: 0.16s;
+  }
+
+  .hero-fade-in-delay-3 {
+    animation-delay: 0.24s;
+  }
+
+  .hero-fade-in-delay-4 {
+    animation-delay: 0.32s;
+  }
+
+  @keyframes terminal-blink {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0;
+    }
+  }
+
+  @keyframes hero-fade-in {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .terminal-cursor {
+      animation: none;
+    }
+
+    .hero-fade-in {
+      animation: none;
+    }
   }
 }
