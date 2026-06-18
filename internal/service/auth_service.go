@@ -697,7 +697,7 @@ func (s *AuthService) RefreshAccessToken(refreshTokenString string, ipAddress, u
 				log.Printf("Error logging REFRESH_TOKEN_REUSE_DETECTED audit event: %v", err)
 			}
 		}
-		return nil, errors.New("refresh token is invalid or expired")
+		return nil, errors.New("invalid or expired refresh token")
 	}
 
 	// Get user
