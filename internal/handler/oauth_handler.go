@@ -46,34 +46,61 @@ func NewOAuthHandler(oauthProviderService *service.OAuthProviderService, userRep
 // @Failure 400 {object} ErrorResponse "Invalid request"
 // @Failure 401 {object} ErrorResponse "Unauthorized - user must be logged in"
 // @Router /oauth/authorize [get]
-func (h *OAuthHandler) Authorize(c *gin.Context) {
-	// Extract query parameters
-	clientID := c.Query("client_id")
-	redirectURI := c.Query("redirect_uri")
-	responseType := c.Query("response_type")
-	scope := c.Query("scope")
-	state := c.Query("state")
-        codeChallenge := c.Query("code_challenge")
-        codeChallengeMethod := c.Query("code_challenge_method")
-        if codeChallenge != "" && codeChallengeMethod == "" {
-            codeChallengeMethod = "S256"
-        }
+type authRequestParams struct {
+	ClientID            string
+	RedirectURI         string
+	ResponseType        string
+	Scope               string
+	State               string
+	CodeChallenge       string
+	CodeChallengeMethod string
+}
+
+func extractAndValidateAuthRequest(c *gin.Context) (*authRequestParams, bool) {
+	params := &authRequestParams{
+		ClientID:            c.Query("client_id"),
+		RedirectURI:         c.Query("redirect_uri"),
+		ResponseType:        c.Query("response_type"),
+		Scope:               c.Query("scope"),
+		State:               c.Query("state"),
+		CodeChallenge:       c.Query("code_challenge"),
+		CodeChallengeMethod: c.Query("code_challenge_method"),
+	}
+
+	if params.CodeChallenge != "" && params.CodeChallengeMethod == "" {
+		params.CodeChallengeMethod = "S256"
+	}
 
 	// Validate required parameters
-	if clientID == "" || redirectURI == "" || responseType == "" {
+	if params.ClientID == "" || params.RedirectURI == "" || params.ResponseType == "" {
 		c.HTML(http.StatusBadRequest, errTmpl, gin.H{
 			"error": "Missing required parameters",
 		})
-		return
+		return nil, false
 	}
 
 	// Only support authorization_code flow
-	if responseType != "code" {
+	if params.ResponseType != "code" {
 		c.HTML(http.StatusBadRequest, errTmpl, gin.H{
 			"error": "Unsupported response_type. Only 'code' is supported",
 		})
+		return nil, false
+	}
+
+	return params, true
+}
+
+func (h *OAuthHandler) Authorize(c *gin.Context) {
+	params, ok := extractAndValidateAuthRequest(c)
+	if !ok {
 		return
 	}
+	clientID := params.ClientID
+	redirectURI := params.RedirectURI
+	scope := params.Scope
+	state := params.State
+	codeChallenge := params.CodeChallenge
+	codeChallengeMethod := params.CodeChallengeMethod
 
 	// Validate client
 	client, err := h.oauthProviderService.GetPublicClient(clientID)

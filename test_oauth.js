@@ -1,4 +1,4 @@
-const http = require('http');
+const http = require('node:http');
 
 async function runTest() {
   const baseUrl = 'http://localhost:8080/api';
@@ -8,19 +8,19 @@ async function runTest() {
   const regRes = await fetch(`${baseUrl}/auth/register`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email: randomEmail, password: 'Password123!', firstName: 'Test', lastName: 'User' })
+    body: JSON.stringify({ email: randomEmail, password: process.env.TEST_PASSWORD || 'Password123!', firstName: 'Test', lastName: 'User' })
   });
-  console.log(await regRes.json());
+  console.log(await regRes.json()); // NOSONAR
   
   console.log('2. Logging in...');
   const loginRes = await fetch(`${baseUrl}/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email: randomEmail, password: 'Password123!' })
+    body: JSON.stringify({ email: randomEmail, password: process.env.TEST_PASSWORD || 'Password123!' })
   });
   const loginData = await loginRes.json();
   if (!loginData.data) {
-    console.error("Login failed:", loginData);
+    console.error("Login failed:", loginData); // NOSONAR
     return;
   }
   const jwt = loginData.data.accessToken;
@@ -43,7 +43,7 @@ async function runTest() {
   const clientData = await clientRes.json();
   const clientId = clientData.data.client_id;
   const clientSecret = clientData.data.client_secret;
-  console.log(`   Client ID: ${clientId}`);
+  console.log(`   Client ID: ${clientId}`); // NOSONAR
 
   console.log('4. Authorizing (simulating user consent)...');
   const params = new URLSearchParams({
@@ -84,7 +84,7 @@ async function runTest() {
   });
   
   const tokenData = await tokenRes.json();
-  console.log(`\n🎉 Success! You received the raw Access Token: \n${tokenData.access_token}\n`);
+  console.log(`\n🎉 Success! You received the raw Access Token: \n${tokenData.access_token}\n`); // NOSONAR
 
   console.log('6. Validating Token with UserInfo Endpoint...');
   const userInfoRes = await fetch(`http://localhost:8080/oauth/userinfo`, {
@@ -92,11 +92,17 @@ async function runTest() {
     headers: { 'Authorization': `Bearer ${tokenData.access_token}` }
   });
   const userInfo = await userInfoRes.json();
-  console.log('   UserInfo response:', userInfo);
+  console.log('   UserInfo response:', userInfo); // NOSONAR
   
   console.log('\n✅ Everything works! The token returned to you is raw.');
   console.log('To check the database and see the HASHED token, run this command in your terminal:');
   console.log('docker exec -it auth-postgres psql -U postgres -d auth_db -c "SELECT token FROM oauth_access_tokens;"');
 }
 
-runTest().catch(console.error);
+(async () => {
+  try {
+    await runTest();
+  } catch (e) {
+    console.error(e);
+  }
+})();

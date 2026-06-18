@@ -657,14 +657,11 @@ func (s *AuthService) handleFailedLogin(user *models.User, email string, ctx con
 	s.auditService.LogEvent(&user.ID, "USER_LOGIN_FAILED", "USER", user.ID, "", "", map[string]interface{}{"email": email})
 }
 
-// RefreshAccessToken generates a new access token using refresh token with rotation
-func (s *AuthService) RefreshAccessToken(refreshTokenString string, ipAddress, userAgent string) (*dto.TokenRefreshResponse, error) {
-	ctx := context.Background()
-
+func (s *AuthService) verifyRefreshTokenState(ctx context.Context, refreshTokenString, ipAddress, userAgent string) (*models.RefreshToken, string, error) {
 	// Validate refresh token JWT
 	claims, err := s.tokenService.ValidateRefreshToken(refreshTokenString)
 	if err != nil {
-		return nil, errors.New("invalid or expired refresh token")
+		return nil, "", errors.New("invalid or expired refresh token")
 	}
 
 	// Check if token is blacklisted
@@ -673,13 +670,13 @@ func (s *AuthService) RefreshAccessToken(refreshTokenString string, ipAddress, u
 		log.Printf("Warning: Failed to check token blacklist: %v", err)
 	}
 	if blacklisted {
-		return nil, errors.New("refresh token has been revoked")
+		return nil, "", errors.New("refresh token has been revoked")
 	}
 
 	// Find refresh token in database
 	storedToken, err := s.tokenRepo.FindRefreshToken(refreshTokenString)
 	if err != nil {
-		return nil, errors.New("refresh token not found")
+		return nil, "", errors.New("refresh token not found")
 	}
 
 	// Verify token is valid (not revoked and not expired)
@@ -697,7 +694,19 @@ func (s *AuthService) RefreshAccessToken(refreshTokenString string, ipAddress, u
 				log.Printf("Error logging REFRESH_TOKEN_REUSE_DETECTED audit event: %v", err)
 			}
 		}
-		return nil, errors.New("invalid or expired refresh token")
+		return nil, "", errors.New("invalid or expired refresh token")
+	}
+	
+	return storedToken, claims.UserID, nil
+}
+
+// RefreshAccessToken generates a new access token using refresh token with rotation
+func (s *AuthService) RefreshAccessToken(refreshTokenString string, ipAddress, userAgent string) (*dto.TokenRefreshResponse, error) {
+	ctx := context.Background()
+
+	storedToken, userID, err := s.verifyRefreshTokenState(ctx, refreshTokenString, ipAddress, userAgent)
+	if err != nil {
+		return nil, err
 	}
 
 	// Get user

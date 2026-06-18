@@ -16,7 +16,11 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-var ErrUnauthorized = errors.New("unauthorized")
+var (
+	ErrUnauthorized             = errors.New("unauthorized")
+	ErrClientInactive           = errors.New("client is inactive")
+	ErrInvalidClientCredentials = errors.New("invalid client credentials")
+)
 
 type OAuthProviderService struct {
 	clientRepo   *repository.OAuthClientRepository
@@ -103,16 +107,16 @@ func (s *OAuthProviderService) CreateClient(name string, redirectURIs []string, 
 func (s *OAuthProviderService) ValidateClient(clientID, clientSecret string) (*models.OAuthClient, error) {
 	client, err := s.clientRepo.FindByClientID(clientID)
 	if err != nil {
-		return nil, errors.New("invalid client credentials")
+		return nil, ErrInvalidClientCredentials
 	}
 
 	if !client.IsActive {
-		return nil, errors.New("client is inactive")
+		return nil, ErrClientInactive
 	}
 
 	// Verify client secret
 	if err := bcrypt.CompareHashAndPassword([]byte(client.ClientSecret), []byte(clientSecret)); err != nil {
-		return nil, errors.New("invalid client credentials")
+		return nil, ErrInvalidClientCredentials
 	}
 
 	return client, nil
@@ -126,7 +130,7 @@ func (s *OAuthProviderService) GetPublicClient(clientID string) (*models.OAuthCl
 	}
 
 	if !client.IsActive {
-		return nil, errors.New("client is inactive")
+		return nil, ErrClientInactive
 	}
 
 	return client, nil
@@ -138,11 +142,11 @@ func (s *OAuthProviderService) GetPublicClient(clientID string) (*models.OAuthCl
 func (s *OAuthProviderService) ResolveClientForToken(clientID, clientSecret string) (*models.OAuthClient, error) {
 	client, err := s.clientRepo.FindByClientID(clientID)
 	if err != nil {
-		return nil, errors.New("invalid client credentials")
+		return nil, ErrInvalidClientCredentials
 	}
 
 	if !client.IsActive {
-		return nil, errors.New("client is inactive")
+		return nil, ErrClientInactive
 	}
 
 	if client.IsPublic {
@@ -156,7 +160,7 @@ func (s *OAuthProviderService) ResolveClientForToken(clientID, clientSecret stri
 		return nil, errors.New("client_secret required for confidential client")
 	}
 	if err := bcrypt.CompareHashAndPassword([]byte(client.ClientSecret), []byte(clientSecret)); err != nil {
-		return nil, errors.New("invalid client credentials")
+		return nil, ErrInvalidClientCredentials
 	}
 
 	return client, nil
@@ -226,22 +230,8 @@ func (s *OAuthProviderService) ExchangeCodeForToken(code, clientID, redirectURI,
 		return nil, errors.New("invalid client or redirect_uri")
 	}
 
-        // PKCE
-        // Public clients must always have used PKCE — no challenge stored means bypass attempt
-        if isPublic && (authCode.CodeChallenge == nil || *authCode.CodeChallenge == "") {
-                return nil, errors.New("public clients must use PKCE")
-        }
-        if authCode.CodeChallenge != nil && *authCode.CodeChallenge != "" {
-		if codeVerifier == "" {
-			return nil, errors.New("code_verifier required for this authorization code")
-		}
-		method := "S256"
-		if authCode.CodeChallengeMethod != nil && *authCode.CodeChallengeMethod != "" {
-			method = *authCode.CodeChallengeMethod
-		}
-		if err := utils.VerifyPKCE(codeVerifier, *authCode.CodeChallenge, method); err != nil {
-			return nil, err
-		}
+	if err := s.verifyPKCE(authCode, codeVerifier, isPublic); err != nil {
+		return nil, err
 	}
 
 	// Mark code as used
@@ -439,4 +429,26 @@ func (s *OAuthProviderService) DeleteProviderConfig(ownerID, clientID, provider 
 	}
 
 	return s.configRepo.Delete(config.ID)
+}
+
+// verifyPKCE checks the code verifier against the stored code challenge
+func (s *OAuthProviderService) verifyPKCE(authCode *models.AuthorizationCode, codeVerifier string, isPublic bool) error {
+	// Public clients must always have used PKCE — no challenge stored means bypass attempt
+	if isPublic && (authCode.CodeChallenge == nil || *authCode.CodeChallenge == "") {
+		return errors.New("public clients must use PKCE")
+	}
+
+	if authCode.CodeChallenge != nil && *authCode.CodeChallenge != "" {
+		if codeVerifier == "" {
+			return errors.New("code_verifier required for this authorization code")
+		}
+		method := "S256"
+		if authCode.CodeChallengeMethod != nil && *authCode.CodeChallengeMethod != "" {
+			method = *authCode.CodeChallengeMethod
+		}
+		if err := utils.VerifyPKCE(codeVerifier, *authCode.CodeChallenge, method); err != nil {
+			return err
+		}
+	}
+	return nil
 }
