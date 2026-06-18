@@ -380,10 +380,19 @@ func buildUserInfoResponse(user *models.User, accessToken *models.OAuthAccessTok
 	return response
 }
 
+func isSafeRedirectURI(u *url.URL) bool {
+	scheme := strings.ToLower(u.Scheme)
+	// Block potentially dangerous schemes that can execute code or load local files
+	if scheme == "javascript" || scheme == "vbscript" || scheme == "data" || scheme == "file" || scheme == "about" {
+		return false
+	}
+	return true
+}
+
 func redirectWithCode(c *gin.Context, redirectURI, code, state string) {
 	u, err := url.Parse(redirectURI)
-	if err != nil {
-		c.HTML(http.StatusBadRequest, errTmpl, gin.H{"error": "Invalid redirect_uri format"})
+	if err != nil || !isSafeRedirectURI(u) {
+		c.HTML(http.StatusBadRequest, errTmpl, gin.H{"error": "Invalid or unsafe redirect_uri format"})
 		return
 	}
 	q := u.Query()
@@ -397,8 +406,8 @@ func redirectWithCode(c *gin.Context, redirectURI, code, state string) {
 
 func redirectError(c *gin.Context, redirectURI, errorCode, errorDesc, state string) {
 	u, err := url.Parse(redirectURI)
-	if err != nil {
-		c.HTML(http.StatusBadRequest, errTmpl, gin.H{"error": "Invalid redirect_uri format"})
+	if err != nil || !isSafeRedirectURI(u) {
+		c.HTML(http.StatusBadRequest, errTmpl, gin.H{"error": "Invalid or unsafe redirect_uri format"})
 		return
 	}
 	q := u.Query()
