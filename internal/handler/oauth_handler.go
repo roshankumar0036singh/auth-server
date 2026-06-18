@@ -381,7 +381,11 @@ func buildUserInfoResponse(user *models.User, accessToken *models.OAuthAccessTok
 }
 
 func redirectWithCode(c *gin.Context, redirectURI, code, state string) {
-	u, _ := url.Parse(redirectURI)
+	u, err := url.Parse(redirectURI)
+	if err != nil {
+		c.HTML(http.StatusBadRequest, errTmpl, gin.H{"error": "Invalid redirect_uri format"})
+		return
+	}
 	q := u.Query()
 	q.Set("code", code)
 	if state != "" {
@@ -392,7 +396,11 @@ func redirectWithCode(c *gin.Context, redirectURI, code, state string) {
 }
 
 func redirectError(c *gin.Context, redirectURI, errorCode, errorDesc, state string) {
-	u, _ := url.Parse(redirectURI)
+	u, err := url.Parse(redirectURI)
+	if err != nil {
+		c.HTML(http.StatusBadRequest, errTmpl, gin.H{"error": "Invalid redirect_uri format"})
+		return
+	}
 	q := u.Query()
 	q.Set("error", errorCode)
 	q.Set("error_description", errorDesc)
