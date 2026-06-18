@@ -1,11 +1,13 @@
 const http = require('node:http');
+const crypto = require('node:crypto');
 
 async function runTest() {
   const baseUrl = 'http://localhost:8080/api';
 
   console.log('1. Registering User...');
-  const randomEmail = `test_${Math.random()}@demo.com`;
-  const randomPassword = `Pass_${Math.random()}!12A`;
+  const randomStr = crypto.randomBytes(4).toString('hex');
+  const randomEmail = `test_${randomStr}@demo.com`;
+  const randomPassword = `Pass_${randomStr}!12A`;
 
   const regRes = await fetch(`${baseUrl}/auth/register`, {
     method: 'POST',
