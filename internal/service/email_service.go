@@ -101,7 +101,7 @@ func (s *EmailService) SendEmail(to []string, subject string, templateName strin
 	}
 
 	var body bytes.Buffer
-	if err := cloned.Execute(&body, data); err != nil {
+	if err := t.Execute(&body, data); err != nil {
 		return fmt.Errorf("failed to execute email template %q: %w", templateName, err)
 	}
 
@@ -157,3 +157,4 @@ func (s *EmailService) SendPasswordResetEmail(email, token, appURL string) error
 
 	return s.SendEmail([]string{email}, "Reset your password", "reset_password.html", data)
 }
+
