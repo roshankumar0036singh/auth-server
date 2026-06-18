@@ -168,6 +168,7 @@ export function createAuthServer(config: NextAuthConfig): AuthServer {
       }
       return jsonResponse({ user: data.data.user ?? null }, 200, sessionCookies(data.data.accessToken, data.data.refreshToken));
     } catch (err) {
+      console.error('Login failed:', err);
       return jsonResponse({ error: 'Network or internal error during login' }, 502);
     }
   }
@@ -189,6 +190,7 @@ export function createAuthServer(config: NextAuthConfig): AuthServer {
       }
       return jsonResponse({ ok: true }, 200, sessionCookies(data.data.accessToken, data.data.refreshToken));
     } catch (err) {
+      console.error('Refresh failed:', err);
       return jsonResponse({ error: 'Network or internal error during refresh' }, 502, [clearCookie(cfg.atName), clearCookie(cfg.rtName)]);
     }
   }

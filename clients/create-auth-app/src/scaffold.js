@@ -15,7 +15,7 @@ export function toPackageName(input) {
   while (cleaned.length > 0 && /[-_.]/.test(cleaned[0])) {
     cleaned = cleaned.slice(1);
   }
-  while (cleaned.length > 0 && /[-_.]/.test(cleaned[cleaned.length - 1])) {
+  while (cleaned.length > 0 && /[-_.]/.test(cleaned.at(-1))) {
     cleaned = cleaned.slice(0, -1);
   }
   
@@ -60,18 +60,29 @@ export function planScaffold(options) {
   };
 }
 
+/** Ensures the target path does not escape the base directory (prevents path traversal). */
+export function ensureSafePath(targetDir, baseDir = process.cwd()) {
+  const root = path.resolve(baseDir);
+  const target = path.resolve(root, targetDir);
+  if (!target.startsWith(root + path.sep) && target !== root) {
+    throw new Error('Path traversal detected');
+  }
+  return target;
+}
+
 /** Returns true when `dir` does not exist or exists but is empty. */
 export async function isDirUsable(dir) {
-  if (!existsSync(dir)) return true;
-  const entries = await readdir(dir);
+  const target = ensureSafePath(dir);
+  if (!existsSync(target)) return true;
+  const entries = await readdir(target);
   return entries.length === 0;
 }
 
 /** Writes a plan's files under `baseDir`/`plan.dir`. */
 export async function writeScaffold(plan, baseDir = process.cwd()) {
-  const root = path.resolve(baseDir, plan.dir);
+  const root = ensureSafePath(plan.dir, baseDir);
   for (const file of plan.files) {
-    const target = path.join(root, file.path);
+    const target = ensureSafePath(file.path, root);
     await mkdir(path.dirname(target), { recursive: true });
     await writeFile(target, file.contents, 'utf8');
   }

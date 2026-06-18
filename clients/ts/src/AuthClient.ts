@@ -38,7 +38,7 @@ export class AuthClient {
   // --- Storage & Events ---
 
   private getStorage(): Storage | null {
-    if (this.storageType === 'memory' || typeof globalThis.window === 'undefined') return null;
+    if (this.storageType === 'memory' || globalThis.window === undefined) return null;
     return this.storageType === 'localStorage' ? globalThis.localStorage : globalThis.sessionStorage;
   }
 
@@ -319,7 +319,7 @@ export class AuthClient {
   }
 
   private redirectToSocialLogin(provider: 'google' | 'github', redirectUri?: string): void {
-    if (typeof globalThis.window === 'undefined') {
+    if (globalThis.window === undefined) {
       throw new AuthError(`loginWith${provider === 'google' ? 'Google' : 'GitHub'}() can only be used in a browser`, 'BROWSER_ONLY', 0);
     }
     let url = `${this.serverUrl}/api/auth/${provider}/login?client_id=${encodeURIComponent(this.clientId)}`;
