@@ -5,10 +5,12 @@ async function runTest() {
 
   console.log('1. Registering User...');
   const randomEmail = `test_${Math.random()}@demo.com`;
+  const randomPassword = `Pass_${Math.random()}!12A`;
+
   const regRes = await fetch(`${baseUrl}/auth/register`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email: randomEmail, password: process.env.TEST_PASSWORD || 'Password123!', firstName: 'Test', lastName: 'User' }) // NOSONAR
+    body: JSON.stringify({ email: randomEmail, password: randomPassword, firstName: 'Test', lastName: 'User' }) // NOSONAR
   });
   console.log(await regRes.json()); // NOSONAR
   
@@ -16,7 +18,7 @@ async function runTest() {
   const loginRes = await fetch(`${baseUrl}/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email: randomEmail, password: process.env.TEST_PASSWORD || 'Password123!' }) // NOSONAR
+    body: JSON.stringify({ email: randomEmail, password: randomPassword }) // NOSONAR
   });
   const loginData = await loginRes.json();
   if (!loginData.data) {
