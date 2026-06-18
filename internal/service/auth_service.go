@@ -710,7 +710,7 @@ func (s *AuthService) RefreshAccessToken(refreshTokenString string, ipAddress, u
 	}
 
 	// Get user
-	user, err := s.userRepo.FindByID(claims.UserID)
+	user, err := s.userRepo.FindByID(userID)
 	if err != nil {
 		return nil, errors.New(errUserNotFound)
 	}
