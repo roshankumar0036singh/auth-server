@@ -8,6 +8,7 @@ import (
 	"net/smtp"
 	"os"
 	"path/filepath"
+	"sync"
 
 	"github.com/roshankumar0036singh/auth-server/internal/config"
 )
@@ -17,28 +18,23 @@ type EmailSender interface {
 	SendPasswordResetEmail(email, token, appURL string) error
 }
 
-// ErrTemplateNotFound is returned when a requested email template is not in the cache.
-type ErrTemplateNotFound struct {
-	Name string
-}
-
-func (e *ErrTemplateNotFound) Error() string {
-	return fmt.Sprintf("email template %q not found", e.Name)
-}
-
 type EmailService struct {
 	config    config.EmailConfig
 	templates map[string]*template.Template
+	mu        sync.RWMutex
 }
 
 // NewEmailService initializes EmailService and pre-parses all templates from
-// the templates/ directory at startup. Missing or invalid templates log a
-// warning but do NOT crash the server — errors are returned only when that
-// specific template is actually used in SendEmail.
+// the templates/ directory at startup. If the directory cannot be read, an
+// empty cache is used and a warning is logged — the server keeps running.
+// Missing or invalid individual templates also log a warning and are skipped.
 func NewEmailService(cfg *config.Config) (*EmailService, error) {
 	templates, err := loadTemplates("templates")
 	if err != nil {
-		return nil, fmt.Errorf("failed to load email templates: %w", err)
+		// Graceful fallback: log warning, start with empty cache.
+		// SendEmail will return ErrTemplateNotFound for any request.
+		log.Printf("WARNING: could not load email templates: %v — emails will fail at send time", err)
+		templates = make(map[string]*template.Template)
 	}
 
 	return &EmailService{
@@ -48,7 +44,7 @@ func NewEmailService(cfg *config.Config) (*EmailService, error) {
 }
 
 // loadTemplates reads all files in dir and parses each as an HTML template.
-// Files that fail to parse are skipped with a warning — they do not abort startup.
+// Files that fail to parse are skipped with a warning.
 // Returns an error only if the directory itself cannot be read.
 func loadTemplates(dir string) (map[string]*template.Template, error) {
 	cache := make(map[string]*template.Template)
@@ -90,15 +86,30 @@ func loadTemplates(dir string) (map[string]*template.Template, error) {
 }
 
 // SendEmail sends an HTML email using a pre-cached template.
-// Returns ErrTemplateNotFound if the requested template was missing or failed to parse at startup.
+// Returns ErrTemplateNotFound if the requested template was missing at startup.
 func (s *EmailService) SendEmail(to []string, subject string, templateName string, data interface{}) error {
+	// Guard against empty recipient slice
+	if len(to) == 0 {
+		return fmt.Errorf("no recipients provided for email with subject %q", subject)
+	}
+
+	// Thread-safe template lookup
+	s.mu.RLock()
 	t, ok := s.templates[templateName]
+	s.mu.RUnlock()
+
 	if !ok {
 		return &ErrTemplateNotFound{Name: templateName}
 	}
 
+	// Clone template before executing to avoid concurrent execution issues
+	cloned, err := t.Clone()
+	if err != nil {
+		return fmt.Errorf("failed to clone email template %q: %w", templateName, err)
+	}
+
 	var body bytes.Buffer
-	if err := t.Execute(&body, data); err != nil {
+	if err := cloned.Execute(&body, data); err != nil {
 		return fmt.Errorf("failed to execute email template %q: %w", templateName, err)
 	}
 

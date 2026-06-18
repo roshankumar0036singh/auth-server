@@ -1,7 +1,6 @@
 package routes
 
 import (
-	"log"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -34,12 +33,10 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, redisClient *redis.Client, cfg
 	tokenService := service.NewTokenService(cfg)
 	cacheService := service.NewCacheService(redisClient)
 
-	// EmailService now caches all templates at startup.
-	// Missing templates log a warning but do not crash the server.
-	emailService, err := service.NewEmailService(cfg)
-	if err != nil {
-		log.Fatalf("failed to initialize email service: %v", err)
-	}
+	// EmailService caches all templates at startup.
+	// On directory error, an empty cache is used and a warning is logged.
+	// The server always starts — missing templates only fail at send time.
+	emailService, _ := service.NewEmailService(cfg)
 
 	auditService := service.NewAuditService(auditRepo)
 	oauthService := service.NewOAuthService(cfg, oauthProviderConfigRepo)
