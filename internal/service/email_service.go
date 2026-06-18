@@ -28,19 +28,17 @@ type EmailService struct {
 // the templates/ directory at startup. If the directory cannot be read, an
 // empty cache is used and a warning is logged — the server keeps running.
 // Missing or invalid individual templates also log a warning and are skipped.
-func NewEmailService(cfg *config.Config) (*EmailService, error) {
-	templates, err := loadTemplates("templates")
-	if err != nil {
-		// Graceful fallback: log warning, start with empty cache.
-		// SendEmail will return ErrTemplateNotFound for any request.
-		log.Printf("WARNING: could not load email templates: %v — emails will fail at send time", err)
-		templates = make(map[string]*template.Template)
-	}
+func NewEmailService(cfg *config.Config) *EmailService {
+    templates, err := loadTemplates("templates")
+    if err != nil {
+        log.Printf("WARNING: could not load email templates: %v — emails will fail at send time", err)
+        templates = make(map[string]*template.Template)
+    }
 
-	return &EmailService{
-		config:    cfg.Email,
-		templates: templates,
-	}, nil
+    return &EmailService{
+        config:    cfg.Email,
+        templates: templates,
+    }
 }
 
 // loadTemplates reads all files in dir and parses each as an HTML template.

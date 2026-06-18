@@ -36,7 +36,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, redisClient *redis.Client, cfg
 	// EmailService caches all templates at startup.
 	// On directory error, an empty cache is used and a warning is logged.
 	// The server always starts — missing templates only fail at send time.
-	emailService, _ := service.NewEmailService(cfg)
+	emailService := service.NewEmailService(cfg)
 
 	auditService := service.NewAuditService(auditRepo)
 	oauthService := service.NewOAuthService(cfg, oauthProviderConfigRepo)
