@@ -6,7 +6,7 @@ async function runTest() {
   // Use accounts that successfully registered in the previous run!
   const devEmail = 'dev_295839@example.com';
   const userEmail = 'user_295839@example.com';
-  const password = "Password123!";
+  const password = process.env.TEST_USER_PASSWORD || "Password123!";
   
   const fakeIp = `192.168.1.${Math.floor(Math.random() * 255)}`;
   const headers = {
@@ -22,7 +22,7 @@ async function runTest() {
   })).json();
   
   if (!devLogin.success || !devLogin.data) {
-      console.error("Login Failed!", devLogin);
+      console.error("Login Failed!", devLogin.error || "Unknown error");
       return;
   }
   
@@ -41,14 +41,14 @@ async function runTest() {
   })).json();
   
   if (!clientRes.success || !clientRes.data) {
-      console.error("Failed to create OAuth client:", clientRes);
+      console.error("Failed to create OAuth client:", clientRes.error || "Unknown error");
       return;
   }
   
   const clientId = clientRes.data.client_id;
   const clientSecret = clientRes.data.client_secret;
-  console.log(`-> Client ID: ${clientId}`);
-  console.log(`-> Client Secret: ${clientSecret}`);
+  console.log(`-> Client ID: ***MASKED***`);
+  console.log(`-> Client Secret: ***MASKED***`);
   
   console.log(`\n3. Logging into Normal User Account (${userEmail})...`);
   
@@ -58,7 +58,7 @@ async function runTest() {
   })).json();
   
   if (!userLogin.success || !userLogin.data) {
-      console.error("User Login Failed!", userLogin);
+      console.error("User Login Failed!", userLogin.error || "Unknown error");
       return;
   }
   
@@ -113,12 +113,12 @@ async function runTest() {
   })).json();
   
   if (!tokenRes.access_token) {
-      console.error("Token Exchange Failed! Response:", tokenRes);
+      console.error("Token Exchange Failed! Response:", tokenRes.error || "Unknown error");
       return;
   }
   
   const appAccessToken = tokenRes.access_token;
-  console.log(`-> App Access Token: ${appAccessToken}`);
+  console.log(`-> App Access Token: ***MASKED***`);
   
   console.log("\n6. App Fetches User Profile via /oauth/userinfo...");
   const userInfo = await (await fetch(`${BASE_URL}/oauth/userinfo`, {
@@ -129,8 +129,12 @@ async function runTest() {
   })).json();
   
   console.log("-> Profile Data returned to Third-Party App:");
-  console.log(userInfo);
+  console.log(`Name: ${userInfo.name}, Email: ${userInfo.email}`);
   console.log("\n=== Test Completed Successfully! ===");
 }
 
-runTest().catch(console.error);
+try {
+  await runTest();
+} catch (err) {
+  console.error("Error:", err.message);
+}

@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 	"github.com/roshankumar0036singh/auth-server/internal/config"
 	"github.com/roshankumar0036singh/auth-server/internal/models"
 )
@@ -54,6 +55,7 @@ func (s *TokenService) GenerateAccessToken(user *models.User, sessionID string) 
 			ExpiresAt: jwt.NewNumericDate(expirationTime),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
 			Issuer:    issuerAuthServer,
+			ID:        uuid.New().String(),
 		},
 	}
 
@@ -78,6 +80,7 @@ func (s *TokenService) GenerateRefreshToken(user *models.User) (string, error) {
 			ExpiresAt: jwt.NewNumericDate(expirationTime),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
 			Issuer:    issuerAuthServer,
+			ID:        uuid.New().String(),
 		},
 	}
 
@@ -126,6 +129,7 @@ func (s *TokenService) GenerateMFAToken(userID string) (string, error) {
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(5 * time.Minute)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
 			Issuer:    issuerAuthServer,
+			ID:        uuid.New().String(),
 		},
 	}
 

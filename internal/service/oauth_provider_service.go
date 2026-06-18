@@ -311,9 +311,13 @@ func (s *OAuthProviderService) ExchangeCodeForToken(code, clientID, redirectURI,
 
 // ValidateAccessToken validates an OAuth access token
 func (s *OAuthProviderService) ValidateAccessToken(tokenString string) (*models.OAuthAccessToken, error) {
-	token, err := s.tokenRepo.FindByToken(tokenString)
+	token, err := s.tokenRepo.FindByToken(utils.HashToken(tokenString))
 	if err != nil {
-		return nil, errors.New("invalid access token")
+		// Fallback for backward compatibility with older unhashed tokens
+		token, err = s.tokenRepo.FindByToken(tokenString)
+		if err != nil {
+			return nil, errors.New("invalid access token")
+		}
 	}
 
 	if token.IsExpired() {

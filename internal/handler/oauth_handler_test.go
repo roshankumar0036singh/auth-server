@@ -101,7 +101,7 @@ func TestOAuthAccessTokenScopesSerializeAsJSONInSQLite(t *testing.T) {
 	token := createOAuthAccessToken(t, tokenRepo, uuid.NewString(), []string{"read:profile", "read:email"})
 
 	var storedScopes string
-	require.NoError(t, db.Table("oauth_access_tokens").Select("scopes").Where("token = ?", token).Scan(&storedScopes).Error)
+	require.NoError(t, db.Table("oauth_access_tokens").Select("scopes").Where("token = ?", utils.HashToken(token)).Scan(&storedScopes).Error)
 	assert.JSONEq(t, `["read:profile","read:email"]`, storedScopes)
 }
 
