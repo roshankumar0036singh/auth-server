@@ -31,97 +31,63 @@ func NewOAuthHandler(oauthProviderService *service.OAuthProviderService, userRep
 	}
 }
 
-// Authorize handles the OAuth authorization request
-// @Summary OAuth Authorization Request
-// @Description Redirects user to consent page or returns authorization code
-// @Tags OAuth Provider
-// @Accept  json
-// @Produce html, json
-// @Param   client_id     query    string true  "OAuth Client ID"
-// @Param   redirect_uri  query    string true  "Redirect URI"
-// @Param   response_type query    string true  "Response type (code)"
-// @Param   scope         query    string false "Requested scopes (space separated)"
-// @Param   state         query    string false "OAuth state parameter"
+func (h *OAuthHandler) getAndValidateClient(c *gin.Context, clientID, redirectURI, responseType string) (*models.OAuthClient, bool) {
+	if clientID == "" || redirectURI == "" || responseType == "" {
+		c.HTML(http.StatusBadRequest, errTmpl, gin.H{"error": "Missing required parameters"})
+		return nil, false
+	}
+	if responseType != "code" {
+		c.HTML(http.StatusBadRequest, errTmpl, gin.H{"error": "Unsupported response_type. Only 'code' is supported"})
+		return nil, false
+	}
+	client, err := h.oauthProviderService.GetPublicClient(clientID)
+	if err != nil {
+		c.HTML(http.StatusBadRequest, errTmpl, gin.H{"error": "Invalid client_id"})
+		return nil, false
+	}
+	if err := h.oauthProviderService.ValidateRedirectURI(client, redirectURI); err != nil {
+		c.HTML(http.StatusBadRequest, errTmpl, gin.H{"error": "Invalid redirect_uri"})
+		return nil, false
+	}
+	return client, true
+}
+
+// Authorize handles the initial authorization request
+// @Summary Authorize OAuth client
+// @Tags oauth
+// @Produce html
+// @Param client_id query string true "Client ID"
+// @Param redirect_uri query string true "Redirect URI"
+// @Param response_type query string true "Response Type (code)"
+// @Param scope query string false "Scopes"
+// @Param state query string false "State"
+// @Param code_challenge query string false "Code Challenge"
+// @Param code_challenge_method query string false "Code Challenge Method"
 // @Success 302 "Redirect" @header Location {string} "Redirect URL with code or error"
 // @Failure 400 {object} ErrorResponse "Invalid request"
 // @Failure 401 {object} ErrorResponse "Unauthorized - user must be logged in"
 // @Router /oauth/authorize [get]
-type authRequestParams struct {
-	ClientID            string
-	RedirectURI         string
-	ResponseType        string
-	Scope               string
-	State               string
-	CodeChallenge       string
-	CodeChallengeMethod string
-}
-
-func extractAndValidateAuthRequest(c *gin.Context) (*authRequestParams, bool) {
-	params := &authRequestParams{
-		ClientID:            c.Query("client_id"),
-		RedirectURI:         c.Query("redirect_uri"),
-		ResponseType:        c.Query("response_type"),
-		Scope:               c.Query("scope"),
-		State:               c.Query("state"),
-		CodeChallenge:       c.Query("code_challenge"),
-		CodeChallengeMethod: c.Query("code_challenge_method"),
-	}
-
-	if params.CodeChallenge != "" && params.CodeChallengeMethod == "" {
-		params.CodeChallengeMethod = "S256"
-	}
-
-	// Validate required parameters
-	if params.ClientID == "" || params.RedirectURI == "" || params.ResponseType == "" {
-		c.HTML(http.StatusBadRequest, errTmpl, gin.H{
-			"error": "Missing required parameters",
-		})
-		return nil, false
-	}
-
-	// Only support authorization_code flow
-	if params.ResponseType != "code" {
-		c.HTML(http.StatusBadRequest, errTmpl, gin.H{
-			"error": "Unsupported response_type. Only 'code' is supported",
-		})
-		return nil, false
-	}
-
-	return params, true
-}
-
 func (h *OAuthHandler) Authorize(c *gin.Context) {
-	params, ok := extractAndValidateAuthRequest(c)
+	// Extract query parameters
+	clientID := c.Query("client_id")
+	redirectURI := c.Query("redirect_uri")
+	responseType := c.Query("response_type")
+	scope := c.Query("scope")
+	state := c.Query("state")
+	codeChallenge := c.Query("code_challenge")
+	codeChallengeMethod := c.Query("code_challenge_method")
+	if codeChallenge != "" && codeChallengeMethod == "" {
+		codeChallengeMethod = "S256"
+	}
+
+	client, ok := h.getAndValidateClient(c, clientID, redirectURI, responseType)
 	if !ok {
 		return
 	}
-	clientID := params.ClientID
-	redirectURI := params.RedirectURI
-	scope := params.Scope
-	state := params.State
-	codeChallenge := params.CodeChallenge
-	codeChallengeMethod := params.CodeChallengeMethod
 
-	// Validate client
-	client, err := h.oauthProviderService.GetPublicClient(clientID)
-	if err != nil {
-		c.HTML(http.StatusBadRequest, errTmpl, gin.H{
-			"error": "Invalid client_id",
-		})
-		return
-	}
-
-	// Validate redirect URI
-	if err := h.oauthProviderService.ValidateRedirectURI(client, redirectURI); err != nil {
-		c.HTML(http.StatusBadRequest, errTmpl, gin.H{
-			"error": "Invalid redirect_uri",
-		})
-		return
-	}
-
-	// Parse and validate scopes
+	// Parse and validate scopes against the client's registered scopes
 	scopes := service.ParseScopes(scope)
-	if err := h.oauthProviderService.ValidateScopes(scopes); err != nil {
+	if err := h.oauthProviderService.ValidateClientScopes(client, scopes); err != nil {
 		redirectError(c, redirectURI, "invalid_scope", err.Error(), state)
 		return
 	}
@@ -202,7 +168,25 @@ func (h *OAuthHandler) AuthorizePost(c *gin.Context) {
 		codeChallengeMethod = "S256"
 	}
 
-	// Check if user denied
+	// Validate the client and that the redirect_uri is registered BEFORE any
+	// redirect. The redirect helpers send the browser to redirectURI, so an
+	// unvalidated value here (including on the deny path) would be an open
+	// redirect / code-exfiltration vector.
+	client, err := h.oauthProviderService.GetPublicClient(clientID)
+	if err != nil {
+		c.HTML(http.StatusBadRequest, errTmpl, gin.H{
+			"error": "Invalid client_id",
+		})
+		return
+	}
+	if err := h.oauthProviderService.ValidateRedirectURI(client, redirectURI); err != nil {
+		c.HTML(http.StatusBadRequest, errTmpl, gin.H{
+			"error": "Invalid redirect_uri",
+		})
+		return
+	}
+
+	// Check if user denied (safe to redirect now that redirect_uri is trusted)
 	if action == "deny" {
 		redirectError(c, redirectURI, "access_denied", "User denied authorization", state)
 		return
@@ -217,8 +201,13 @@ func (h *OAuthHandler) AuthorizePost(c *gin.Context) {
 		return
 	}
 
-	// Parse scopes
+	// Parse and validate scopes against the client's registered scopes so a
+	// tampered consent POST cannot escalate to scopes the client never had.
 	scopes := service.ParseScopes(scope)
+	if err := h.oauthProviderService.ValidateClientScopes(client, scopes); err != nil {
+		redirectError(c, redirectURI, "invalid_scope", err.Error(), state)
+		return
+	}
 
 	// Save consent
 	if err := h.oauthProviderService.SaveConsent(userID.(string), clientID, scopes); err != nil {
@@ -301,7 +290,7 @@ func (h *OAuthHandler) Token(c *gin.Context) {
 
 	// Return access token
 	c.JSON(http.StatusOK, gin.H{
-		"access_token": accessToken.RawToken,
+		"access_token": accessToken.Token,
 		"token_type":   "Bearer",
 		"expires_in":   3600, // 1 hour
 		"scope":        strings.Join(accessToken.Scopes, " "),
