@@ -43,9 +43,13 @@ func main() {
 
 	// Pre-migration backfill for refresh_tokens.family_id
 	// Add column as nullable first to allow backfill
-	db.Exec("ALTER TABLE refresh_tokens ADD COLUMN IF NOT EXISTS family_id uuid")
+	if err := db.Exec("ALTER TABLE refresh_tokens ADD COLUMN IF NOT EXISTS family_id uuid").Error; err != nil {
+		log.Printf("Warning: Could not add family_id column (may already exist): %v", err)
+	}
 	// Backfill existing tokens using their own ID as the family ID
-	db.Exec("UPDATE refresh_tokens SET family_id = id WHERE family_id IS NULL")
+	if err := db.Exec("UPDATE refresh_tokens SET family_id = id WHERE family_id IS NULL").Error; err != nil {
+		log.Fatal("Failed to backfill family_id for existing refresh tokens:", err)
+	}
 
 	// Auto-migrate database models
 	err := config.AutoMigrate(db, &models.User{},
