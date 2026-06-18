@@ -382,11 +382,8 @@ func buildUserInfoResponse(user *models.User, accessToken *models.OAuthAccessTok
 
 func isSafeRedirectURI(u *url.URL) bool {
 	scheme := strings.ToLower(u.Scheme)
-	// Block potentially dangerous schemes that can execute code or load local files
-	if scheme == "javascript" || scheme == "vbscript" || scheme == "data" || scheme == "file" || scheme == "about" {
-		return false
-	}
-	return true
+	// Use an allowlist for secure redirect URI schemes
+	return scheme == "http" || scheme == "https"
 }
 
 func redirectWithCode(c *gin.Context, redirectURI, code, state string) {
