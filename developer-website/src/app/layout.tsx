@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Footer } from "@/components/Footer";
 import { Header } from "@/components/Header";
+import { TAGLINE, TAGLINE_SUB } from "@/lib/copy";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -19,8 +20,7 @@ export const metadata: Metadata = {
     default: "Auth Server",
     template: "%s · Auth Server",
   },
-  description:
-    "Open-source authentication microservice with JWT, OAuth 2.0, MFA, and social login.",
+  description: `${TAGLINE} ${TAGLINE_SUB}`,
 };
 
 export default function RootLayout({
