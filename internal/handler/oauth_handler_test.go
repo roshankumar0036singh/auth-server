@@ -17,6 +17,7 @@ import (
 	"github.com/roshankumar0036singh/auth-server/internal/repository"
 	"github.com/roshankumar0036singh/auth-server/internal/service"
 	"github.com/roshankumar0036singh/auth-server/internal/testutils"
+	"github.com/roshankumar0036singh/auth-server/internal/utils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
         "github.com/lib/pq"
@@ -51,7 +52,8 @@ func createOAuthAccessToken(t *testing.T, tokenRepo *repository.OAuthTokenReposi
 	token := "oauth-token-" + uuid.NewString()
 	err := tokenRepo.Create(&models.OAuthAccessToken{
 		ID:        uuid.NewString(),
-		Token:     token,
+		Token:     utils.HashToken(token),
+		RawToken:  token,
 		ClientID:  uuid.NewString(),
 		UserID:    userID,
 		Scopes:    models.StringArray(scopes),
@@ -131,6 +133,41 @@ func TestOAuthHandler_UserInfoReturnsUserFields(t *testing.T) {
 	assert.Equal(t, user.LastName, response["family_name"])
 	assert.Equal(t, user.ProfileImage, response["picture"])
 	assert.ElementsMatch(t, []interface{}{"read:profile", "read:email"}, response["scopes"])
+}
+
+func TestOAuthHandler_UserInfo_BackwardCompatibility_RawToken(t *testing.T) {
+	r, userRepo, tokenRepo := setupOAuthUserInfoRouter(t)
+
+	user := &models.User{
+		Email:         "oauth-legacy@example.com",
+		PasswordHash:  "hash",
+		FirstName:     "Legacy",
+		LastName:      "User",
+		EmailVerified: true,
+	}
+	require.NoError(t, userRepo.Create(user))
+
+	// Directly insert a legacy unhashed token
+	rawToken := "legacy-raw-token-" + uuid.NewString()
+	err := tokenRepo.Create(&models.OAuthAccessToken{
+		ID:        uuid.NewString(),
+		Token:     rawToken, // Not hashed!
+		RawToken:  rawToken,
+		ClientID:  uuid.NewString(),
+		UserID:    user.ID,
+		Scopes:    models.StringArray([]string{"read:profile"}),
+		ExpiresAt: time.Now().Add(time.Hour),
+	})
+	require.NoError(t, err)
+
+	w := performUserInfoRequest(r, rawToken)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var response map[string]interface{}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
+	assert.Equal(t, user.ID, response["sub"])
+	assert.Equal(t, "Legacy User", response["name"])
 }
 
 func TestOAuthHandler_UserInfoOmitsEmailFieldsWithoutEmailScope(t *testing.T) {

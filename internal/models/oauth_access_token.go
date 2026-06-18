@@ -11,6 +11,7 @@ import (
 type OAuthAccessToken struct {
 	ID        string      `gorm:"primaryKey;type:uuid" json:"id"`
 	Token     string      `gorm:"uniqueIndex;not null" json:"token"`
+	RawToken  string      `gorm:"-" json:"-"`
 	ClientID  string      `gorm:"not null" json:"client_id"`
 	UserID    string      `gorm:"type:uuid;not null" json:"user_id"`
 	Scopes    StringArray `json:"scopes"`

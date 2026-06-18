@@ -97,6 +97,16 @@ func (r *TokenRepository) RevokeAllUserTokens(userID string) error {
 		Update("is_revoked", true).Error
 }
 
+// RevokeTokenFamily revokes all refresh tokens in a specific token family
+func (r *TokenRepository) RevokeTokenFamily(familyID string) error {
+	if familyID == "" {
+		return errors.New("family ID cannot be empty")
+	}
+	return r.db.Model(&models.RefreshToken{}).
+		Where("family_id = ? AND is_revoked = ?", familyID, false).
+		Update("is_revoked", true).Error
+}
+
 // DeleteExpiredTokens removes expired refresh tokens (cleanup job)
 func (r *TokenRepository) DeleteExpiredTokens() (int64, error) {
 	result := r.db.Where("expires_at < ?", time.Now()).
