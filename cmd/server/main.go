@@ -41,6 +41,12 @@ func main() {
 	// Initialize database
 	db := config.InitDatabase(cfg)
 
+	// Pre-migration backfill for refresh_tokens.family_id
+	// Add column as nullable first to allow backfill
+	db.Exec("ALTER TABLE refresh_tokens ADD COLUMN IF NOT EXISTS family_id uuid")
+	// Backfill existing tokens using their own ID as the family ID
+	db.Exec("UPDATE refresh_tokens SET family_id = id WHERE family_id IS NULL")
+
 	// Auto-migrate database models
 	err := config.AutoMigrate(db, &models.User{},
 		&models.RefreshToken{},

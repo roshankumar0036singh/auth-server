@@ -99,6 +99,9 @@ func (r *TokenRepository) RevokeAllUserTokens(userID string) error {
 
 // RevokeTokenFamily revokes all refresh tokens in a specific token family
 func (r *TokenRepository) RevokeTokenFamily(familyID string) error {
+	if familyID == "" {
+		return errors.New("family ID cannot be empty")
+	}
 	return r.db.Model(&models.RefreshToken{}).
 		Where("family_id = ? AND is_revoked = ?", familyID, false).
 		Update("is_revoked", true).Error
