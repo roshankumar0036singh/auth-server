@@ -685,10 +685,10 @@ func (s *AuthService) RefreshAccessToken(refreshTokenString string, ipAddress, u
 	// Verify token is valid (not revoked and not expired)
 	if !storedToken.IsValid() {
 		if storedToken.IsRevoked {
-			// Token reuse detected! Revoke all tokens for this user.
-			log.Printf("Security Alert: Refresh token reuse detected for user %s. Revoking all active sessions.", storedToken.UserID)
-			if err := s.tokenRepo.RevokeAllUserTokens(storedToken.UserID); err != nil {
-				log.Printf("Error revoking all tokens for user %s: %v", storedToken.UserID, err)
+			// Token reuse detected! Revoke all tokens in this family.
+			log.Printf("Security Alert: Refresh token reuse detected for user %s, family %s. Revoking family sessions.", storedToken.UserID, storedToken.FamilyID)
+			if err := s.tokenRepo.RevokeTokenFamily(storedToken.FamilyID); err != nil {
+				log.Printf("Error revoking tokens for family %s: %v", storedToken.FamilyID, err)
 			}
 			// Log audit event
 			if err := s.auditService.LogEvent(&storedToken.UserID, "REFRESH_TOKEN_REUSE_DETECTED", "USER", storedToken.UserID, ipAddress, userAgent, map[string]interface{}{
@@ -715,6 +715,7 @@ func (s *AuthService) RefreshAccessToken(refreshTokenString string, ipAddress, u
 	// Store new refresh token
 	newRefreshToken := &models.RefreshToken{
 		UserID:    user.ID,
+		FamilyID:  storedToken.FamilyID,
 		Token:     newRefreshTokenString,
 		ExpiresAt: time.Now().Add(7 * 24 * time.Hour),
 		IPAddress: ipAddress,

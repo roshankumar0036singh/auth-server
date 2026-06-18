@@ -10,6 +10,7 @@ import (
 type RefreshToken struct {
 	ID        string    `gorm:"type:uuid;primary_key" json:"id"`
 	UserID    string    `gorm:"type:uuid;not null;index" json:"userId"`
+	FamilyID  string    `gorm:"type:uuid;not null;index" json:"familyId"`
 	Token     string    `gorm:"type:varchar(500);uniqueIndex;not null" json:"-"` // Never expose in JSON
 	ExpiresAt time.Time `gorm:"not null;index" json:"expiresAt"`
 	IsRevoked bool      `gorm:"default:false;index" json:"isRevoked"`
@@ -29,6 +30,9 @@ type RefreshToken struct {
 func (rt *RefreshToken) BeforeCreate(tx *gorm.DB) error {
 	if rt.ID == "" {
 		rt.ID = uuid.New().String()
+	}
+	if rt.FamilyID == "" {
+		rt.FamilyID = uuid.New().String()
 	}
 	return nil
 }
