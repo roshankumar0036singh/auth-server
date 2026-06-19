@@ -23,6 +23,7 @@ func (r *AuditRepository) FindByUserID(userID string, limit, offset int) ([]mode
 	var logs []models.AuditLog
 	err := r.db.Where("user_id = ?", userID).
 		Order("created_at DESC").
+		Order("id DESC").
 		Limit(limit).
 		Offset(offset).
 		Find(&logs).Error
@@ -36,4 +37,3 @@ func (r *AuditRepository) CountByUserID(userID string) (int64, error) {
 
 	return count, err
 }
-
