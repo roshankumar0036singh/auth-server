@@ -28,11 +28,12 @@ var (
 )
 
 const (
-	errGenAccessToken        = "failed to generate access token"
-	errGenRefreshToken       = "failed to generate refresh token"
-	errStoreRefreshToken     = "failed to store refresh token"
-	errHashPassword          = "failed to hash password"
-	loginAttemptCacheTimeout = 5 * time.Second
+	errGenAccessToken               = "failed to generate access token"
+	errGenRefreshToken              = "failed to generate refresh token"
+	errStoreRefreshToken            = "failed to store refresh token"
+	errHashPassword                 = "failed to hash password"
+	errInvalidOrExpiredRefreshToken = "invalid or expired refresh token"
+	loginAttemptCacheTimeout        = 5 * time.Second
 )
 
 type AuthService struct {
@@ -704,7 +705,7 @@ func (s *AuthService) verifyRefreshTokenState(ctx context.Context, refreshTokenS
 	// Validate refresh token JWT
 	claims, err := s.tokenService.ValidateRefreshToken(refreshTokenString)
 	if err != nil {
-		return nil, "", false, errors.New("invalid or expired refresh token")
+		return nil, "", false, errors.New(errInvalidOrExpiredRefreshToken)
 	}
 
 	// Check if token is blacklisted
@@ -731,7 +732,7 @@ func (s *AuthService) verifyRefreshTokenState(ctx context.Context, refreshTokenS
 			}
 			return allowedToken, claims.UserID, isGrace, nil
 		}
-		return nil, "", false, errors.New("invalid or expired refresh token")
+		return nil, "", false, errors.New(errInvalidOrExpiredRefreshToken)
 	}
 	
 	return storedToken, claims.UserID, false, nil
@@ -750,7 +751,7 @@ func (s *AuthService) handleRevokedRefreshToken(ctx context.Context, storedToken
 	}
 
 	s.revokeRefreshTokenFamily(storedToken, ipAddress, userAgent)
-	return nil, false, errors.New("invalid or expired refresh token")
+	return nil, false, errors.New(errInvalidOrExpiredRefreshToken)
 }
 
 func (s *AuthService) revokeRefreshTokenFamily(storedToken *models.RefreshToken, ipAddress, userAgent string) {
