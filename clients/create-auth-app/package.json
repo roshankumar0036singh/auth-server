@@ -1,0 +1,38 @@
+{
+  "name": "@authserver/create-auth-app",
+  "version": "0.1.0",
+  "description": "Scaffold a new app wired up with @authserver/client — Next.js, React, or Node.js.",
+  "type": "module",
+  "bin": {
+    "create-auth-app": "index.js"
+  },
+  "files": [
+    "index.js",
+    "src",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "auth",
+    "authentication",
+    "create",
+    "scaffold",
+    "starter",
+    "nextjs",
+    "react",
+    "authserver"
+  ],
+  "author": "Roshan Kumar Singh",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/roshankumar0036singh/auth-server.git",
+    "directory": "clients/create-auth-app"
+  },
+  "bugs": {
+    "url": "https://github.com/roshankumar0036singh/auth-server/issues"
+  },
+  "homepage": "https://github.com/roshankumar0036singh/auth-server/tree/main/clients/create-auth-app#readme"
+}
