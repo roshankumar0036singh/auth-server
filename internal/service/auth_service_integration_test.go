@@ -463,6 +463,8 @@ func TestAuthService_RefreshAccessToken_ReuseDetection_Integration(t *testing.T)
 	assert.Equal(t, user.ID, auditLog.EntityID)
 }
 
+// Test grace period for concurrent refresh token rotation
+// Verifies that a second refresh token reuse is allowed within configured grace period
 func TestAuthService_RefreshAccessToken_GracePeriod_ConcurrentRotation_Integration(t *testing.T) {
 	authService, db, mr := testutils.SetupIntegrationTest(t)
 	defer mr.Close()
