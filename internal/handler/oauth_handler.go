@@ -31,17 +31,38 @@ func NewOAuthHandler(oauthProviderService *service.OAuthProviderService, userRep
 	}
 }
 
-// Authorize handles the OAuth authorization request
-// @Summary OAuth Authorization Request
-// @Description Redirects user to consent page or returns authorization code
-// @Tags OAuth Provider
-// @Accept  json
-// @Produce html, json
-// @Param   client_id     query    string true  "OAuth Client ID"
-// @Param   redirect_uri  query    string true  "Redirect URI"
-// @Param   response_type query    string true  "Response type (code)"
-// @Param   scope         query    string false "Requested scopes (space separated)"
-// @Param   state         query    string false "OAuth state parameter"
+func (h *OAuthHandler) getAndValidateClient(c *gin.Context, clientID, redirectURI, responseType string) (*models.OAuthClient, bool) {
+	if clientID == "" || redirectURI == "" || responseType == "" {
+		c.HTML(http.StatusBadRequest, errTmpl, gin.H{"error": "Missing required parameters"})
+		return nil, false
+	}
+	if responseType != "code" {
+		c.HTML(http.StatusBadRequest, errTmpl, gin.H{"error": "Unsupported response_type. Only 'code' is supported"})
+		return nil, false
+	}
+	client, err := h.oauthProviderService.GetPublicClient(clientID)
+	if err != nil {
+		c.HTML(http.StatusBadRequest, errTmpl, gin.H{"error": "Invalid client_id"})
+		return nil, false
+	}
+	if err := h.oauthProviderService.ValidateRedirectURI(client, redirectURI); err != nil {
+		c.HTML(http.StatusBadRequest, errTmpl, gin.H{"error": "Invalid redirect_uri"})
+		return nil, false
+	}
+	return client, true
+}
+
+// Authorize handles the initial authorization request
+// @Summary Authorize OAuth client
+// @Tags oauth
+// @Produce html
+// @Param client_id query string true "Client ID"
+// @Param redirect_uri query string true "Redirect URI"
+// @Param response_type query string true "Response Type (code)"
+// @Param scope query string false "Scopes"
+// @Param state query string false "State"
+// @Param code_challenge query string false "PKCE code challenge (base64url-encoded SHA256 hash)"
+// @Param code_challenge_method query string false "PKCE code challenge method (S256 or plain)"
 // @Success 302 "Redirect" @header Location {string} "Redirect URL with code or error"
 // @Failure 400 {object} ErrorResponse "Invalid request"
 // @Failure 401 {object} ErrorResponse "Unauthorized - user must be logged in"
@@ -212,7 +233,7 @@ func (h *OAuthHandler) AuthorizePost(c *gin.Context) {
 
 // Token handles the token exchange
 // @Summary OAuth Token Exchange
-// @Description Exchanges authorization code for access token
+// @Description Exchanges authorization code for access token. Public clients must provide code_verifier for PKCE validation.
 // @Tags OAuth Provider
 // @Accept  x-www-form-urlencoded
 // @Produce json
@@ -221,6 +242,7 @@ func (h *OAuthHandler) AuthorizePost(c *gin.Context) {
 // @Param   redirect_uri  formData string true  "Redirect URI"
 // @Param   client_id     formData string true  "OAuth Client ID"
 // @Param   client_secret formData string true  "OAuth Client Secret"
+// @Param   code_verifier formData string false "PKCE code verifier (required for public clients)"
 // @Success 200 {object} TokenResponse "Access token response"
 // @Failure 400 {object} ErrorResponse "Invalid request"
 // @Failure 401 {object} ErrorResponse "Invalid client credentials"
@@ -236,38 +258,38 @@ func (h *OAuthHandler) Token(c *gin.Context) {
 	// Validate grant type
 	if grantType != "authorization_code" {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error":             "unsupported_grant_type",
-			"error_description": "Only authorization_code grant type is supported",
+			"error": "unsupported_grant_type",
+			"code":  "UNSUPPORTED_GRANT_TYPE",
 		})
 		return
 	}
 
 	// Validate client credentials
 	client, err := h.oauthProviderService.ResolveClientForToken(clientID, clientSecret)
-        if err != nil {
-                c.JSON(http.StatusUnauthorized, gin.H{
-                        "error":             "invalid_client",
-                        "error_description": err.Error(),
-                })
-                return
-        }
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"error": "invalid client credentials",
+			"code":  "INVALID_CLIENT",
+		})
+		return
+	}
 
-        // Public clients MUST use PKCE — reject if no verifier was sent at all,
-        // independent of whether the stored auth code happens to have a challenge.
-        if client.IsPublic && codeVerifier == "" {
-                c.JSON(http.StatusBadRequest, gin.H{
-                        "error":             "invalid_request",
-                        "error_description": "code_verifier is required for public clients",
-                })
-                return
-        }
+	// Public clients MUST use PKCE — reject if no verifier was sent at all,
+	// independent of whether the stored auth code happens to have a challenge.
+	if client.IsPublic && codeVerifier == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "code_verifier is required for public clients",
+			"code":  "INVALID_REQUEST",
+		})
+		return
+	}
 
 	// Exchange code for token
 	accessToken, err := h.oauthProviderService.ExchangeCodeForToken(code, clientID, redirectURI, codeVerifier, client.IsPublic)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error":             "invalid_grant",
-			"error_description": err.Error(),
+			"error": "invalid_grant",
+			"code":  "INVALID_GRANT",
 		})
 		return
 	}

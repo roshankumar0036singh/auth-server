@@ -272,17 +272,24 @@ func (s *OAuthProviderService) ExchangeCodeForToken(code, clientID, redirectURI,
 }
 
 // ValidateAccessToken validates an OAuth access token
+// It first tries the hashed token lookup (new behavior), then falls back to
+// raw token lookup (backward compatibility for unhashed tokens).
 func (s *OAuthProviderService) ValidateAccessToken(tokenString string) (*models.OAuthAccessToken, error) {
-	// Try finding by hashed token first
+	// Try hashed token lookup first (new behavior)
 	hashedToken := utils.HashToken(tokenString)
 	token, err := s.tokenRepo.FindByToken(hashedToken)
-	if err != nil {
-		// Fallback to raw token lookup for backward compatibility
-		var fallbackErr error
-		token, fallbackErr = s.tokenRepo.FindByToken(tokenString)
-		if fallbackErr != nil {
-			return nil, errors.New("invalid access token")
+	if err == nil {
+		// Found the hashed token
+		if token.IsExpired() {
+			return nil, errors.New("access token expired")
 		}
+		return token, nil
+	}
+
+	// Fallback: try raw token lookup for backward compatibility
+	token, err = s.tokenRepo.FindByToken(tokenString)
+	if err != nil {
+		return nil, errors.New("invalid access token")
 	}
 
 	if token.IsExpired() {
