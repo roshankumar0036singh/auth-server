@@ -74,42 +74,14 @@ func (h *OAuthHandler) Authorize(c *gin.Context) {
 	responseType := c.Query("response_type")
 	scope := c.Query("scope")
 	state := c.Query("state")
-        codeChallenge := c.Query("code_challenge")
-        codeChallengeMethod := c.Query("code_challenge_method")
-        if codeChallenge != "" && codeChallengeMethod == "" {
-            codeChallengeMethod = "S256"
-        }
-
-	// Validate required parameters
-	if clientID == "" || redirectURI == "" || responseType == "" {
-		c.HTML(http.StatusBadRequest, errTmpl, gin.H{
-			"error": "Missing required parameters",
-		})
-		return
+	codeChallenge := c.Query("code_challenge")
+	codeChallengeMethod := c.Query("code_challenge_method")
+	if codeChallenge != "" && codeChallengeMethod == "" {
+		codeChallengeMethod = "S256"
 	}
 
-	// Only support authorization_code flow
-	if responseType != "code" {
-		c.HTML(http.StatusBadRequest, errTmpl, gin.H{
-			"error": "Unsupported response_type. Only 'code' is supported",
-		})
-		return
-	}
-
-	// Validate client
-	client, err := h.oauthProviderService.GetPublicClient(clientID)
-	if err != nil {
-		c.HTML(http.StatusBadRequest, errTmpl, gin.H{
-			"error": "Invalid client_id",
-		})
-		return
-	}
-
-	// Validate redirect URI
-	if err := h.oauthProviderService.ValidateRedirectURI(client, redirectURI); err != nil {
-		c.HTML(http.StatusBadRequest, errTmpl, gin.H{
-			"error": "Invalid redirect_uri",
-		})
+	client, ok := h.getAndValidateClient(c, clientID, redirectURI, responseType)
+	if !ok {
 		return
 	}
 
