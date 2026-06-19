@@ -41,8 +41,14 @@ func (s *AuditService) LogEvent(userID *string, action, entity, entityID, ip, us
 
 // GetUserAuditLogs retrieves the audit logs for a specific user
 func (s *AuditService) GetUserAuditLogs(userID string, page, limit int) (*dto.AuditLogsResponse, error) {
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 {
+		limit = 20
+	}
 	maxInt := int(^uint(0) >> 1)
-	maxPage := maxInt/limit + 1
+	maxPage := maxInt / limit
 	if page > maxPage {
 		page = maxPage
 	}
