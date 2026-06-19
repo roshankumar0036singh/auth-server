@@ -41,15 +41,10 @@ func (s *AuditService) LogEvent(userID *string, action, entity, entityID, ip, us
 
 // GetUserAuditLogs retrieves the audit logs for a specific user
 func (s *AuditService) GetUserAuditLogs(userID string, page, limit int) (*dto.AuditLogsResponse, error) {
-	if page < 1 {
-		page = 1
-	}
-	if limit < 1 {
-		limit = 20
-	}
-
-	if limit > 100 {
-		limit = 100
+	maxInt := int(^uint(0) >> 1)
+	maxPage := maxInt/limit + 1
+	if page > maxPage {
+		page = maxPage
 	}
 
 	offset := (page - 1) * limit
@@ -64,7 +59,7 @@ func (s *AuditService) GetUserAuditLogs(userID string, page, limit int) (*dto.Au
 		return nil, err
 	}
 
-	hasMore := page*limit < int(totalCount)
+	hasMore := int64(offset)+int64(len(logs)) < totalCount
 
 	return &dto.AuditLogsResponse{
 		Logs: logs,

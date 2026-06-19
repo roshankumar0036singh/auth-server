@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"strings"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/roshankumar0036singh/auth-server/internal/dto"
@@ -42,7 +42,7 @@ func NewAuthHandler(authService *service.AuthService, oauthService *service.OAut
 // @Produce json
 // @Param request body dto.RegisterRequest true "Registration data"
 // @Success 201 {object} utils.Response
-// @Failure 400 {object} utils.Response
+// @failure 400 {object} utils.Response
 // @Router /api/auth/register [post]
 func (h *AuthHandler) Register(c *gin.Context) {
 	var req dto.RegisterRequest
@@ -261,19 +261,31 @@ func (h *AuthHandler) GetAuditLogs(c *gin.Context) {
 		return
 	}
 
+	uid, ok := userID.(string)
+	if !ok || uid == "" {
+		c.JSON(http.StatusUnauthorized, utils.UnauthorizedResponse("Unauthorized"))
+		return
+	}
+
 	page := 1   //set to default
 	limit := 20 //set to default
 
 	if pageStr := c.Query("page"); pageStr != "" {
-		if p, err := strconv.Atoi(pageStr); err == nil {
-			page = p
+		p, err := strconv.Atoi(pageStr)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, utils.ValidationErrorResponse("page must be a valid integer"))
+			return
 		}
+		page = p
 	}
 
 	if limitStr := c.Query("limit"); limitStr != "" {
-		if l, err := strconv.Atoi(limitStr); err == nil {
-			limit = l
+		l, err := strconv.Atoi(limitStr)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, utils.ValidationErrorResponse("limit must be a valid integer"))
+			return
 		}
+		limit = l
 	}
 
 	if page < 1 {
@@ -287,7 +299,7 @@ func (h *AuthHandler) GetAuditLogs(c *gin.Context) {
 		limit = 100
 	}
 
-	logs, err := h.authService.GetUserAuditLogs(userID.(string), page, limit)
+	logs, err := h.authService.GetUserAuditLogs(uid, page, limit)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, utils.ErrorResponse("Failed to retrieve audit logs", err))
 		return
@@ -585,12 +597,12 @@ func (h *AuthHandler) validateOAuthRedirectURI(clientID, redirectURI string) boo
 func (h *AuthHandler) completeOAuthLogin(c *gin.Context, loginResp *dto.LoginResponse, clientID string) {
 	isProd := gin.Mode() == gin.ReleaseMode
 	redirectURI, err := c.Cookie("oauth_redirect")
-	
+
 	if err != nil || redirectURI == "" {
 		c.JSON(http.StatusOK, utils.SuccessResponse(msgLoginSuccess, loginResp))
 		return
 	}
-	
+
 	c.SetCookie("oauth_redirect", "", -1, "/", "", isProd, true)
 
 	if !h.validateOAuthRedirectURI(clientID, redirectURI) {

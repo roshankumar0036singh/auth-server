@@ -41,7 +41,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/utils.Response"
+                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response"
                         }
                     }
                 }
@@ -71,7 +71,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/utils.Response"
+                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response"
                         }
                     }
                 }
@@ -101,7 +101,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/utils.Response"
+                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response"
                         }
                     }
                 }
@@ -131,7 +131,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/utils.Response"
+                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response"
                         }
                     }
                 }
@@ -149,11 +149,25 @@ const docTemplate = `{
                     "auth"
                 ],
                 "summary": "Get audit logs",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Page number (default: 1)",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Items per page (default: 20, max: 100)",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/utils.Response"
+                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response"
                         }
                     }
                 }
@@ -178,7 +192,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/dto.ForgotPasswordRequest"
+                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_dto.ForgotPasswordRequest"
                         }
                     }
                 ],
@@ -186,7 +200,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/utils.Response"
+                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response"
                         }
                     }
                 }
@@ -247,7 +261,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/dto.LoginRequest"
+                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_dto.LoginRequest"
                         }
                     }
                 ],
@@ -255,13 +269,13 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/utils.Response"
+                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/utils.Response"
+                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response"
                         }
                     }
                 }
@@ -286,7 +300,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/dto.MFALoginRequest"
+                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_dto.MFALoginRequest"
                         }
                     }
                 ],
@@ -294,7 +308,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/utils.Response"
+                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response"
                         }
                     }
                 }
@@ -323,7 +337,7 @@ const docTemplate = `{
                         "name": "request",
                         "in": "body",
                         "schema": {
-                            "$ref": "#/definitions/dto.LogoutRequest"
+                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_dto.LogoutRequest"
                         }
                     }
                 ],
@@ -331,7 +345,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/utils.Response"
+                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response"
                         }
                     }
                 }
@@ -355,7 +369,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/utils.Response"
+                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response"
                         }
                     }
                 }
@@ -379,13 +393,13 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/utils.Response"
+                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/utils.Response"
+                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response"
                         }
                     }
                 }
@@ -405,7 +419,69 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/utils.Response"
+                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/auth/mfa/disable": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Disable MFA",
+                "parameters": [
+                    {
+                        "description": "Current password and TOTP verification code",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_dto.MFADisableRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response"
                         }
                     }
                 }
@@ -429,7 +505,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/utils.Response"
+                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response"
                         }
                     }
                 }
@@ -459,7 +535,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/dto.MFAVerifyRequest"
+                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_dto.MFAVerifyRequest"
                         }
                     }
                 ],
@@ -467,7 +543,267 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/utils.Response"
+                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/auth/oauth/clients": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "List all OAuth clients registered by the authenticated user",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "OAuth Client"
+                ],
+                "summary": "List My OAuth Clients",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.ListOAuthClientsResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Create a new OAuth client for third-party apps",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "OAuth Client"
+                ],
+                "summary": "Create OAuth Client",
+                "parameters": [
+                    {
+                        "description": "Client details",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.CreateOAuthClientRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.CreateOAuthClientResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/auth/oauth/clients/{clientId}": {
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Delete an OAuth client registered by the user",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "OAuth Client"
+                ],
+                "summary": "Delete OAuth Client",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Client ID (UUID)",
+                        "name": "clientId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/auth/oauth/clients/{clientId}/providers/{provider}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "oauth-clients"
+                ],
+                "summary": "Get OAuth Provider Config",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Client ID",
+                        "name": "clientId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Provider (google/github)",
+                        "name": "provider",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "oauth-clients"
+                ],
+                "summary": "Create/Update OAuth Provider Config",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Client ID",
+                        "name": "clientId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Provider (google/github)",
+                        "name": "provider",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Config data",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.ProviderConfigRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "oauth-clients"
+                ],
+                "summary": "Delete OAuth Provider Config",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Client ID",
+                        "name": "clientId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Provider (google/github)",
+                        "name": "provider",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response"
                         }
                     }
                 }
@@ -492,7 +828,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/dto.ChangePasswordRequest"
+                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_dto.ChangePasswordRequest"
                         }
                     }
                 ],
@@ -500,7 +836,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/utils.Response"
+                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response"
                         }
                     }
                 }
@@ -525,7 +861,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/dto.UpdateProfileRequest"
+                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_dto.UpdateProfileRequest"
                         }
                     }
                 ],
@@ -533,7 +869,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/utils.Response"
+                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response"
                         }
                     }
                 }
@@ -558,7 +894,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/dto.RefreshTokenRequest"
+                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_dto.RefreshTokenRequest"
                         }
                     }
                 ],
@@ -566,13 +902,13 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/utils.Response"
+                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/utils.Response"
+                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response"
                         }
                     }
                 }
@@ -597,7 +933,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/dto.RegisterRequest"
+                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_dto.RegisterRequest"
                         }
                     }
                 ],
@@ -605,13 +941,13 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/utils.Response"
+                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/utils.Response"
+                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response"
                         }
                     }
                 }
@@ -636,7 +972,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/dto.ResendVerificationRequest"
+                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_dto.ResendVerificationRequest"
                         }
                     }
                 ],
@@ -644,7 +980,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/utils.Response"
+                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response"
                         }
                     }
                 }
@@ -669,7 +1005,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/dto.ResetPasswordRequest"
+                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_dto.ResetPasswordRequest"
                         }
                     }
                 ],
@@ -677,7 +1013,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/utils.Response"
+                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response"
                         }
                     }
                 }
@@ -701,7 +1037,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/utils.Response"
+                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response"
                         }
                     }
                 }
@@ -734,7 +1070,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/utils.Response"
+                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response"
                         }
                     }
                 }
@@ -765,7 +1101,276 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/utils.Response"
+                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/oauth/authorize": {
+            "get": {
+                "produces": [
+                    "text/html"
+                ],
+                "tags": [
+                    "oauth"
+                ],
+                "summary": "Authorize OAuth client",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Client ID",
+                        "name": "client_id",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Redirect URI",
+                        "name": "redirect_uri",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Response Type (code)",
+                        "name": "response_type",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Scopes",
+                        "name": "scope",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "State",
+                        "name": "state",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "PKCE code challenge (base64url-encoded SHA256 hash)",
+                        "name": "code_challenge",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "PKCE code challenge method (S256 or plain)",
+                        "name": "code_challenge_method",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "302": {
+                        "description": "Redirect\" @header Location {string} \"Redirect URL with code or error"
+                    },
+                    "400": {
+                        "description": "Invalid request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized - user must be logged in",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "User approves or denies the OAuth authorization request",
+                "consumes": [
+                    "application/x-www-form-urlencoded"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "OAuth Provider"
+                ],
+                "summary": "OAuth Authorization Consent",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "OAuth Client ID",
+                        "name": "client_id",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Redirect URI",
+                        "name": "redirect_uri",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Response type (code)",
+                        "name": "response_type",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Requested scopes (space separated)",
+                        "name": "scope",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "OAuth state parameter",
+                        "name": "state",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Consent action (approve/deny)",
+                        "name": "action",
+                        "in": "formData",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "302": {
+                        "description": "Redirect\" @header Location {string} \"Redirect URL with code or error"
+                    },
+                    "400": {
+                        "description": "Invalid request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/oauth/token": {
+            "post": {
+                "description": "Exchanges authorization code for access token. Public clients must provide code_verifier for PKCE validation.",
+                "consumes": [
+                    "application/x-www-form-urlencoded"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "OAuth Provider"
+                ],
+                "summary": "OAuth Token Exchange",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Grant type (authorization_code)",
+                        "name": "grant_type",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Authorization code",
+                        "name": "code",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Redirect URI",
+                        "name": "redirect_uri",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "OAuth Client ID",
+                        "name": "client_id",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "OAuth Client Secret",
+                        "name": "client_secret",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "PKCE code verifier (required for public clients)",
+                        "name": "code_verifier",
+                        "in": "formData"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Access token response",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.TokenResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Invalid client credentials",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/oauth/userinfo": {
+            "get": {
+                "description": "Returns user profile information for the provided access token",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "OAuth Provider"
+                ],
+                "summary": "OAuth User Info",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Bearer {access_token}",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "User profile information",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.UserInfoResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Invalid or expired token",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "User not found",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.ErrorResponse"
                         }
                     }
                 }
@@ -773,7 +1378,7 @@ const docTemplate = `{
         }
     },
     "definitions": {
-        "dto.ChangePasswordRequest": {
+        "github_com_roshankumar0036singh_auth-server_internal_dto.ChangePasswordRequest": {
             "type": "object",
             "required": [
                 "currentPassword",
@@ -789,7 +1394,7 @@ const docTemplate = `{
                 }
             }
         },
-        "dto.ForgotPasswordRequest": {
+        "github_com_roshankumar0036singh_auth-server_internal_dto.ForgotPasswordRequest": {
             "type": "object",
             "required": [
                 "email"
@@ -800,7 +1405,7 @@ const docTemplate = `{
                 }
             }
         },
-        "dto.LoginRequest": {
+        "github_com_roshankumar0036singh_auth-server_internal_dto.LoginRequest": {
             "type": "object",
             "required": [
                 "email",
@@ -815,7 +1420,7 @@ const docTemplate = `{
                 }
             }
         },
-        "dto.LogoutRequest": {
+        "github_com_roshankumar0036singh_auth-server_internal_dto.LogoutRequest": {
             "type": "object",
             "properties": {
                 "refreshToken": {
@@ -823,22 +1428,38 @@ const docTemplate = `{
                 }
             }
         },
-        "dto.MFALoginRequest": {
+        "github_com_roshankumar0036singh_auth-server_internal_dto.MFADisableRequest": {
             "type": "object",
             "required": [
                 "code",
-                "email"
+                "password"
             ],
             "properties": {
                 "code": {
                     "type": "string"
                 },
-                "email": {
+                "password": {
+                    "description": "Password re-authenticates the user for this sensitive operation",
                     "type": "string"
                 }
             }
         },
-        "dto.MFAVerifyRequest": {
+        "github_com_roshankumar0036singh_auth-server_internal_dto.MFALoginRequest": {
+            "type": "object",
+            "required": [
+                "code",
+                "mfaToken"
+            ],
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "mfaToken": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_roshankumar0036singh_auth-server_internal_dto.MFAVerifyRequest": {
             "type": "object",
             "required": [
                 "code"
@@ -849,7 +1470,7 @@ const docTemplate = `{
                 }
             }
         },
-        "dto.RefreshTokenRequest": {
+        "github_com_roshankumar0036singh_auth-server_internal_dto.RefreshTokenRequest": {
             "type": "object",
             "required": [
                 "refreshToken"
@@ -860,7 +1481,7 @@ const docTemplate = `{
                 }
             }
         },
-        "dto.RegisterRequest": {
+        "github_com_roshankumar0036singh_auth-server_internal_dto.RegisterRequest": {
             "type": "object",
             "required": [
                 "email",
@@ -884,7 +1505,7 @@ const docTemplate = `{
                 }
             }
         },
-        "dto.ResendVerificationRequest": {
+        "github_com_roshankumar0036singh_auth-server_internal_dto.ResendVerificationRequest": {
             "type": "object",
             "required": [
                 "email"
@@ -895,7 +1516,7 @@ const docTemplate = `{
                 }
             }
         },
-        "dto.ResetPasswordRequest": {
+        "github_com_roshankumar0036singh_auth-server_internal_dto.ResetPasswordRequest": {
             "type": "object",
             "required": [
                 "password",
@@ -911,7 +1532,7 @@ const docTemplate = `{
                 }
             }
         },
-        "dto.UpdateProfileRequest": {
+        "github_com_roshankumar0036singh_auth-server_internal_dto.UpdateProfileRequest": {
             "type": "object",
             "properties": {
                 "firstName": {
@@ -928,7 +1549,48 @@ const docTemplate = `{
                 }
             }
         },
-        "utils.ErrorDetail": {
+        "github_com_roshankumar0036singh_auth-server_internal_models.OAuthClient": {
+            "type": "object",
+            "properties": {
+                "client_id": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "is_active": {
+                    "type": "boolean"
+                },
+                "is_public": {
+                    "type": "boolean"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "owner_id": {
+                    "type": "string"
+                },
+                "redirect_uris": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "scopes": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_roshankumar0036singh_auth-server_internal_utils.ErrorDetail": {
             "type": "object",
             "properties": {
                 "code": {
@@ -939,18 +1601,188 @@ const docTemplate = `{
                 }
             }
         },
-        "utils.Response": {
+        "github_com_roshankumar0036singh_auth-server_internal_utils.Response": {
             "type": "object",
             "properties": {
                 "data": {},
                 "error": {
-                    "$ref": "#/definitions/utils.ErrorDetail"
+                    "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.ErrorDetail"
                 },
                 "message": {
                     "type": "string"
                 },
                 "success": {
                     "type": "boolean"
+                }
+            }
+        },
+        "internal_handler.CreateOAuthClientRequest": {
+            "type": "object",
+            "required": [
+                "name",
+                "redirect_uris",
+                "scopes"
+            ],
+            "properties": {
+                "is_public": {
+                    "type": "boolean"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "redirect_uris": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "scopes": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "internal_handler.CreateOAuthClientResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/internal_handler.OAuthClientData"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "success": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "internal_handler.ErrorResponse": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "error": {
+                    "type": "string"
+                },
+                "message": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_handler.ListOAuthClientsResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_models.OAuthClient"
+                    }
+                },
+                "success": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "internal_handler.OAuthClientData": {
+            "type": "object",
+            "properties": {
+                "client_id": {
+                    "type": "string"
+                },
+                "client_secret": {
+                    "description": "Only in creation response",
+                    "type": "string"
+                },
+                "created_at": {},
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "redirect_uris": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "scopes": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "internal_handler.ProviderConfigRequest": {
+            "type": "object",
+            "required": [
+                "provider_client_id",
+                "provider_client_secret"
+            ],
+            "properties": {
+                "provider_client_id": {
+                    "type": "string"
+                },
+                "provider_client_secret": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_handler.TokenResponse": {
+            "type": "object",
+            "properties": {
+                "access_token": {
+                    "type": "string"
+                },
+                "expires_in": {
+                    "type": "integer"
+                },
+                "refresh_token": {
+                    "type": "string"
+                },
+                "scope": {
+                    "type": "string"
+                },
+                "token_type": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_handler.UserInfoResponse": {
+            "type": "object",
+            "properties": {
+                "email": {
+                    "type": "string"
+                },
+                "email_verified": {
+                    "type": "boolean"
+                },
+                "family_name": {
+                    "type": "string"
+                },
+                "given_name": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "picture": {
+                    "type": "string"
+                },
+                "scopes": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "sub": {
+                    "type": "string"
                 }
             }
         }
