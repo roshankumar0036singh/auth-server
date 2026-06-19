@@ -38,9 +38,8 @@ func InitDatabase(dbConfig DBConfig) error {
         return fmt.Errorf("failed to get database instance: %w", err)
     }
 
-    // ============================================
     // Configure Connection Pool (KEY SETTINGS!)
-    // ============================================
+   
     sqlDB.SetMaxOpenConns(dbConfig.MaxOpenConns)
     log.Printf("✓ MaxOpenConns set to: %d", dbConfig.MaxOpenConns)
 
