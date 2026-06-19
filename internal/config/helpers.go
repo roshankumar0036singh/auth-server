@@ -25,10 +25,12 @@ func getEnvAsBool(key string, defaultVal bool) bool {
 }
 
 func getEnvAsDuration(key string, defaultVal time.Duration) time.Duration {
-	if value, exists := os.LookupEnv(key); exists {
-		if durationValue, err := time.ParseDuration(value); err == nil {
-			return durationValue
-		}
+	val := os.Getenv(key)
+	if val == "" {
+		return defaultVal
+	}
+	if d, err := time.ParseDuration(val); err == nil {
+		return d
 	}
 	return defaultVal
 }

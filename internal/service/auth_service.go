@@ -739,7 +739,8 @@ func (s *AuthService) verifyRefreshTokenState(ctx context.Context, refreshTokenS
 }
 
 func (s *AuthService) handleRevokedRefreshToken(ctx context.Context, storedToken *models.RefreshToken, userID, ipAddress, userAgent string) (*models.RefreshToken, bool, error) {
-	if time.Since(storedToken.UpdatedAt) <= s.getRefreshTokenGracePeriod() {
+	gracePeriod := s.getRefreshTokenGracePeriod()
+	if gracePeriod > 0 && time.Since(storedToken.UpdatedAt) <= gracePeriod {
 		activeToken, err := s.tokenRepo.FindActiveTokenInFamily(storedToken.FamilyID)
 		if err != nil {
 			return nil, false, errors.New("failed to verify refresh token state")
