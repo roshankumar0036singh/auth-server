@@ -263,7 +263,7 @@ func (h *OAuthHandler) Token(c *gin.Context) {
 	client, err := h.oauthProviderService.ResolveClientForToken(clientID, clientSecret)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{
-			"error": "invalid client credentials",
+			"error": "invalid_client",
 			"code":  "INVALID_CLIENT",
 		})
 		return
@@ -273,8 +273,9 @@ func (h *OAuthHandler) Token(c *gin.Context) {
 	// independent of whether the stored auth code happens to have a challenge.
 	if client.IsPublic && codeVerifier == "" {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "code_verifier is required for public clients",
-			"code":  "INVALID_REQUEST",
+			"error":             "invalid_request",
+			"error_description": "code_verifier is required for public clients",
+			"code":              "INVALID_REQUEST",
 		})
 		return
 	}
