@@ -23,7 +23,7 @@ export class AuthClient {
   private isRefreshing = false;
   private refreshPromise: Promise<Session> | null = null;
   private refreshTimeout: ReturnType<typeof setTimeout> | null = null;
-  private keepAliveIntervalId: ReturnType<typeof setInterval> | null = null;
+  private readonly keepAliveIntervalId: ReturnType<typeof setInterval> | null = null;
   private readonly retries: number;
   private readonly retryDelay: number;
 
@@ -38,7 +38,7 @@ export class AuthClient {
     this.retries = config.retries ?? 0;
     this.retryDelay = config.retryDelay ?? 1000;
 
-    if (config.keepAlive && typeof globalThis.setInterval !== 'undefined') {
+    if (config.keepAlive && globalThis.setInterval !== undefined) {
       const interval = config.keepAliveInterval ?? 300000; // 5 minutes
       this.keepAliveIntervalId = setInterval(() => {
         fetch(`${this.serverUrl}/health`).catch(() => {});
@@ -117,13 +117,13 @@ export class AuthClient {
       this.refreshTimeout = null;
     }
 
-    if (typeof globalThis.setTimeout === 'undefined') return;
+    if (globalThis.setTimeout === undefined) return;
 
     try {
       const payloadBase64Url = token.split('.')[1];
       if (!payloadBase64Url) return;
       const payloadBase64 = payloadBase64Url.replaceAll('-', '+').replaceAll('_', '/');
-      const payloadJson = typeof atob !== 'undefined' ? atob(payloadBase64) : (globalThis as any).Buffer.from(payloadBase64, 'base64').toString('utf8');
+      const payloadJson = typeof atob === 'undefined' ? (globalThis as any).Buffer.from(payloadBase64, 'base64').toString('utf8') : atob(payloadBase64);
       const decoded = JSON.parse(payloadJson);
       
       if (decoded.exp) {
@@ -214,13 +214,15 @@ export class AuthClient {
       const payloadBase64 = payloadBase64Url.replaceAll('-', '+').replaceAll('_', '/');
       let payloadJson = '';
       
-      if (typeof atob !== 'undefined') {
-        payloadJson = atob(payloadBase64);
-      } else if (typeof globalThis !== 'undefined' && (globalThis as any).Buffer) {
-        payloadJson = (globalThis as any).Buffer.from(payloadBase64, 'base64').toString('utf8');
+      if (typeof atob === 'undefined') {
+        if (typeof globalThis !== 'undefined' && (globalThis as any).Buffer) {
+          payloadJson = (globalThis as any).Buffer.from(payloadBase64, 'base64').toString('utf8');
+        } else {
+          // Can't decode, fail securely by treating it as expired
+          return true;
+        }
       } else {
-        // Can't decode, fail securely by treating it as expired
-        return true;
+        payloadJson = atob(payloadBase64);
       }
       
       const decoded = JSON.parse(payloadJson);
@@ -249,57 +251,7 @@ export class AuthClient {
       headers.set("Content-Type", "application/json");
     }
 
-    let response: Response | undefined;
-    let attempt = 0;
-    const maxAttempts = this.retries + 1;
-
-    while (attempt < maxAttempts) {
-      attempt++;
-      
-      if (this.accessToken) {
-        headers.set("Authorization", `Bearer ${this.accessToken}`);
-      }
-
-      try {
-        response = await fetch(`${this.serverUrl}${path}`, { ...options, headers });
-        
-        // Break out of retry loop for successful or 4xx responses (except 401 which we handle below)
-        if (response.ok || (response.status >= 400 && response.status < 500 && response.status !== 401)) {
-          break;
-        }
-
-        // Handle 401 Unauthorized with auto-refresh
-        if (response.status === 401 && this.refreshToken && path !== '/api/auth/refresh') {
-          try {
-            await this.refresh();
-            // Retry the original request immediately without backoff delay
-            headers.set("Authorization", `Bearer ${this.accessToken!}`);
-            response = await fetch(`${this.serverUrl}${path}`, { ...options, headers });
-            break;
-          } catch {
-            this.clearSession();
-            throw new AuthError("Session expired. Please log in again.", 'SESSION_EXPIRED', 401);
-          }
-        }
-
-        if (attempt >= maxAttempts) break;
-      } catch (err: unknown) {
-        if (attempt >= maxAttempts) {
-          const msg = err instanceof Error ? err.message : String(err);
-          const authErr = new AuthError(`Network error: unable to reach the auth server (${msg})`, 'NETWORK_ERROR', 0);
-          this.emit('error', authErr);
-          throw authErr;
-        }
-      }
-
-      // Exponential backoff
-      const delay = this.retryDelay * Math.pow(2, attempt - 1);
-      await new Promise(r => setTimeout(r, delay));
-    }
-
-    if (!response) {
-      throw new AuthError("Network error: request failed", 'NETWORK_ERROR', 0);
-    }
+    const response = await this.executeWithRetry(path, options, headers);
 
     const data = await response.json().catch(() => ({}));
 
@@ -314,6 +266,59 @@ export class AuthClient {
     }
 
     return data;
+  }
+
+  private async executeWithRetry(path: string, options: RequestInit, headers: Headers): Promise<Response> {
+    let attempt = 0;
+    const maxAttempts = this.retries + 1;
+
+    while (attempt < maxAttempts) {
+      attempt++;
+      
+      if (this.accessToken) {
+        headers.set("Authorization", `Bearer ${this.accessToken}`);
+      }
+
+      try {
+        const response = await fetch(`${this.serverUrl}${path}`, { ...options, headers });
+        
+        // Break out of retry loop for successful or 4xx responses (except 401 which we handle below)
+        if (response.ok || (response.status >= 400 && response.status < 500 && response.status !== 401)) {
+          return response;
+        }
+
+        // Handle 401 Unauthorized with auto-refresh
+        if (response.status === 401 && this.refreshToken && path !== '/api/auth/refresh') {
+          return await this.handleUnauthorizedRetry(path, options, headers);
+        }
+
+        if (attempt >= maxAttempts) return response;
+      } catch (err: unknown) {
+        if (attempt >= maxAttempts) {
+          const msg = err instanceof Error ? err.message : String(err);
+          const authErr = new AuthError(`Network error: unable to reach the auth server (${msg})`, 'NETWORK_ERROR', 0);
+          this.emit('error', authErr);
+          throw authErr;
+        }
+      }
+
+      // Exponential backoff
+      const delay = this.retryDelay * Math.pow(2, attempt - 1);
+      await new Promise(r => setTimeout(r, delay));
+    }
+    throw new AuthError("Network error: request failed", 'NETWORK_ERROR', 0);
+  }
+
+  private async handleUnauthorizedRetry(path: string, options: RequestInit, headers: Headers): Promise<Response> {
+    try {
+      await this.refresh();
+      // Retry the original request immediately without backoff delay
+      headers.set("Authorization", `Bearer ${this.accessToken!}`);
+      return await fetch(`${this.serverUrl}${path}`, { ...options, headers });
+    } catch {
+      this.clearSession();
+      throw new AuthError("Session expired. Please log in again.", 'SESSION_EXPIRED', 401);
+    }
   }
 
   // --- Core Auth ---

@@ -137,8 +137,8 @@ export function useSession() {
 }
 
 interface ProtectedRouteProps {
-  children: React.ReactNode;
-  fallback: React.ReactNode;
+  readonly children: React.ReactNode;
+  readonly fallback: React.ReactNode;
 }
 
 /**
