@@ -89,7 +89,7 @@ func TestReadyCheck_RedisDown(t *testing.T) {
 		Addr: mr.Addr(),
 	})
 	defer rdb.Close()
-	
+
 	// Close miniredis immediately to simulate redis down
 	mr.Close()
 
