@@ -417,26 +417,34 @@ func TestUnlockUser(t *testing.T) {
 	}
 }
 
-func TestAuthService_RefreshAccessToken_ReuseDetection_Integration(t *testing.T) {
-	authService, db, mr := testutils.SetupIntegrationTest(t)
-	defer mr.Close()
-
+func setupTestUserAndLogin(t *testing.T, authService *service.AuthService, email, firstName string) (*models.User, *dto.LoginResponse) {
 	regReq := &dto.RegisterRequest{
-		Email:     "reuse@example.com",
+		Email:     email,
 		Password:  "Password123!",
-		FirstName: "Reuse",
+		FirstName: firstName,
 		LastName:  "User",
 	}
 	user, err := authService.Register(regReq)
 	require.NoError(t, err)
 
 	loginReq := &dto.LoginRequest{
-		Email:    "reuse@example.com",
+		Email:    email,
 		Password: "Password123!",
 	}
 	loginResp, err := authService.Login(loginReq, "127.0.0.1", "UserAgent")
 	require.NoError(t, err)
 	require.NotEmpty(t, loginResp.RefreshToken)
+
+	return user, loginResp
+}
+
+func TestAuthService_RefreshAccessToken_ReuseDetection_Integration(t *testing.T) {
+	authService, db, mr := testutils.SetupIntegrationTest(t)
+	defer mr.Close()
+
+	authService.SetRefreshTokenGracePeriod("0s")
+
+	user, loginResp := setupTestUserAndLogin(t, authService, "reuse@example.com", "Reuse")
 
 	// 1. First refresh attempt should succeed (rotates the token)
 	refreshResp1, err := authService.RefreshAccessToken(loginResp.RefreshToken, "127.0.0.1", "UserAgent")
@@ -446,7 +454,7 @@ func TestAuthService_RefreshAccessToken_ReuseDetection_Integration(t *testing.T)
 
 	// 2. Second refresh attempt using the same original refresh token (reuse) should fail
 	_, err = authService.RefreshAccessToken(loginResp.RefreshToken, "127.0.0.1", "UserAgent")
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid or expired refresh token")
 
 	// 3. Assert that all refresh tokens for this user are now revoked in the database
@@ -471,22 +479,7 @@ func TestAuthService_RefreshAccessToken_GracePeriod_ConcurrentRotation_Integrati
 
 	authService.SetRefreshTokenGracePeriod("100ms")
 
-	regReq := &dto.RegisterRequest{
-		Email:     "grace@example.com",
-		Password:  "Password123!",
-		FirstName: "Grace",
-		LastName:  "User",
-	}
-	user, err := authService.Register(regReq)
-	require.NoError(t, err)
-
-	loginReq := &dto.LoginRequest{
-		Email:    "grace@example.com",
-		Password: "Password123!",
-	}
-	loginResp, err := authService.Login(loginReq, "127.0.0.1", "UserAgent")
-	require.NoError(t, err)
-	require.NotEmpty(t, loginResp.RefreshToken)
+	user, loginResp := setupTestUserAndLogin(t, authService, "grace@example.com", "Grace")
 
 	refreshResp1, err := authService.RefreshAccessToken(loginResp.RefreshToken, "127.0.0.1", "UserAgent")
 	require.NoError(t, err)
@@ -499,7 +492,7 @@ func TestAuthService_RefreshAccessToken_GracePeriod_ConcurrentRotation_Integrati
 
 	time.Sleep(150 * time.Millisecond)
 	_, err = authService.RefreshAccessToken(loginResp.RefreshToken, "127.0.0.1", "UserAgent")
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid or expired refresh token")
 
 	var activeCount int64
