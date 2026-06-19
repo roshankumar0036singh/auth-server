@@ -1,9 +1,11 @@
 package config
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"strconv"
+	"time"
 
 	"github.com/joho/godotenv"
 )
@@ -75,6 +77,78 @@ type SecurityConfig struct {
 
 	ForgotRateLimitMax    int
 	ForgotRateLimitWindow int
+}
+// DBConfig holds database configuration including connection pool settings
+type DBConfig struct {
+    Host            string
+    Port            string
+    User            string
+    Password        string
+    Database        string
+    MaxOpenConns    int           // Maximum number of open connections
+    MaxIdleConns    int           // Maximum number of idle connections
+    ConnMaxLifetime time.Duration // Max lifetime of a connection
+    ConnMaxIdleTime time.Duration // Max idle time before closing
+}
+
+// LoadDBConfig loads database configuration from environment variables
+func LoadDBConfig() (DBConfig, error) {
+    config := DBConfig{
+        Host:     getEnv("DB_HOST", "localhost"),
+        Port:     getEnv("DB_PORT", "3306"),
+        User:     getEnv("DB_USER", "root"),
+        Password: getEnv("DB_PASSWORD", ""),
+        Database: getEnv("DB_NAME", "auth_server"),
+    }
+
+    // Load connection pool settings
+    maxOpenConns := getEnvInt("DB_MAX_OPEN_CONNS", 100)
+    if maxOpenConns < 1 {
+        return config, fmt.Errorf("DB_MAX_OPEN_CONNS must be > 0, got %d", maxOpenConns)
+    }
+    config.MaxOpenConns = maxOpenConns
+
+    maxIdleConns := getEnvInt("DB_MAX_IDLE_CONNS", 25)
+    if maxIdleConns < 1 {
+        return config, fmt.Errorf("DB_MAX_IDLE_CONNS must be > 0, got %d", maxIdleConns)
+    }
+    if maxIdleConns > maxOpenConns {
+        return config, fmt.Errorf("DB_MAX_IDLE_CONNS (%d) cannot exceed DB_MAX_OPEN_CONNS (%d)", 
+            maxIdleConns, maxOpenConns)
+    }
+    config.MaxIdleConns = maxIdleConns
+
+    connMaxLifetimeSeconds := getEnvInt("DB_CONN_MAX_LIFETIME_SECONDS", 600)
+    config.ConnMaxLifetime = time.Duration(connMaxLifetimeSeconds) * time.Second
+
+    connMaxIdleTimeSeconds := getEnvInt("DB_CONN_MAX_IDLE_TIME_SECONDS", 300)
+    config.ConnMaxIdleTime = time.Duration(connMaxIdleTimeSeconds) * time.Second
+
+    return config, nil
+}
+
+// getEnv retrieves environment variable with default
+func getEnv(key, defaultValue string) string {
+    if value, exists := os.LookupEnv(key); exists {
+        return value
+    }
+    return defaultValue
+}
+
+// getEnvInt retrieves integer environment variable with default
+func getEnvInt(key string, defaultValue int) int {
+    valueStr := getEnv(key, "")
+    if valueStr == "" {
+        return defaultValue
+    }
+
+    value, err := strconv.Atoi(valueStr)
+    if err != nil {
+        fmt.Printf("Warning: Invalid integer for %s: %v, using default %d\n", 
+            key, err, defaultValue)
+        return defaultValue
+    }
+    return value
 }
 
 func mustAtoi(key string, defaultValue int) int {
