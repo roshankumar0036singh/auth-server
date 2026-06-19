@@ -27,6 +27,7 @@ func TestAuthHandler_GetMe(t *testing.T) {
 	tokenService := service.NewTokenService(cfg)
 
 	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	t.Cleanup(func() { _ = rdb.Close() })
 	cacheService := service.NewCacheService(rdb)
 
 	gin.SetMode(gin.TestMode)

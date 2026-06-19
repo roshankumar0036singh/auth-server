@@ -20,20 +20,20 @@ func AuthMiddleware(tokenService *service.TokenService, cacheService *service.Ca
 			return
 		}
 
-		blacklisted, err := cacheService.IsTokenBlacklisted(c.Request.Context(), tokenString)
+		claims, err := tokenService.ValidateAccessToken(tokenString)
+		if err != nil {
+			c.JSON(http.StatusUnauthorized, utils.UnauthorizedResponse("Invalid or expired token"))
+			c.Abort()
+			return
+		}
+
+		blacklisted, err := cacheService.IsTokenBlacklisted(c.Request.Context(), claims.ID)
 		if err != nil {
 			utils.InternalServerErrorResponse(c, "Failed to authenticate request")
 			c.Abort()
 			return
 		}
 		if blacklisted {
-			c.JSON(http.StatusUnauthorized, utils.UnauthorizedResponse("Invalid or expired token"))
-			c.Abort()
-			return
-		}
-
-		claims, err := tokenService.ValidateAccessToken(tokenString)
-		if err != nil {
 			c.JSON(http.StatusUnauthorized, utils.UnauthorizedResponse("Invalid or expired token"))
 			c.Abort()
 			return
@@ -50,10 +50,10 @@ func OptionalAuthMiddleware(tokenService *service.TokenService, cacheService *se
 		tokenString := getAuthToken(c)
 
 		if tokenString != "" {
-			blacklisted, err := cacheService.IsTokenBlacklisted(c.Request.Context(), tokenString)
-			if err == nil && !blacklisted {
-				claims, err := tokenService.ValidateAccessToken(tokenString)
-				if err == nil {
+			claims, err := tokenService.ValidateAccessToken(tokenString)
+			if err == nil {
+				blacklisted, err := cacheService.IsTokenBlacklisted(c.Request.Context(), claims.ID)
+				if err == nil && !blacklisted {
 					setContextUser(c, claims)
 				}
 			}

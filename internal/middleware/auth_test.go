@@ -23,6 +23,7 @@ func setupTest(t *testing.T) (*gin.Engine, *service.TokenService, *service.Cache
 	assert.NoError(t, err)
 
 	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	t.Cleanup(func() { _ = rdb.Close() })
 	cfg := &config.Config{
 		JWT: config.JWTConfig{AccessSecret: "secret", RefreshSecret: "refresh", AccessExpiry: "15m"},
 	}
@@ -42,8 +43,11 @@ func TestAuthMiddleware_BlacklistedToken(t *testing.T) {
 	token, err := tokenService.GenerateAccessToken(user, "session123")
 	assert.NoError(t, err)
 
-	// 2. Blacklist the token in cache
-	err = cacheService.BlacklistToken(context.Background(), token, 15*time.Minute)
+	// 2. Extract claims to get the token ID and blacklist the token in cache
+	claims, err := tokenService.ValidateAccessToken(token)
+	assert.NoError(t, err)
+
+	err = cacheService.BlacklistToken(context.Background(), claims.ID, 15*time.Minute)
 	assert.NoError(t, err)
 
 	// 3. Setup route with AuthMiddleware
@@ -93,7 +97,10 @@ func TestOptionalAuthMiddleware_BlacklistedToken(t *testing.T) {
 	token, err := tokenService.GenerateAccessToken(user, "session123")
 	assert.NoError(t, err)
 
-	err = cacheService.BlacklistToken(context.Background(), token, 15*time.Minute)
+	claims, err := tokenService.ValidateAccessToken(token)
+	assert.NoError(t, err)
+
+	err = cacheService.BlacklistToken(context.Background(), claims.ID, 15*time.Minute)
 	assert.NoError(t, err)
 
 	router.GET("/optional", middleware.OptionalAuthMiddleware(tokenService, cacheService), func(c *gin.Context) {
