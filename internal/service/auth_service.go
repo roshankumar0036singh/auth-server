@@ -93,6 +93,10 @@ func (s *AuthService) getRefreshTokenGracePeriod() time.Duration {
 	return grace
 }
 
+func (s *AuthService) SetRefreshTokenGracePeriod(value string) {
+	s.config.JWT.RefreshGracePeriod = value
+}
+
 func (s *AuthService) createRefreshToken(userID, token, ipAddress, userAgent string) error {
 	refreshToken := &models.RefreshToken{
 		UserID:    userID,
@@ -721,31 +725,44 @@ func (s *AuthService) verifyRefreshTokenState(ctx context.Context, refreshTokenS
 	// Verify token is valid (not revoked and not expired)
 	if !storedToken.IsValid() {
 		if storedToken.IsRevoked {
-			gracePeriod := s.getRefreshTokenGracePeriod()
-			if time.Since(storedToken.UpdatedAt) <= gracePeriod {
-				activeToken, err := s.tokenRepo.FindActiveTokenInFamily(storedToken.FamilyID)
-				if err == nil && activeToken != nil {
-					log.Printf("Grace period: allowing concurrent refresh token reuse for user %s family %s", storedToken.UserID, storedToken.FamilyID)
-					return activeToken, claims.UserID, true, nil
-				}
+			allowedToken, isGrace, err := s.handleRevokedRefreshToken(ctx, storedToken, claims.UserID, ipAddress, userAgent)
+			if err != nil || allowedToken == nil {
+				return nil, "", false, err
 			}
-
-			// Token reuse detected! Revoke all tokens in this family.
-			log.Printf("Security Alert: Refresh token reuse detected for user %s, family %s. Revoking family sessions.", storedToken.UserID, storedToken.FamilyID)
-			if err := s.tokenRepo.RevokeTokenFamily(storedToken.FamilyID); err != nil {
-				log.Printf("Error revoking tokens for family %s: %v", storedToken.FamilyID, err)
-			}
-			// Log audit event
-			if err := s.auditService.LogEvent(&storedToken.UserID, "REFRESH_TOKEN_REUSE_DETECTED", "USER", storedToken.UserID, ipAddress, userAgent, map[string]interface{}{
-				"token_id": storedToken.ID,
-			}); err != nil {
-				log.Printf("Error logging REFRESH_TOKEN_REUSE_DETECTED audit event: %v", err)
-			}
+			return allowedToken, claims.UserID, isGrace, nil
 		}
 		return nil, "", false, errors.New("invalid or expired refresh token")
 	}
 	
 	return storedToken, claims.UserID, false, nil
+}
+
+func (s *AuthService) handleRevokedRefreshToken(ctx context.Context, storedToken *models.RefreshToken, userID, ipAddress, userAgent string) (*models.RefreshToken, bool, error) {
+	if time.Since(storedToken.UpdatedAt) <= s.getRefreshTokenGracePeriod() {
+		activeToken, err := s.tokenRepo.FindActiveTokenInFamily(storedToken.FamilyID)
+		if err != nil {
+			return nil, false, errors.New("failed to verify refresh token state")
+		}
+		if activeToken != nil {
+			log.Printf("Grace period: allowing concurrent refresh token reuse for user %s family %s", storedToken.UserID, storedToken.FamilyID)
+			return activeToken, true, nil
+		}
+	}
+
+	s.revokeRefreshTokenFamily(storedToken, ipAddress, userAgent)
+	return nil, false, errors.New("invalid or expired refresh token")
+}
+
+func (s *AuthService) revokeRefreshTokenFamily(storedToken *models.RefreshToken, ipAddress, userAgent string) {
+	log.Printf("Security Alert: Refresh token reuse detected for user %s, family %s. Revoking family sessions.", storedToken.UserID, storedToken.FamilyID)
+	if err := s.tokenRepo.RevokeTokenFamily(storedToken.FamilyID); err != nil {
+		log.Printf("Error revoking tokens for family %s: %v", storedToken.FamilyID, err)
+	}
+	if err := s.auditService.LogEvent(&storedToken.UserID, "REFRESH_TOKEN_REUSE_DETECTED", "USER", storedToken.UserID, ipAddress, userAgent, map[string]interface{}{
+		"token_id": storedToken.ID,
+	}); err != nil {
+		log.Printf("Error logging REFRESH_TOKEN_REUSE_DETECTED audit event: %v", err)
+	}
 }
 
 // RefreshAccessToken generates a new access token using refresh token with rotation
