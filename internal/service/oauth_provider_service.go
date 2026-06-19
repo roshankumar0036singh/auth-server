@@ -75,7 +75,12 @@ func (s *OAuthProviderService) CreateClient(name string, redirectURIs []string, 
 	}
 
 	// Hash the client secret
-	hashedSecret, err := bcrypt.GenerateFromPassword([]byte(clientSecret), bcrypt.DefaultCost)
+	rounds := s.cfg.Security.BcryptRounds
+	if rounds < bcrypt.MinCost || rounds > bcrypt.MaxCost {
+		rounds = bcrypt.DefaultCost
+	}
+
+	hashedSecret, err := bcrypt.GenerateFromPassword([]byte(clientSecret), rounds)
 	if err != nil {
 		return nil, "", err
 	}
@@ -295,7 +300,8 @@ func (s *OAuthProviderService) ExchangeCodeForToken(code, clientID, redirectURI,
 	}
 
 	accessToken := &models.OAuthAccessToken{
-		Token:     tokenString,
+		Token:     utils.HashToken(tokenString),
+		RawToken:  tokenString,
 		ClientID:  authCode.ClientID,
 		UserID:    authCode.UserID,
 		Scopes:    models.StringArray(authCode.Scopes),
@@ -310,6 +316,8 @@ func (s *OAuthProviderService) ExchangeCodeForToken(code, clientID, redirectURI,
 }
 
 // ValidateAccessToken validates an OAuth access token
+// It first tries the hashed token lookup (new behavior), then falls back to
+// raw token lookup (backward compatibility for unhashed tokens).
 func (s *OAuthProviderService) ValidateAccessToken(tokenString string) (*models.OAuthAccessToken, error) {
 	token, err := s.tokenRepo.FindByToken(utils.HashToken(tokenString))
 	if err != nil {

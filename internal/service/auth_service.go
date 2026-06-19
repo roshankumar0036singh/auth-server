@@ -96,9 +96,14 @@ func (s *AuthService) createRefreshToken(userID, token, ipAddress, userAgent str
 	return s.tokenRepo.CreateRefreshToken(refreshToken)
 }
 func (s *AuthService) hashPassword(password string) (string, error) {
+	rounds := s.config.Security.BcryptRounds
+	if rounds < bcrypt.MinCost || rounds > bcrypt.MaxCost {
+		rounds = bcrypt.DefaultCost
+	}
+
 	hashedPassword, err := bcrypt.GenerateFromPassword(
 		[]byte(password),
-		bcrypt.DefaultCost,
+		rounds,
 	)
 
 	if err != nil {

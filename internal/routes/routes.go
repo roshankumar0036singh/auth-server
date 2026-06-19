@@ -32,7 +32,12 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, redisClient *redis.Client, cfg
 	// Initialize services
 	tokenService := service.NewTokenService(cfg)
 	cacheService := service.NewCacheService(redisClient)
+
+	// EmailService caches all templates at startup.
+	// On directory error, an empty cache is used and a warning is logged.
+	// The server always starts — missing templates only fail at send time.
 	emailService := service.NewEmailService(cfg)
+
 	auditService := service.NewAuditService(auditRepo)
 	oauthService := service.NewOAuthService(cfg, oauthProviderConfigRepo)
 	mfaService := service.NewMFAService(cfg)
@@ -69,7 +74,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, redisClient *redis.Client, cfg
 
 	// Apply global middleware
 	router.Use(middleware.CORSMiddleware(cfg))
-	router.Use(middleware.SecurityMiddleware()) // Security headers
+	router.Use(middleware.SecurityMiddleware())
 
 	// Swagger Documentation (Custom UI)
 	router.Static("/swagger", "./docs")
@@ -93,17 +98,15 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, redisClient *redis.Client, cfg
 
 	// API routes
 	api := router.Group("/api")
-	// Apply rate limiting to API routes only (excludes Swagger/Health)
 	api.Use(middleware.RateLimitMiddleware(cacheService, cfg))
 	{
-		// Auth routes (public)
 		auth := api.Group("/auth")
 		{
 			// Public endpoints
 			auth.POST("/register", authHandler.Register)
 			auth.GET("/login", authHandler.ShowLogin)
 			auth.POST("/login", authHandler.Login)
-			auth.POST("/login/mfa", authHandler.LoginMFA) // MFA Login
+			auth.POST("/login/mfa", authHandler.LoginMFA)
 			auth.POST("/refresh", authHandler.RefreshToken)
 			auth.GET("/verify-email", authHandler.VerifyEmail)
 			auth.POST("/resend-verification", authHandler.ResendVerification)
@@ -130,19 +133,18 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, redisClient *redis.Client, cfg
 				protected.DELETE("/me", authHandler.DeleteAccount)
 				protected.GET("/audit-logs", authHandler.GetAuditLogs)
 
-				// MFA Routes (Protected)
+				// MFA Routes
 				protected.POST("/mfa/enable", authHandler.EnableMFA)
 				protected.POST("/mfa/verify", authHandler.VerifyMFA)
 				protected.POST("/mfa/disable", authHandler.DisableMFA)
 
-				// OAuth Client Management (Protected)
+				// OAuth Client Management
 				oauthClients := protected.Group("/oauth/clients")
 				{
 					oauthClients.POST("", oauthClientHandler.CreateOAuthClient)
 					oauthClients.GET("", oauthClientHandler.ListOAuthClients)
 					oauthClients.DELETE("/:clientId", oauthClientHandler.DeleteOAuthClient)
 
-					// OAuth Provider Configurations
 					oauthProviderConfigHandler := handler.NewOAuthProviderConfigHandler(oauthProviderService)
 					providerConfigPath := "/:clientId/providers/:provider"
 					oauthClients.POST(providerConfigPath, oauthProviderConfigHandler.CreateOrUpdateProviderConfig)
@@ -152,12 +154,11 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, redisClient *redis.Client, cfg
 			}
 		}
 
-		// Admin routes (Protected + RBAC)
+		// Admin routes
 		admin := api.Group("/admin")
 		admin.Use(middleware.AuthMiddleware(tokenService))
 		admin.Use(middleware.RequireRole("admin"))
 		{
-			// User management
 			admin.GET("/users", adminHandler.GetUsers)
 			admin.POST("/users/:id/lock", adminHandler.LockUser)
 			admin.POST("/users/:id/unlock", adminHandler.UnlockUser)
