@@ -467,7 +467,7 @@ func TestAuthService_RefreshAccessToken_GracePeriod_ConcurrentRotation_Integrati
 	authService, db, mr := testutils.SetupIntegrationTest(t)
 	defer mr.Close()
 
-	authService.config.JWT.RefreshGracePeriod = "100ms"
+	authService.SetRefreshTokenGracePeriod("100ms")
 
 	regReq := &dto.RegisterRequest{
 		Email:     "grace@example.com",
