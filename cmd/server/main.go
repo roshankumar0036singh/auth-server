@@ -100,6 +100,28 @@ func main() {
 		}
 	}()
 
+	// Start self-pinger to keep the server active
+	go func() {
+		pingURL := os.Getenv("PING_URL")
+		if pingURL == "" {
+			pingURL = fmt.Sprintf("http://localhost:%d/health", cfg.App.Port)
+		}
+
+		// Ping every 10 minutes (Heroku/Render typically sleep after 15-30m)
+		ticker := time.NewTicker(10 * time.Minute)
+		defer ticker.Stop()
+
+		for range ticker.C {
+			resp, err := http.Get(pingURL)
+			if err != nil {
+				log.Printf("Self-ping failed: %v", err)
+			} else {
+				resp.Body.Close()
+				log.Printf("Self-ping successful: %d", resp.StatusCode)
+			}
+		}
+	}()
+
 	// Wait for interrupt signal for graceful shutdown
 	quit := make(chan os.Signal, 1)
 	// Accept SIGINT (Ctrl+C) and SIGTERM (docker stop)

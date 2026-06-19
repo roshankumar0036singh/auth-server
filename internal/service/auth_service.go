@@ -28,11 +28,12 @@ var (
 )
 
 const (
-	errGenAccessToken        = "failed to generate access token"
-	errGenRefreshToken       = "failed to generate refresh token"
-	errStoreRefreshToken     = "failed to store refresh token"
-	errHashPassword          = "failed to hash password"
-	loginAttemptCacheTimeout = 5 * time.Second
+	errGenAccessToken               = "failed to generate access token"
+	errGenRefreshToken              = "failed to generate refresh token"
+	errStoreRefreshToken            = "failed to store refresh token"
+	errHashPassword                 = "failed to hash password"
+	errInvalidOrExpiredRefreshToken = "invalid or expired refresh token"
+	loginAttemptCacheTimeout        = 5 * time.Second
 )
 
 type AuthService struct {
@@ -82,6 +83,19 @@ func (s *AuthService) getRefreshTokenExpiry() time.Duration {
 	}
 
 	return expiry
+}
+
+func (s *AuthService) getRefreshTokenGracePeriod() time.Duration {
+	grace, err := time.ParseDuration(s.config.JWT.RefreshGracePeriod)
+	if err != nil {
+		log.Printf("Warning: invalid RefreshGracePeriod value %q, using default 10 seconds", s.config.JWT.RefreshGracePeriod)
+		return 10 * time.Second
+	}
+	return grace
+}
+
+func (s *AuthService) SetRefreshTokenGracePeriod(value string) {
+	s.config.JWT.RefreshGracePeriod = value
 }
 
 func (s *AuthService) createRefreshToken(userID, token, ipAddress, userAgent string) error {
@@ -224,8 +238,8 @@ func (s *AuthService) UpdateProfile(userID string, req *dto.UpdateProfileRequest
 }
 
 // GetUserAuditLogs proxies the call to audit service
-func (s *AuthService) GetUserAuditLogs(userID string) ([]models.AuditLog, error) {
-	return s.auditService.GetUserAuditLogs(userID)
+func (s *AuthService) GetUserAuditLogs(userID string, page, limit int) (*dto.AuditLogsResponse, error) {
+	return s.auditService.GetUserAuditLogs(userID, page, limit)
 }
 
 // ChangePassword changes the user's password
@@ -687,11 +701,11 @@ func (s *AuthService) handleFailedLogin(user *models.User, email string, ctx con
 	s.auditService.LogEvent(&user.ID, "USER_LOGIN_FAILED", "USER", user.ID, "", "", map[string]interface{}{"email": email})
 }
 
-func (s *AuthService) verifyRefreshTokenState(ctx context.Context, refreshTokenString, ipAddress, userAgent string) (*models.RefreshToken, string, error) {
+func (s *AuthService) verifyRefreshTokenState(ctx context.Context, refreshTokenString, ipAddress, userAgent string) (*models.RefreshToken, string, bool, error) {
 	// Validate refresh token JWT
 	claims, err := s.tokenService.ValidateRefreshToken(refreshTokenString)
 	if err != nil {
-		return nil, "", errors.New("invalid or expired refresh token")
+		return nil, "", false, errors.New(errInvalidOrExpiredRefreshToken)
 	}
 
 	// Check if token is blacklisted
@@ -700,41 +714,63 @@ func (s *AuthService) verifyRefreshTokenState(ctx context.Context, refreshTokenS
 		log.Printf("Warning: Failed to check token blacklist: %v", err)
 	}
 	if blacklisted {
-		return nil, "", errors.New("refresh token has been revoked")
+		return nil, "", false, errors.New("refresh token has been revoked")
 	}
 
 	// Find refresh token in database
 	storedToken, err := s.tokenRepo.FindRefreshToken(refreshTokenString)
 	if err != nil {
-		return nil, "", errors.New("refresh token not found")
+		return nil, "", false, errors.New("refresh token not found")
 	}
 
 	// Verify token is valid (not revoked and not expired)
 	if !storedToken.IsValid() {
 		if storedToken.IsRevoked {
-			// Token reuse detected! Revoke all tokens in this family.
-			log.Printf("Security Alert: Refresh token reuse detected for user %s, family %s. Revoking family sessions.", storedToken.UserID, storedToken.FamilyID)
-			if err := s.tokenRepo.RevokeTokenFamily(storedToken.FamilyID); err != nil {
-				log.Printf("Error revoking tokens for family %s: %v", storedToken.FamilyID, err)
+			allowedToken, isGrace, err := s.handleRevokedRefreshToken(ctx, storedToken, claims.UserID, ipAddress, userAgent)
+			if err != nil || allowedToken == nil {
+				return nil, "", false, err
 			}
-			// Log audit event
-			if err := s.auditService.LogEvent(&storedToken.UserID, "REFRESH_TOKEN_REUSE_DETECTED", "USER", storedToken.UserID, ipAddress, userAgent, map[string]interface{}{
-				"token_id": storedToken.ID,
-			}); err != nil {
-				log.Printf("Error logging REFRESH_TOKEN_REUSE_DETECTED audit event: %v", err)
-			}
+			return allowedToken, claims.UserID, isGrace, nil
 		}
-		return nil, "", errors.New("invalid or expired refresh token")
+		return nil, "", false, errors.New(errInvalidOrExpiredRefreshToken)
 	}
 	
-	return storedToken, claims.UserID, nil
+	return storedToken, claims.UserID, false, nil
+}
+
+func (s *AuthService) handleRevokedRefreshToken(ctx context.Context, storedToken *models.RefreshToken, userID, ipAddress, userAgent string) (*models.RefreshToken, bool, error) {
+	if time.Since(storedToken.UpdatedAt) <= s.getRefreshTokenGracePeriod() {
+		activeToken, err := s.tokenRepo.FindActiveTokenInFamily(storedToken.FamilyID)
+		if err != nil {
+			return nil, false, errors.New("failed to verify refresh token state")
+		}
+		if activeToken != nil {
+			log.Printf("Grace period: allowing concurrent refresh token reuse for user %s family %s", storedToken.UserID, storedToken.FamilyID)
+			return activeToken, true, nil
+		}
+	}
+
+	s.revokeRefreshTokenFamily(storedToken, ipAddress, userAgent)
+	return nil, false, errors.New(errInvalidOrExpiredRefreshToken)
+}
+
+func (s *AuthService) revokeRefreshTokenFamily(storedToken *models.RefreshToken, ipAddress, userAgent string) {
+	log.Printf("Security Alert: Refresh token reuse detected for user %s, family %s. Revoking family sessions.", storedToken.UserID, storedToken.FamilyID)
+	if err := s.tokenRepo.RevokeTokenFamily(storedToken.FamilyID); err != nil {
+		log.Printf("Error revoking tokens for family %s: %v", storedToken.FamilyID, err)
+	}
+	if err := s.auditService.LogEvent(&storedToken.UserID, "REFRESH_TOKEN_REUSE_DETECTED", "USER", storedToken.UserID, ipAddress, userAgent, map[string]interface{}{
+		"token_id": storedToken.ID,
+	}); err != nil {
+		log.Printf("Error logging REFRESH_TOKEN_REUSE_DETECTED audit event: %v", err)
+	}
 }
 
 // RefreshAccessToken generates a new access token using refresh token with rotation
 func (s *AuthService) RefreshAccessToken(refreshTokenString string, ipAddress, userAgent string) (*dto.TokenRefreshResponse, error) {
 	ctx := context.Background()
 
-	storedToken, userID, err := s.verifyRefreshTokenState(ctx, refreshTokenString, ipAddress, userAgent)
+	storedToken, userID, isGrace, err := s.verifyRefreshTokenState(ctx, refreshTokenString, ipAddress, userAgent)
 	if err != nil {
 		return nil, err
 	}
@@ -759,6 +795,18 @@ func (s *AuthService) RefreshAccessToken(refreshTokenString string, ipAddress, u
 		ExpiresAt: time.Now().Add(7 * 24 * time.Hour),
 		IPAddress: ipAddress,
 		UserAgent: userAgent,
+	}
+
+	if isGrace {
+		newAccessToken, err := s.tokenService.GenerateAccessToken(user, storedToken.ID)
+		if err != nil {
+			return nil, errors.New(errGenAccessToken)
+		}
+
+		return &dto.TokenRefreshResponse{
+			AccessToken:  newAccessToken,
+			RefreshToken: storedToken.Token,
+		}, nil
 	}
 
 	// Generate new access token
@@ -787,8 +835,16 @@ func (s *AuthService) Logout(accessToken, refreshToken string) error {
 
 	// Blacklist access token (expires in 15 minutes)
 	if accessToken != "" {
-		if err := s.cacheService.BlacklistToken(ctx, accessToken, 15*time.Minute); err != nil {
-			log.Printf("Warning: Failed to blacklist access token: %v", err)
+		claims, err := s.tokenService.ValidateAccessToken(accessToken)
+		if err == nil {
+			ttl := time.Until(claims.ExpiresAt.Time)
+			if ttl > 0 {
+				if err := s.cacheService.BlacklistToken(ctx, claims.ID, ttl); err != nil {
+					log.Printf("Warning: Failed to blacklist access token: %v", err)
+				}
+			}
+		} else {
+			log.Printf("Warning: Failed to validate access token during logout: %v", err)
 		}
 	}
 
@@ -808,8 +864,16 @@ func (s *AuthService) LogoutAll(userID string, currentAccessToken string) error 
 
 	// Blacklist current access token
 	if currentAccessToken != "" {
-		if err := s.cacheService.BlacklistToken(ctx, currentAccessToken, 15*time.Minute); err != nil {
-			log.Printf("Warning: Failed to blacklist access token: %v", err)
+		claims, err := s.tokenService.ValidateAccessToken(currentAccessToken)
+		if err == nil {
+			ttl := time.Until(claims.ExpiresAt.Time)
+			if ttl > 0 {
+				if err := s.cacheService.BlacklistToken(ctx, claims.ID, ttl); err != nil {
+					log.Printf("Warning: Failed to blacklist access token: %v", err)
+				}
+			}
+		} else {
+			log.Printf("Warning: Failed to validate access token during logout all: %v", err)
 		}
 	}
 

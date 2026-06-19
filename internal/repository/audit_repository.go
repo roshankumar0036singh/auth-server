@@ -19,11 +19,21 @@ func (r *AuditRepository) Create(log *models.AuditLog) error {
 }
 
 // FindByUserID retrieves audit logs for a specific user
-func (r *AuditRepository) FindByUserID(userID string, limit int) ([]models.AuditLog, error) {
+func (r *AuditRepository) FindByUserID(userID string, limit, offset int) ([]models.AuditLog, error) {
 	var logs []models.AuditLog
 	err := r.db.Where("user_id = ?", userID).
 		Order("created_at DESC").
+		Order("id DESC").
 		Limit(limit).
+		Offset(offset).
 		Find(&logs).Error
 	return logs, err
+}
+
+func (r *AuditRepository) CountByUserID(userID string) (int64, error) {
+	var count int64
+
+	err := r.db.Model(&models.AuditLog{}).Where("user_id = ?", userID).Count(&count).Error
+
+	return count, err
 }
