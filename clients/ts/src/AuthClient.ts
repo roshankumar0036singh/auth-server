@@ -23,7 +23,7 @@ export class AuthClient {
   private isRefreshing = false;
   private refreshPromise: Promise<Session> | null = null;
   private refreshTimeout: ReturnType<typeof setTimeout> | null = null;
-  private readonly keepAliveIntervalId: ReturnType<typeof setInterval> | null = null;
+  private keepAliveIntervalId: ReturnType<typeof setInterval> | null = null;
   private readonly retries: number;
   private readonly retryDelay: number;
 
@@ -46,6 +46,21 @@ export class AuthClient {
     }
 
     this.loadSession();
+  }
+
+  /**
+   * Cleans up the auth client by clearing timers. 
+   * Should be called when the client is no longer needed to prevent memory leaks.
+   */
+  public destroy(): void {
+    if (this.keepAliveIntervalId) {
+      clearInterval(this.keepAliveIntervalId);
+      this.keepAliveIntervalId = null;
+    }
+    if (this.refreshTimeout) {
+      clearTimeout(this.refreshTimeout);
+      this.refreshTimeout = null;
+    }
   }
 
   // --- Storage & Events ---
@@ -176,13 +191,12 @@ export class AuthClient {
     return this.on('session', callback);
   }
 
-  private emit<K extends keyof AuthEvents>(event: K, ...args: Parameters<AuthEvents[K]>) {
-    const handlers = this.listeners.get(event);
+  private emit<K extends keyof AuthEvents>(event: K, ...args: Parameters<AuthEvents[K]>): void {
+    const handlers = this.listeners.get(event) as Set<AuthEvents[K]> | undefined;
     if (handlers) {
       handlers.forEach(handler => {
         try {
-          // @ts-ignore
-          handler(...args);
+          (handler as (...a: Parameters<AuthEvents[K]>) => void)(...args);
         } catch {
           // Prevent one bad listener from breaking others
         }
@@ -236,10 +250,7 @@ export class AuthClient {
     }
   }
 
-  /** Manually set the session (e.g. from OAuth callback URL params) */
-  public setSession(session: Session) {
-    this.saveSession(session);
-  }
+
 
   // --- Interceptor & Fetch Logic ---
 
@@ -292,7 +303,16 @@ export class AuthClient {
           return await this.handleUnauthorizedRetry(path, options, headers);
         }
 
-        if (attempt >= maxAttempts) return response;
+        if (attempt >= maxAttempts) {
+          if (response.status >= 500) {
+            throw new AuthError(
+              `Request failed after ${this.retries + 1} attempts with status ${response.status}`,
+              'MAX_RETRIES_EXCEEDED',
+              response.status
+            );
+          }
+          return response;
+        }
       } catch (err: unknown) {
         if (attempt >= maxAttempts) {
           const msg = err instanceof Error ? err.message : String(err);

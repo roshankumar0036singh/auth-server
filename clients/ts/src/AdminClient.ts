@@ -1,4 +1,4 @@
-import { ApiResponse } from './types';
+import { ApiResponse, User } from './types';
 
 export interface AdminClientConfig {
   serverUrl: string;
@@ -36,10 +36,11 @@ export class AdminClient {
   }
 
   /**
-   * List all users. Note: The server currently returns a placeholder until Issue #61 is resolved.
+   * List all users. 
+   * TODO(Issue #61): The server currently returns a placeholder until Issue #61 is resolved.
    */
-  public async listUsers(): Promise<ApiResponse<string[]>> {
-    return this.fetchApi<string[]>("/api/admin/users", { method: "GET" });
+  public async listUsers(): Promise<ApiResponse<User[]>> {
+    return this.fetchApi<User[]>("/api/admin/users", { method: "GET" });
   }
 
   /**

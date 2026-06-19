@@ -20,8 +20,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - JSDoc annotations for core methods.
 - Comprehensive `vitest` unit test suite.
 
+### Breaking Changes
+- `loginMfa(email, code)` signature changed to `loginMfa(mfaToken, code)`. 
+  Replace the first argument with the `mfaToken` returned by `login()` when `mfaRequired: true`.
+
 ### Fixed
-- Changed `loginMfa` parameters from `(email, code)` to `(mfaToken, code)` to correctly map to the server API expectations.
 - Fixed a bug where a missing `refreshToken` would persist the previous session's refresh token due to `undefined` handling.
 
 ## [1.0.4] - 2026-06-18

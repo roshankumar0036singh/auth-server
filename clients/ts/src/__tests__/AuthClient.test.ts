@@ -72,11 +72,14 @@ describe('AuthClient', () => {
   });
 
   it('automatically refreshes token on 401 response', async () => {
-    // Inject a dummy session manually
-    client.setSession({
-      accessToken: 'old.expired.token',
-      refreshToken: 'valid.refresh.token'
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve({
+        success: true,
+        data: { accessToken: 'old.expired.token', refreshToken: 'valid.refresh.token' }
+      })
     });
+    await client.login('test@test.com', 'password');
 
     // 1st request fails with 401
     mockFetch.mockResolvedValueOnce({
@@ -104,12 +107,19 @@ describe('AuthClient', () => {
     expect(user.id).toBe('1');
     expect(client.getAccessToken()).toBe('new.access.token');
     
-    // 3 fetch calls: getUser(fail) -> refresh(success) -> getUser(success)
-    expect(mockFetch).toHaveBeenCalledTimes(3);
+    // 4 fetch calls: login(success) -> getUser(fail) -> refresh(success) -> getUser(success)
+    expect(mockFetch).toHaveBeenCalledTimes(4);
   });
 
   it('clears session on logout', async () => {
-    client.setSession({ accessToken: 'token', refreshToken: 'refresh' });
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve({
+        success: true,
+        data: { accessToken: 'token', refreshToken: 'refresh' }
+      })
+    });
+    await client.login('test@test.com', 'password');
     
     mockFetch.mockResolvedValueOnce({
       ok: true,
@@ -123,14 +133,21 @@ describe('AuthClient', () => {
     expect(sessionStorage.getItem('auth_session_test-client')).toBeNull();
   });
 
-  it('triggers onAuthStateChanged listeners', () => {
+  it('triggers onAuthStateChanged listeners', async () => {
     const listener = vi.fn();
     client.onAuthStateChanged(listener);
     
     // Should fire immediately with null
     expect(listener).toHaveBeenCalledWith(null);
     
-    client.setSession({ accessToken: 'token' });
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve({
+        success: true,
+        data: { accessToken: 'token' }
+      })
+    });
+    await client.login('test@test.com', 'password');
     
     // Should fire again with the new session
     expect(listener).toHaveBeenCalledWith(expect.objectContaining({ accessToken: 'token' }));
@@ -165,5 +182,16 @@ describe('AuthClient', () => {
 
     await client.logout();
     expect(logoutListener).toHaveBeenCalledTimes(1);
+  });
+  it('disables MFA successfully', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve({ success: true })
+    });
+    await expect(client.disableMfa('password123', '123456')).resolves.toBeUndefined();
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining('/api/auth/mfa/disable'),
+      expect.objectContaining({ method: 'POST' })
+    );
   });
 });
