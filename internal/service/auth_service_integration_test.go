@@ -416,3 +416,49 @@ func TestUnlockUser(t *testing.T) {
 		})
 	}
 }
+
+func TestAuthService_RefreshAccessToken_ReuseDetection_Integration(t *testing.T) {
+	authService, db, mr := testutils.SetupIntegrationTest(t)
+	defer mr.Close()
+
+	regReq := &dto.RegisterRequest{
+		Email:     "reuse@example.com",
+		Password:  "Password123!",
+		FirstName: "Reuse",
+		LastName:  "User",
+	}
+	user, err := authService.Register(regReq)
+	require.NoError(t, err)
+
+	loginReq := &dto.LoginRequest{
+		Email:    "reuse@example.com",
+		Password: "Password123!",
+	}
+	loginResp, err := authService.Login(loginReq, "127.0.0.1", "UserAgent")
+	require.NoError(t, err)
+	require.NotEmpty(t, loginResp.RefreshToken)
+
+	// 1. First refresh attempt should succeed (rotates the token)
+	refreshResp1, err := authService.RefreshAccessToken(loginResp.RefreshToken, "127.0.0.1", "UserAgent")
+	assert.NoError(t, err)
+	assert.NotEmpty(t, refreshResp1.RefreshToken)
+	assert.NotEqual(t, loginResp.RefreshToken, refreshResp1.RefreshToken)
+
+	// 2. Second refresh attempt using the same original refresh token (reuse) should fail
+	_, err = authService.RefreshAccessToken(loginResp.RefreshToken, "127.0.0.1", "UserAgent")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid or expired refresh token")
+
+	// 3. Assert that all refresh tokens for this user are now revoked in the database
+	var activeCount int64
+	err = db.Model(&models.RefreshToken{}).Where("user_id = ? AND is_revoked = ?", user.ID, false).Count(&activeCount).Error
+	assert.NoError(t, err)
+	assert.Equal(t, int64(0), activeCount)
+
+	// 4. Assert that a REFRESH_TOKEN_REUSE_DETECTED audit log was written
+	var auditLog models.AuditLog
+	err = db.Where("user_id = ? AND action = ?", user.ID, "REFRESH_TOKEN_REUSE_DETECTED").First(&auditLog).Error
+	assert.NoError(t, err)
+	assert.Equal(t, "USER", auditLog.Entity)
+	assert.Equal(t, user.ID, auditLog.EntityID)
+}

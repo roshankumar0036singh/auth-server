@@ -85,9 +85,9 @@ func (h *OAuthHandler) Authorize(c *gin.Context) {
 		return
 	}
 
-	// Parse and validate scopes
+	// Parse and validate scopes against the client's registered scopes
 	scopes := service.ParseScopes(scope)
-	if err := h.oauthProviderService.ValidateScopes(scopes); err != nil {
+	if err := h.oauthProviderService.ValidateClientScopes(client, scopes); err != nil {
 		redirectError(c, redirectURI, "invalid_scope", err.Error(), state)
 		return
 	}
@@ -168,7 +168,25 @@ func (h *OAuthHandler) AuthorizePost(c *gin.Context) {
 		codeChallengeMethod = "S256"
 	}
 
-	// Check if user denied
+	// Validate the client and that the redirect_uri is registered BEFORE any
+	// redirect. The redirect helpers send the browser to redirectURI, so an
+	// unvalidated value here (including on the deny path) would be an open
+	// redirect / code-exfiltration vector.
+	client, err := h.oauthProviderService.GetPublicClient(clientID)
+	if err != nil {
+		c.HTML(http.StatusBadRequest, errTmpl, gin.H{
+			"error": "Invalid client_id",
+		})
+		return
+	}
+	if err := h.oauthProviderService.ValidateRedirectURI(client, redirectURI); err != nil {
+		c.HTML(http.StatusBadRequest, errTmpl, gin.H{
+			"error": "Invalid redirect_uri",
+		})
+		return
+	}
+
+	// Check if user denied (safe to redirect now that redirect_uri is trusted)
 	if action == "deny" {
 		redirectError(c, redirectURI, "access_denied", "User denied authorization", state)
 		return
@@ -183,8 +201,13 @@ func (h *OAuthHandler) AuthorizePost(c *gin.Context) {
 		return
 	}
 
-	// Parse scopes
+	// Parse and validate scopes against the client's registered scopes so a
+	// tampered consent POST cannot escalate to scopes the client never had.
 	scopes := service.ParseScopes(scope)
+	if err := h.oauthProviderService.ValidateClientScopes(client, scopes); err != nil {
+		redirectError(c, redirectURI, "invalid_scope", err.Error(), state)
+		return
+	}
 
 	// Save consent
 	if err := h.oauthProviderService.SaveConsent(userID.(string), clientID, scopes); err != nil {
@@ -358,8 +381,18 @@ func buildUserInfoResponse(user *models.User, accessToken *models.OAuthAccessTok
 	return response
 }
 
+func isSafeRedirectURI(u *url.URL) bool {
+	scheme := strings.ToLower(u.Scheme)
+	// Use an allowlist for secure redirect URI schemes
+	return scheme == "http" || scheme == "https"
+}
+
 func redirectWithCode(c *gin.Context, redirectURI, code, state string) {
-	u, _ := url.Parse(redirectURI)
+	u, err := url.Parse(redirectURI)
+	if err != nil || !isSafeRedirectURI(u) {
+		c.HTML(http.StatusBadRequest, errTmpl, gin.H{"error": "Invalid or unsafe redirect_uri format"})
+		return
+	}
 	q := u.Query()
 	q.Set("code", code)
 	if state != "" {
@@ -370,7 +403,11 @@ func redirectWithCode(c *gin.Context, redirectURI, code, state string) {
 }
 
 func redirectError(c *gin.Context, redirectURI, errorCode, errorDesc, state string) {
-	u, _ := url.Parse(redirectURI)
+	u, err := url.Parse(redirectURI)
+	if err != nil || !isSafeRedirectURI(u) {
+		c.HTML(http.StatusBadRequest, errTmpl, gin.H{"error": "Invalid or unsafe redirect_uri format"})
+		return
+	}
 	q := u.Query()
 	q.Set("error", errorCode)
 	q.Set("error_description", errorDesc)
