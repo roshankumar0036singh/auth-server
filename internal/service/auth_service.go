@@ -84,6 +84,15 @@ func (s *AuthService) getRefreshTokenExpiry() time.Duration {
 	return expiry
 }
 
+func (s *AuthService) getRefreshTokenGracePeriod() time.Duration {
+	grace, err := time.ParseDuration(s.config.JWT.RefreshGracePeriod)
+	if err != nil {
+		log.Printf("Warning: invalid RefreshGracePeriod value %q, using default 10 seconds", s.config.JWT.RefreshGracePeriod)
+		return 10 * time.Second
+	}
+	return grace
+}
+
 func (s *AuthService) createRefreshToken(userID, token, ipAddress, userAgent string) error {
 	refreshToken := &models.RefreshToken{
 		UserID:    userID,
@@ -687,11 +696,11 @@ func (s *AuthService) handleFailedLogin(user *models.User, email string, ctx con
 	s.auditService.LogEvent(&user.ID, "USER_LOGIN_FAILED", "USER", user.ID, "", "", map[string]interface{}{"email": email})
 }
 
-func (s *AuthService) verifyRefreshTokenState(ctx context.Context, refreshTokenString, ipAddress, userAgent string) (*models.RefreshToken, string, error) {
+func (s *AuthService) verifyRefreshTokenState(ctx context.Context, refreshTokenString, ipAddress, userAgent string) (*models.RefreshToken, string, bool, error) {
 	// Validate refresh token JWT
 	claims, err := s.tokenService.ValidateRefreshToken(refreshTokenString)
 	if err != nil {
-		return nil, "", errors.New("invalid or expired refresh token")
+		return nil, "", false, errors.New("invalid or expired refresh token")
 	}
 
 	// Check if token is blacklisted
@@ -700,18 +709,27 @@ func (s *AuthService) verifyRefreshTokenState(ctx context.Context, refreshTokenS
 		log.Printf("Warning: Failed to check token blacklist: %v", err)
 	}
 	if blacklisted {
-		return nil, "", errors.New("refresh token has been revoked")
+		return nil, "", false, errors.New("refresh token has been revoked")
 	}
 
 	// Find refresh token in database
 	storedToken, err := s.tokenRepo.FindRefreshToken(refreshTokenString)
 	if err != nil {
-		return nil, "", errors.New("refresh token not found")
+		return nil, "", false, errors.New("refresh token not found")
 	}
 
 	// Verify token is valid (not revoked and not expired)
 	if !storedToken.IsValid() {
 		if storedToken.IsRevoked {
+			gracePeriod := s.getRefreshTokenGracePeriod()
+			if time.Since(storedToken.UpdatedAt) <= gracePeriod {
+				activeToken, err := s.tokenRepo.FindActiveTokenInFamily(storedToken.FamilyID)
+				if err == nil && activeToken != nil {
+					log.Printf("Grace period: allowing concurrent refresh token reuse for user %s family %s", storedToken.UserID, storedToken.FamilyID)
+					return activeToken, claims.UserID, true, nil
+				}
+			}
+
 			// Token reuse detected! Revoke all tokens in this family.
 			log.Printf("Security Alert: Refresh token reuse detected for user %s, family %s. Revoking family sessions.", storedToken.UserID, storedToken.FamilyID)
 			if err := s.tokenRepo.RevokeTokenFamily(storedToken.FamilyID); err != nil {
@@ -724,17 +742,17 @@ func (s *AuthService) verifyRefreshTokenState(ctx context.Context, refreshTokenS
 				log.Printf("Error logging REFRESH_TOKEN_REUSE_DETECTED audit event: %v", err)
 			}
 		}
-		return nil, "", errors.New("invalid or expired refresh token")
+		return nil, "", false, errors.New("invalid or expired refresh token")
 	}
 	
-	return storedToken, claims.UserID, nil
+	return storedToken, claims.UserID, false, nil
 }
 
 // RefreshAccessToken generates a new access token using refresh token with rotation
 func (s *AuthService) RefreshAccessToken(refreshTokenString string, ipAddress, userAgent string) (*dto.TokenRefreshResponse, error) {
 	ctx := context.Background()
 
-	storedToken, userID, err := s.verifyRefreshTokenState(ctx, refreshTokenString, ipAddress, userAgent)
+	storedToken, userID, isGrace, err := s.verifyRefreshTokenState(ctx, refreshTokenString, ipAddress, userAgent)
 	if err != nil {
 		return nil, err
 	}
@@ -759,6 +777,18 @@ func (s *AuthService) RefreshAccessToken(refreshTokenString string, ipAddress, u
 		ExpiresAt: time.Now().Add(7 * 24 * time.Hour),
 		IPAddress: ipAddress,
 		UserAgent: userAgent,
+	}
+
+	if isGrace {
+		newAccessToken, err := s.tokenService.GenerateAccessToken(user, storedToken.ID)
+		if err != nil {
+			return nil, errors.New(errGenAccessToken)
+		}
+
+		return &dto.TokenRefreshResponse{
+			AccessToken:  newAccessToken,
+			RefreshToken: storedToken.Token,
+		}, nil
 	}
 
 	// Generate new access token

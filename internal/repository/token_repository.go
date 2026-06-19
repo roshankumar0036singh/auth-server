@@ -139,6 +139,19 @@ func (r *TokenRepository) CountUserActiveSessions(userID string) (int64, error) 
 	return count, err
 }
 
+func (r *TokenRepository) FindActiveTokenInFamily(familyID string) (*models.RefreshToken, error) {
+	var token models.RefreshToken
+	if err := r.db.Where("family_id = ? AND is_revoked = ? AND expires_at > ?", familyID, false, time.Now()).
+		Order("created_at desc").
+		First(&token).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &token, nil
+}
+
 func (r *TokenRepository) RotateRefreshToken(oldToken string, newToken *models.RefreshToken) error {
 	return r.db.Transaction(func(tx *gorm.DB) error {
 		result := tx.Model(&models.RefreshToken{}).

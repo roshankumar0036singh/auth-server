@@ -462,3 +462,46 @@ func TestAuthService_RefreshAccessToken_ReuseDetection_Integration(t *testing.T)
 	assert.Equal(t, "USER", auditLog.Entity)
 	assert.Equal(t, user.ID, auditLog.EntityID)
 }
+
+func TestAuthService_RefreshAccessToken_GracePeriod_ConcurrentRotation_Integration(t *testing.T) {
+	authService, db, mr := testutils.SetupIntegrationTest(t)
+	defer mr.Close()
+
+	authService.config.JWT.RefreshGracePeriod = "100ms"
+
+	regReq := &dto.RegisterRequest{
+		Email:     "grace@example.com",
+		Password:  "Password123!",
+		FirstName: "Grace",
+		LastName:  "User",
+	}
+	user, err := authService.Register(regReq)
+	require.NoError(t, err)
+
+	loginReq := &dto.LoginRequest{
+		Email:    "grace@example.com",
+		Password: "Password123!",
+	}
+	loginResp, err := authService.Login(loginReq, "127.0.0.1", "UserAgent")
+	require.NoError(t, err)
+	require.NotEmpty(t, loginResp.RefreshToken)
+
+	refreshResp1, err := authService.RefreshAccessToken(loginResp.RefreshToken, "127.0.0.1", "UserAgent")
+	require.NoError(t, err)
+	require.NotEmpty(t, refreshResp1.RefreshToken)
+	assert.NotEqual(t, loginResp.RefreshToken, refreshResp1.RefreshToken)
+
+	refreshResp2, err := authService.RefreshAccessToken(loginResp.RefreshToken, "127.0.0.1", "UserAgent")
+	require.NoError(t, err)
+	assert.Equal(t, refreshResp1.RefreshToken, refreshResp2.RefreshToken)
+
+	time.Sleep(150 * time.Millisecond)
+	_, err = authService.RefreshAccessToken(loginResp.RefreshToken, "127.0.0.1", "UserAgent")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid or expired refresh token")
+
+	var activeCount int64
+	err = db.Model(&models.RefreshToken{}).Where("user_id = ? AND is_revoked = ?", user.ID, false).Count(&activeCount).Error
+	assert.NoError(t, err)
+	assert.Equal(t, int64(0), activeCount)
+}
