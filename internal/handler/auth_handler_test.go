@@ -399,7 +399,6 @@ func TestAuthHandler_GetAuditLogs(t *testing.T) {
 
 	gin.SetMode(gin.TestMode)
 
-	// Create user for authenticated scenarios
 	user, err := authService.Register(&dto.RegisterRequest{
 		Email:     "audit_logs@example.com",
 		Password:  "Password123!",
@@ -411,79 +410,61 @@ func TestAuthHandler_GetAuditLogs(t *testing.T) {
 
 	tests := []struct {
 		name       string
-		setup      func(*gin.Context)
+		userID     interface{}
 		query      string
 		wantStatus int
 	}{
 		{
-			name: "should return unauthorized when userID is missing",
-			setup: func(c *gin.Context) {
-				// userID not set
-			},
+			name:       "should return unauthorized when userID is missing",
+			userID:     nil,
 			query:      "",
 			wantStatus: http.StatusUnauthorized,
 		},
 		{
-			name: "should return unauthorized when userID type is invalid",
-			setup: func(c *gin.Context) {
-				c.Set("userID", 12345)
-			},
+			name:       "should return unauthorized when userID type is invalid",
+			userID:     12345,
 			query:      "",
 			wantStatus: http.StatusUnauthorized,
 		},
 		{
-			name: "should return audit logs with default pagination",
-			setup: func(c *gin.Context) {
-				c.Set("userID", user.ID)
-			},
+			name:       "should return audit logs with default pagination",
+			userID:     user.ID,
 			query:      "",
 			wantStatus: http.StatusOK,
 		},
 		{
-			name: "should return audit logs with custom pagination",
-			setup: func(c *gin.Context) {
-				c.Set("userID", user.ID)
-			},
+			name:       "should return audit logs with custom pagination",
+			userID:     user.ID,
 			query:      "?page=2&limit=5",
 			wantStatus: http.StatusOK,
 		},
 		{
-			name: "should return bad request for invalid page",
-			setup: func(c *gin.Context) {
-				c.Set("userID", user.ID)
-			},
+			name:       "should return bad request for invalid page",
+			userID:     user.ID,
 			query:      "?page=abc",
 			wantStatus: http.StatusBadRequest,
 		},
 		{
-			name: "should return bad request for invalid limit",
-			setup: func(c *gin.Context) {
-				c.Set("userID", user.ID)
-			},
+			name:       "should return bad request for invalid limit",
+			userID:     user.ID,
 			query:      "?limit=abc",
 			wantStatus: http.StatusBadRequest,
 		},
 		{
-			name: "should use default page when page is less than one",
-			setup: func(c *gin.Context) {
-				c.Set("userID", user.ID)
-			},
+			name:       "should use default page when page is less than one",
+			userID:     user.ID,
 			query:      "?page=-1",
 			wantStatus: http.StatusOK,
 		},
 		{
-			name: "should use default limit when limit is less than one",
-			setup: func(c *gin.Context) {
-				c.Set("userID", user.ID)
-			},
+			name:       "should use default limit when limit is less than one",
+			userID:     user.ID,
 			query:      "?limit=-5",
 			wantStatus: http.StatusOK,
 		},
 		{
-			name: "should cap limit when it exceeds maximum value",
-			setup: func(c *gin.Context) {
-				c.Set("userID", user.ID)
-			},
+			name:       "should cap limit when it exceeds maximum value",
+			userID:     user.ID,
 			query:      "?limit=200",
 			wantStatus: http.StatusOK,
 		},
@@ -491,11 +472,13 @@ func TestAuthHandler_GetAuditLogs(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-
 			r := gin.New()
 
 			r.GET("/api/auth/audit-logs", func(c *gin.Context) {
-				tt.setup(c)
+				if tt.userID != nil {
+					c.Set("userID", tt.userID)
+				}
+
 				authHandler.GetAuditLogs(c)
 			})
 
