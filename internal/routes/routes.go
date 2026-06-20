@@ -17,6 +17,7 @@ import (
 func SetupRoutes(router *gin.Engine, db *gorm.DB, redisClient *redis.Client, cfg *config.Config) {
 	// Initialize repositories
 	userRepo := repository.NewUserRepository(db)
+	oauthAccountRepo := repository.NewUserOAuthAccountRepository(db)
 	tokenRepo := repository.NewTokenRepository(db)
 	verificationRepo := repository.NewVerificationRepository(db)
 	passwordResetRepo := repository.NewPasswordResetRepository(db)
@@ -44,6 +45,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, redisClient *redis.Client, cfg
 
 	authService := service.NewAuthService(
 		userRepo,
+		oauthAccountRepo,
 		tokenRepo,
 		verificationRepo,
 		passwordResetRepo,

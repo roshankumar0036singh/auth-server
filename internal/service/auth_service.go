@@ -38,6 +38,7 @@ const (
 
 type AuthService struct {
 	userRepo          *repository.UserRepository
+	oauthAccountRepo  *repository.UserOAuthAccountRepository
 	tokenRepo         *repository.TokenRepository
 	verificationRepo  *repository.VerificationRepository
 	passwordResetRepo *repository.PasswordResetRepository
@@ -51,6 +52,7 @@ type AuthService struct {
 
 func NewAuthService(
 	userRepo *repository.UserRepository,
+	oauthAccountRepo *repository.UserOAuthAccountRepository,
 	tokenRepo *repository.TokenRepository,
 	verificationRepo *repository.VerificationRepository,
 	passwordResetRepo *repository.PasswordResetRepository,
@@ -63,6 +65,7 @@ func NewAuthService(
 ) *AuthService {
 	return &AuthService{
 		userRepo:          userRepo,
+		oauthAccountRepo:  oauthAccountRepo,
 		tokenRepo:         tokenRepo,
 		verificationRepo:  verificationRepo,
 		passwordResetRepo: passwordResetRepo,
@@ -734,7 +737,7 @@ func (s *AuthService) verifyRefreshTokenState(ctx context.Context, refreshTokenS
 		}
 		return nil, "", false, errors.New(errInvalidOrExpiredRefreshToken)
 	}
-	
+
 	return storedToken, claims.UserID, false, nil
 }
 
