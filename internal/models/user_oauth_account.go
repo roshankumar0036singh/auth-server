@@ -8,8 +8,8 @@ import (
 type UserOAuthAccount struct {
 	ID             string `gorm:"type:uuid;primaryKey"`
 	UserID         string `gorm:"type:uuid;not null"`
-	Provider       string `gorm:"size:50;not null"`
-	ProviderUserID string `gorm:"size:255;not null"`
+	Provider       string `gorm:"size:50;not null;uniqueIndex:idx_provider_user"`
+	ProviderUserID string `gorm:"size:255;not null;uniqueIndex:idx_provider_user"`
 
 	User User `gorm:"foreignKey:UserID"`
 }
