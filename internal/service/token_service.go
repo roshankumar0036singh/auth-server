@@ -158,5 +158,12 @@ func (s *TokenService) ValidateMFAToken(tokenString string) (string, error) {
 
 // ValidateRefreshToken validates and parses a refresh token
 func (s *TokenService) ValidateRefreshToken(tokenString string) (*JWTClaims, error) {
-	return s.parseToken(tokenString)
+	claims, err := s.parseToken(tokenString)
+	if err != nil {
+		return nil, err
+	}
+	if claims.Purpose != "" {
+		return nil, errors.New("invalid refresh token: has specific purpose")
+	}
+	return claims, nil
 }

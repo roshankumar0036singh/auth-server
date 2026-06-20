@@ -14,6 +14,12 @@ type JWKSHandler struct {
 	cfg *config.Config
 }
 
+// JWKSErrorResponse represents an error response from the JWKS endpoint
+type JWKSErrorResponse struct {
+	Error string `json:"error"`
+	Code  string `json:"code"`
+}
+
 func NewJWKSHandler(cfg *config.Config) *JWKSHandler {
 	return &JWKSHandler{cfg: cfg}
 }
@@ -24,6 +30,7 @@ func NewJWKSHandler(cfg *config.Config) *JWKSHandler {
 // @Tags OpenID Connect
 // @Produce json
 // @Success 200 {object} dto.JWKSResponse
+// @Failure 500 {object} JWKSErrorResponse
 // @Router /.well-known/jwks.json [get]
 func (h *JWKSHandler) GetJWKS(c *gin.Context) {
 	pubKey := h.cfg.JWT.PublicKey

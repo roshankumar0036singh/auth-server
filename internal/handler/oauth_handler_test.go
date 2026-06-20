@@ -29,6 +29,7 @@ func setupOAuthUserInfoRouter(t *testing.T) (*gin.Engine, *repository.UserReposi
 	t.Cleanup(func() { mr.Close() })
 
 	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	t.Cleanup(func() { rdb.Close() })
 
 	userRepo := repository.NewUserRepository(db)
 	tokenRepo := repository.NewOAuthTokenRepository(db)
@@ -81,6 +82,7 @@ func TestNewOAuthHandlerPanicsWithoutUserRepository(t *testing.T) {
 	t.Cleanup(func() { mr.Close() })
 
 	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	t.Cleanup(func() { rdb.Close() })
 
 	tokenRepo := repository.NewOAuthTokenRepository(db)
 	priv, pub := testutils.GetTestRSAKeys(t)
@@ -363,6 +365,7 @@ func setupTokenRouter(t *testing.T) (*gin.Engine, *repository.OAuthClientReposit
 	t.Cleanup(func() { mr.Close() })
 
 	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	t.Cleanup(func() { rdb.Close() })
 
 	clientRepo := repository.NewOAuthClientRepository(db)
 	codeRepo := repository.NewAuthorizationCodeRepository(db)

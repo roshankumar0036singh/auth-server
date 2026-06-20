@@ -343,7 +343,13 @@ func (s *OAuthProviderService) ValidateAccessToken(tokenString string) (*models.
 // It checks if the token is an active OAuth token in DB, or a valid/non-blacklisted JWT.
 func (s *OAuthProviderService) IntrospectToken(ctx context.Context, tokenString string) (*models.OAuthAccessToken, *JWTClaims, error) {
 	// Try parsing as OAuthAccessToken first
-	token, err := s.tokenRepo.FindByToken(tokenString)
+	hashedToken := utils.HashToken(tokenString)
+	token, err := s.tokenRepo.FindByToken(hashedToken)
+	if err != nil {
+		// Fallback for backward compatibility
+		token, err = s.tokenRepo.FindByToken(tokenString)
+	}
+
 	if err == nil && !token.IsExpired() {
 		return token, nil, nil
 	}

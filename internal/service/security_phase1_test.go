@@ -33,6 +33,7 @@ func newProviderService(t *testing.T) (*service.OAuthProviderService, *repositor
 	t.Cleanup(func() { mr.Close() })
 
 	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	t.Cleanup(func() { rdb.Close() })
 
 	tokenRepo := repository.NewOAuthTokenRepository(db)
 	ps := service.NewOAuthProviderService(

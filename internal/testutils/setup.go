@@ -28,7 +28,7 @@ func GetTestRSAKeys(t *testing.T) (*rsa.PrivateKey, *rsa.PublicKey) {
 		var err error
 		testPrivKey, err = rsa.GenerateKey(rand.Reader, 2048)
 		if err != nil {
-			t.Fatalf("Failed to generate test RSA key: %v", err)
+			panic(err)
 		}
 		testPubKey = &testPrivKey.PublicKey
 	})

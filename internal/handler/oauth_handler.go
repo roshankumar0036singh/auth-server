@@ -436,6 +436,12 @@ type TokenResponse struct {
 	Scope        string `json:"scope,omitempty"`
 }
 
+// OAuthErrorResponse represents a standard OAuth 2.0 error response
+type OAuthErrorResponse struct {
+	Error            string `json:"error"`
+	ErrorDescription string `json:"error_description,omitempty"`
+}
+
 // UserInfoResponse represents the OAuth user info response
 type UserInfoResponse struct {
 	Sub           string   `json:"sub"`
@@ -465,7 +471,7 @@ func strPtr(s string) *string {
 // @Param   client_id formData string false "OAuth Client ID (or via Basic Auth)"
 // @Param   client_secret formData string false "OAuth Client Secret (or via Basic Auth)"
 // @Success 200 {object} dto.IntrospectionResponse "Introspection result"
-// @Failure 401 {object} ErrorResponse "Invalid client credentials"
+// @Failure 401 {object} OAuthErrorResponse "Invalid client credentials"
 // @Router /oauth/introspect [post]
 func (h *OAuthHandler) Introspect(c *gin.Context) {
 	token := c.PostForm("token")

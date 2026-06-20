@@ -39,6 +39,12 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_dto.JWKSResponse"
                         }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.JWKSErrorResponse"
+                        }
                     }
                 }
             }
@@ -1318,7 +1324,7 @@ const docTemplate = `{
                     "401": {
                         "description": "Invalid client credentials",
                         "schema": {
-                            "$ref": "#/definitions/internal_handler.ErrorResponse"
+                            "$ref": "#/definitions/internal_handler.OAuthErrorResponse"
                         }
                     }
                 }
@@ -1813,6 +1819,17 @@ const docTemplate = `{
                 }
             }
         },
+        "internal_handler.JWKSErrorResponse": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "error": {
+                    "type": "string"
+                }
+            }
+        },
         "internal_handler.ListOAuthClientsResponse": {
             "type": "object",
             "properties": {
@@ -1855,6 +1872,17 @@ const docTemplate = `{
                     "items": {
                         "type": "string"
                     }
+                }
+            }
+        },
+        "internal_handler.OAuthErrorResponse": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "type": "string"
+                },
+                "error_description": {
+                    "type": "string"
                 }
             }
         },

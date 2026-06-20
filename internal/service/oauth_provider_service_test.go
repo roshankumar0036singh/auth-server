@@ -15,6 +15,7 @@ import (
 func TestOAuthProviderService(t *testing.T) {
 	_, db, mr := testutils.SetupIntegrationTest(t)
 	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	t.Cleanup(func() { rdb.Close() })
 
 	db.Exec(`CREATE TABLE IF NOT EXISTS oauth_clients (
 		id text PRIMARY KEY,

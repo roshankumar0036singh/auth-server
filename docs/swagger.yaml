@@ -245,6 +245,13 @@ definitions:
       message:
         type: string
     type: object
+  internal_handler.JWKSErrorResponse:
+    properties:
+      code:
+        type: string
+      error:
+        type: string
+    type: object
   internal_handler.ListOAuthClientsResponse:
     properties:
       data:
@@ -274,6 +281,13 @@ definitions:
         items:
           type: string
         type: array
+    type: object
+  internal_handler.OAuthErrorResponse:
+    properties:
+      error:
+        type: string
+      error_description:
+        type: string
     type: object
   internal_handler.ProviderConfigRequest:
     properties:
@@ -342,6 +356,10 @@ paths:
           description: OK
           schema:
             $ref: '#/definitions/github_com_roshankumar0036singh_auth-server_internal_dto.JWKSResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_handler.JWKSErrorResponse'
       summary: Get JSON Web Key Set
       tags:
       - OpenID Connect
@@ -1152,7 +1170,7 @@ paths:
         "401":
           description: Invalid client credentials
           schema:
-            $ref: '#/definitions/internal_handler.ErrorResponse'
+            $ref: '#/definitions/internal_handler.OAuthErrorResponse'
       summary: OAuth Token Introspection
       tags:
       - OAuth Provider

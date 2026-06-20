@@ -275,6 +275,7 @@ func TestAuthHandler_OAuthRedirectFlow(t *testing.T) {
 	cfg := &config.Config{}
 	tokenService := service.NewTokenService(cfg)
 	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	t.Cleanup(func() { rdb.Close() })
 	oauthProviderService := service.NewOAuthProviderService(
 		clientRepo, codeRepo, tokenRepo, consentRepo, configRepo, tokenService, service.NewCacheService(rdb), cfg,
 	)
