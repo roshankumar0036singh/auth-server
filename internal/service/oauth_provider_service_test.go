@@ -1,8 +1,10 @@
 package service_test
 
 import (
+	"context"
 	"testing"
 
+	"github.com/go-redis/redis/v8"
 	"github.com/roshankumar0036singh/auth-server/internal/config"
 	"github.com/roshankumar0036singh/auth-server/internal/repository"
 	"github.com/roshankumar0036singh/auth-server/internal/service"
@@ -11,7 +13,8 @@ import (
 )
 
 func TestOAuthProviderService(t *testing.T) {
-	_, db, _ := testutils.SetupIntegrationTest(t)
+	_, db, mr := testutils.SetupIntegrationTest(t)
+	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
 
 	db.Exec(`CREATE TABLE IF NOT EXISTS oauth_clients (
 		id text PRIMARY KEY,
@@ -49,7 +52,7 @@ func TestOAuthProviderService(t *testing.T) {
 	tokenService := service.NewTokenService(cfg)
 
 	providerService := service.NewOAuthProviderService(
-		clientRepo, codeRepo, tokenRepo, consentRepo, configRepo, tokenService, cfg,
+		clientRepo, codeRepo, tokenRepo, consentRepo, configRepo, tokenService, service.NewCacheService(rdb), cfg,
 	)
 
 	// Create a user and a client
@@ -94,5 +97,12 @@ func TestOAuthProviderService(t *testing.T) {
 
 		err := providerService.DeleteProviderConfig(otherOwnerID, client.ID, "google")
 		assert.ErrorIs(t, err, service.ErrUnauthorized)
+	})
+
+	t.Run("IntrospectToken - Invalid Token", func(t *testing.T) {
+		opaque, jwt, err := providerService.IntrospectToken(context.Background(), "invalid-token")
+		assert.Error(t, err)
+		assert.Nil(t, opaque)
+		assert.Nil(t, jwt)
 	})
 }

@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-redis/redis/v8"
 	"github.com/pquerna/otp/totp"
 	"github.com/roshankumar0036singh/auth-server/internal/config"
 	"github.com/roshankumar0036singh/auth-server/internal/dto"
@@ -31,6 +32,8 @@ func newProviderService(t *testing.T) (*service.OAuthProviderService, *repositor
 	_, db, mr := testutils.SetupIntegrationTest(t)
 	t.Cleanup(func() { mr.Close() })
 
+	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+
 	tokenRepo := repository.NewOAuthTokenRepository(db)
 	ps := service.NewOAuthProviderService(
 		repository.NewOAuthClientRepository(db),
@@ -39,6 +42,7 @@ func newProviderService(t *testing.T) (*service.OAuthProviderService, *repositor
 		repository.NewUserConsentRepository(db),
 		repository.NewOAuthProviderConfigRepository(db),
 		service.NewTokenService(testCfg(t)),
+		service.NewCacheService(rdb),
 		testCfg(t),
 	)
 	return ps, tokenRepo

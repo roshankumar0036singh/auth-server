@@ -18,6 +18,25 @@ definitions:
     required:
     - email
     type: object
+  github_com_roshankumar0036singh_auth-server_internal_dto.IntrospectionResponse:
+    properties:
+      active:
+        type: boolean
+      client_id:
+        type: string
+      exp:
+        type: integer
+      iat:
+        type: integer
+      scope:
+        type: string
+      sub:
+        type: string
+      token_type:
+        type: string
+      username:
+        type: string
+    type: object
   github_com_roshankumar0036singh_auth-server_internal_dto.JWK:
     properties:
       alg:
@@ -1102,6 +1121,39 @@ paths:
           schema:
             $ref: '#/definitions/internal_handler.ErrorResponse'
       summary: OAuth Authorization Consent
+      tags:
+      - OAuth Provider
+  /oauth/introspect:
+    post:
+      consumes:
+      - application/x-www-form-urlencoded
+      description: Returns the active state and metadata of a token
+      parameters:
+      - description: The token to introspect
+        in: formData
+        name: token
+        required: true
+        type: string
+      - description: OAuth Client ID (or via Basic Auth)
+        in: formData
+        name: client_id
+        type: string
+      - description: OAuth Client Secret (or via Basic Auth)
+        in: formData
+        name: client_secret
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Introspection result
+          schema:
+            $ref: '#/definitions/github_com_roshankumar0036singh_auth-server_internal_dto.IntrospectionResponse'
+        "401":
+          description: Invalid client credentials
+          schema:
+            $ref: '#/definitions/internal_handler.ErrorResponse'
+      summary: OAuth Token Introspection
       tags:
       - OAuth Provider
   /oauth/token:

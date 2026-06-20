@@ -63,6 +63,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, redisClient *redis.Client, cfg
 		userConsentRepo,
 		oauthProviderConfigRepo,
 		tokenService,
+		cacheService,
 		cfg,
 	)
 
@@ -131,6 +132,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, redisClient *redis.Client, cfg
 	router.GET("/oauth/authorize", middleware.OptionalAuthMiddleware(tokenService, cacheService), oauthHandler.Authorize)
 	router.POST("/oauth/authorize", middleware.AuthMiddleware(tokenService, cacheService), oauthHandler.AuthorizePost)
 	router.POST("/oauth/token", oauthHandler.Token)
+	router.POST("/oauth/introspect", oauthHandler.Introspect)
 	router.GET("/oauth/userinfo", oauthHandler.UserInfo)
 
 	// API routes

@@ -1274,6 +1274,56 @@ const docTemplate = `{
                 }
             }
         },
+        "/oauth/introspect": {
+            "post": {
+                "description": "Returns the active state and metadata of a token",
+                "consumes": [
+                    "application/x-www-form-urlencoded"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "OAuth Provider"
+                ],
+                "summary": "OAuth Token Introspection",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "The token to introspect",
+                        "name": "token",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "OAuth Client ID (or via Basic Auth)",
+                        "name": "client_id",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "OAuth Client Secret (or via Basic Auth)",
+                        "name": "client_secret",
+                        "in": "formData"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Introspection result",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_dto.IntrospectionResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Invalid client credentials",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/oauth/token": {
             "post": {
                 "description": "Exchanges authorization code for access token. Public clients must provide code_verifier for PKCE validation.",
@@ -1421,6 +1471,35 @@ const docTemplate = `{
             ],
             "properties": {
                 "email": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_roshankumar0036singh_auth-server_internal_dto.IntrospectionResponse": {
+            "type": "object",
+            "properties": {
+                "active": {
+                    "type": "boolean"
+                },
+                "client_id": {
+                    "type": "string"
+                },
+                "exp": {
+                    "type": "integer"
+                },
+                "iat": {
+                    "type": "integer"
+                },
+                "scope": {
+                    "type": "string"
+                },
+                "sub": {
+                    "type": "string"
+                },
+                "token_type": {
+                    "type": "string"
+                },
+                "username": {
                     "type": "string"
                 }
             }

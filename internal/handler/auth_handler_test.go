@@ -274,8 +274,9 @@ func TestAuthHandler_OAuthRedirectFlow(t *testing.T) {
 	configRepo := repository.NewOAuthProviderConfigRepository(db)
 	cfg := &config.Config{}
 	tokenService := service.NewTokenService(cfg)
+	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
 	oauthProviderService := service.NewOAuthProviderService(
-		clientRepo, codeRepo, tokenRepo, consentRepo, configRepo, tokenService, cfg,
+		clientRepo, codeRepo, tokenRepo, consentRepo, configRepo, tokenService, service.NewCacheService(rdb), cfg,
 	)
 
 	client, _, err := oauthProviderService.CreateClient("Test Client", []string{"http://localhost:5173/callback"}, []string{"read:profile"}, "user-1", true)

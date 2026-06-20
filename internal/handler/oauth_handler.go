@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/roshankumar0036singh/auth-server/internal/dto"
 	"github.com/roshankumar0036singh/auth-server/internal/models"
 	"github.com/roshankumar0036singh/auth-server/internal/repository"
 	"github.com/roshankumar0036singh/auth-server/internal/service"
@@ -452,4 +453,83 @@ func strPtr(s string) *string {
 		return nil
 	}
 	return &s
+}
+
+// Introspect handles OAuth token introspection (RFC 7662)
+// @Summary OAuth Token Introspection
+// @Description Returns the active state and metadata of a token
+// @Tags OAuth Provider
+// @Accept  x-www-form-urlencoded
+// @Produce json
+// @Param   token formData string true "The token to introspect"
+// @Param   client_id formData string false "OAuth Client ID (or via Basic Auth)"
+// @Param   client_secret formData string false "OAuth Client Secret (or via Basic Auth)"
+// @Success 200 {object} dto.IntrospectionResponse "Introspection result"
+// @Failure 401 {object} ErrorResponse "Invalid client credentials"
+// @Router /oauth/introspect [post]
+func (h *OAuthHandler) Introspect(c *gin.Context) {
+	token := c.PostForm("token")
+	if token == "" {
+		c.JSON(http.StatusOK, gin.H{"active": false})
+		return
+	}
+
+	// Client Authentication
+	clientID := c.PostForm("client_id")
+	clientSecret := c.PostForm("client_secret")
+	if clientID == "" {
+		var ok bool
+		clientID, clientSecret, ok = c.Request.BasicAuth()
+		if !ok {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid_client"})
+			return
+		}
+	}
+
+	// Authenticate client
+	_, err := h.oauthProviderService.ResolveClientForToken(clientID, clientSecret)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid_client", "error_description": err.Error()})
+		return
+	}
+
+	// Introspect token
+	opaqueToken, jwtClaims, err := h.oauthProviderService.IntrospectToken(c.Request.Context(), token)
+	if err != nil {
+		// Valid RFC 7662 behavior: return active: false for any invalid/expired/blacklisted token
+		c.JSON(http.StatusOK, gin.H{"active": false})
+		return
+	}
+
+	// Build response based on token type
+	if opaqueToken != nil {
+		// Enforce that the introspecting client is either the token's owner,
+		// or that we generally allow the introspecting client to see it.
+		// For simplicity, we just return true. If we wanted strict RFC 7662,
+		// we'd check if client.ID == opaqueToken.ClientID or similar.
+		// However, resource servers might have their own client_id.
+		
+		c.JSON(http.StatusOK, gin.H{
+			"active":     true,
+			"client_id":  opaqueToken.ClientID,
+			"sub":        opaqueToken.UserID,
+			"scope":      strings.Join(opaqueToken.Scopes, " "),
+			"exp":        opaqueToken.ExpiresAt.Unix(),
+			"token_type": "Bearer",
+		})
+		return
+	}
+
+	if jwtClaims != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"active": true,
+			"sub":    jwtClaims.UserID,
+			"exp":    jwtClaims.ExpiresAt.Unix(),
+			"iat":    jwtClaims.IssuedAt.Unix(),
+			"scope":  jwtClaims.Role, // Just returning role as scope for JWTs
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"active": false})
 }
