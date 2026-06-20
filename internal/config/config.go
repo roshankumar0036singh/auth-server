@@ -194,13 +194,15 @@ func loadRSAKeys() (*rsa.PrivateKey, *rsa.PublicKey) {
 	privBytes, err1 := os.ReadFile(privPath)
 	pubBytes, err2 := os.ReadFile(pubPath)
 
-	if err1 != nil || err2 != nil {
+	if os.IsNotExist(err1) || os.IsNotExist(err2) {
 		log.Println("RSA keys not found at provided paths, generating temporary in-memory keys for development/testing...")
 		privKey, err := rsa.GenerateKey(rand.Reader, 2048)
 		if err != nil {
 			log.Fatalf("Failed to generate temp RSA key: %v", err)
 		}
 		return privKey, &privKey.PublicKey
+	} else if err1 != nil || err2 != nil {
+		log.Fatalf("Failed to read RSA keys: privErr=%v, pubErr=%v", err1, err2)
 	}
 
 	privKey, err := jwt.ParseRSAPrivateKeyFromPEM(privBytes)

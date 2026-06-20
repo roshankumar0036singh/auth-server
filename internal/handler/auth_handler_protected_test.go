@@ -23,7 +23,8 @@ func TestAuthHandler_GetMe(t *testing.T) {
 	defer mr.Close()
 	authHandler := handler.NewAuthHandler(authService, nil, nil)
 	// We need TokenService to create a valid token for the middleware
-	cfg := &config.Config{JWT: config.JWTConfig{AccessSecret: "secret"}}
+	priv, pub := testutils.GetTestRSAKeys(t)
+	cfg := &config.Config{JWT: config.JWTConfig{PrivateKey: priv, PublicKey: pub, KeyID: "test-key"}}
 	tokenService := service.NewTokenService(cfg)
 
 	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
