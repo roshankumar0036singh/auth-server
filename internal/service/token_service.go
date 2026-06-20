@@ -42,6 +42,31 @@ const (
 	errInvalidToken      = "invalid token"
 )
 
+func (s *TokenService) signToken(claims *JWTClaims) (string, error) {
+	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
+	token.Header["kid"] = s.cfg.JWT.KeyID
+	return token.SignedString(s.cfg.JWT.PrivateKey)
+}
+
+func (s *TokenService) parseToken(tokenString string) (*JWTClaims, error) {
+	token, err := jwt.ParseWithClaims(tokenString, &JWTClaims{}, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodRSA); !ok {
+			return nil, errors.New(errInvalidSignMethod)
+		}
+		return s.cfg.JWT.PublicKey, nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	if claims, ok := token.Claims.(*JWTClaims); ok && token.Valid {
+		return claims, nil
+	}
+
+	return nil, errors.New(errInvalidToken)
+}
+
 // GenerateAccessToken generates a new JWT access token
 func (s *TokenService) GenerateAccessToken(user *models.User, sessionID string) (string, error) {
 	expirationTime := time.Now().Add(15 * time.Minute) // 15 minutes
@@ -59,14 +84,7 @@ func (s *TokenService) GenerateAccessToken(user *models.User, sessionID string) 
 		},
 	}
 
-	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
-	token.Header["kid"] = s.cfg.JWT.KeyID
-	tokenString, err := token.SignedString(s.cfg.JWT.PrivateKey)
-	if err != nil {
-		return "", err
-	}
-
-	return tokenString, nil
+	return s.signToken(claims)
 }
 
 // GenerateRefreshToken generates a new refresh token (longer expiry)
@@ -85,39 +103,23 @@ func (s *TokenService) GenerateRefreshToken(user *models.User) (string, error) {
 		},
 	}
 
-	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
-	token.Header["kid"] = s.cfg.JWT.KeyID
-	tokenString, err := token.SignedString(s.cfg.JWT.PrivateKey)
-	if err != nil {
-		return "", err
-	}
-
-	return tokenString, nil
+	return s.signToken(claims)
 }
 
 // ValidateAccessToken validates and parses an access token
 func (s *TokenService) ValidateAccessToken(tokenString string) (*JWTClaims, error) {
-	token, err := jwt.ParseWithClaims(tokenString, &JWTClaims{}, func(token *jwt.Token) (interface{}, error) {
-		if _, ok := token.Method.(*jwt.SigningMethodRSA); !ok {
-			return nil, errors.New(errInvalidSignMethod)
-		}
-		return s.cfg.JWT.PublicKey, nil
-	})
-
+	claims, err := s.parseToken(tokenString)
 	if err != nil {
 		return nil, err
 	}
-
-	if claims, ok := token.Claims.(*JWTClaims); ok && token.Valid {
-		// Purpose-scoped tokens (e.g. the MFA-pending token) must never be
-		// accepted as access tokens.
-		if claims.Purpose != "" {
-			return nil, errors.New(errInvalidToken)
-		}
-		return claims, nil
+	
+	// Purpose-scoped tokens (e.g. the MFA-pending token) must never be
+	// accepted as access tokens.
+	if claims.Purpose != "" {
+		return nil, errors.New(errInvalidToken)
 	}
-
-	return nil, errors.New(errInvalidToken)
+	
+	return claims, nil
 }
 
 // GenerateMFAToken issues a short-lived token proving the password step of
@@ -135,48 +137,26 @@ func (s *TokenService) GenerateMFAToken(userID string) (string, error) {
 		},
 	}
 
-	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
-	token.Header["kid"] = s.cfg.JWT.KeyID
-	return token.SignedString(s.cfg.JWT.PrivateKey)
+	return s.signToken(claims)
 }
 
 // ValidateMFAToken validates an MFA-pending token and returns the user ID it
 // was issued for. It rejects any token whose Purpose is not the MFA-pending
 // marker, so access/refresh tokens cannot stand in for it.
 func (s *TokenService) ValidateMFAToken(tokenString string) (string, error) {
-	token, err := jwt.ParseWithClaims(tokenString, &JWTClaims{}, func(token *jwt.Token) (interface{}, error) {
-		if _, ok := token.Method.(*jwt.SigningMethodRSA); !ok {
-			return nil, errors.New(errInvalidSignMethod)
-		}
-		return s.cfg.JWT.PublicKey, nil
-	})
+	claims, err := s.parseToken(tokenString)
 	if err != nil {
 		return "", err
 	}
-
-	claims, ok := token.Claims.(*JWTClaims)
-	if !ok || !token.Valid || claims.Purpose != mfaPendingPurpose {
+	
+	if claims.Purpose != mfaPendingPurpose {
 		return "", errors.New("invalid mfa token")
 	}
+	
 	return claims.UserID, nil
 }
 
 // ValidateRefreshToken validates and parses a refresh token
 func (s *TokenService) ValidateRefreshToken(tokenString string) (*JWTClaims, error) {
-	token, err := jwt.ParseWithClaims(tokenString, &JWTClaims{}, func(token *jwt.Token) (interface{}, error) {
-		if _, ok := token.Method.(*jwt.SigningMethodRSA); !ok {
-			return nil, errors.New(errInvalidSignMethod)
-		}
-		return s.cfg.JWT.PublicKey, nil
-	})
-
-	if err != nil {
-		return nil, err
-	}
-
-	if claims, ok := token.Claims.(*JWTClaims); ok && token.Valid {
-		return claims, nil
-	}
-
-	return nil, errors.New(errInvalidToken)
+	return s.parseToken(tokenString)
 }

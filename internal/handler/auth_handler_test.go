@@ -106,10 +106,12 @@ func TestAuthHandler_GetSessions_CurrentSessionFlag(t *testing.T) {
 
 	authHandler := NewAuthHandler(authService, nil, nil)
 
+	priv, pub := testutils.GetTestRSAKeys(t)
 	cfg := &config.Config{
 		JWT: config.JWTConfig{
-			AccessSecret:  "secret",
-			RefreshSecret: "refresh-secret",
+			PrivateKey: priv,
+			PublicKey:  pub,
+			KeyID:      "test-key",
 		},
 	}
 	tokenService := service.NewTokenService(cfg)

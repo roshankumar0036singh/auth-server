@@ -14,6 +14,7 @@ import (
 	"github.com/roshankumar0036singh/auth-server/internal/middleware"
 	"github.com/roshankumar0036singh/auth-server/internal/models"
 	"github.com/roshankumar0036singh/auth-server/internal/service"
+	"github.com/roshankumar0036singh/auth-server/internal/testutils"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -24,8 +25,9 @@ func setupTest(t *testing.T) (*gin.Engine, *service.TokenService, *service.Cache
 
 	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
 	t.Cleanup(func() { _ = rdb.Close() })
+	priv, pub := testutils.GetTestRSAKeys(t)
 	cfg := &config.Config{
-		JWT: config.JWTConfig{AccessSecret: "secret", RefreshSecret: "refresh", AccessExpiry: "15m"},
+		JWT: config.JWTConfig{PrivateKey: priv, PublicKey: pub, KeyID: "test-key", AccessExpiry: "15m"},
 	}
 	tokenService := service.NewTokenService(cfg)
 	cacheService := service.NewCacheService(rdb)

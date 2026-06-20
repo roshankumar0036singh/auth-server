@@ -29,7 +29,7 @@ func (h *JWKSHandler) GetJWKS(c *gin.Context) {
 	pubKey := h.cfg.JWT.PublicKey
 
 	if pubKey == nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "public key not configured"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "public key not configured", "code": "INTERNAL_SERVER_ERROR"})
 		return
 	}
 

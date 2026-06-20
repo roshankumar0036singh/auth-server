@@ -29,6 +29,7 @@ func setupOAuthUserInfoRouter(t *testing.T) (*gin.Engine, *repository.UserReposi
 
 	userRepo := repository.NewUserRepository(db)
 	tokenRepo := repository.NewOAuthTokenRepository(db)
+	priv, pub := testutils.GetTestRSAKeys(t)
 	oauthProviderService := service.NewOAuthProviderService(
 		repository.NewOAuthClientRepository(db),
 		repository.NewAuthorizationCodeRepository(db),
@@ -36,7 +37,7 @@ func setupOAuthUserInfoRouter(t *testing.T) (*gin.Engine, *repository.UserReposi
 		repository.NewUserConsentRepository(db),
 		repository.NewOAuthProviderConfigRepository(db),
 		service.NewTokenService(&config.Config{
-			JWT: config.JWTConfig{AccessSecret: "secret", RefreshSecret: "refresh"},
+			JWT: config.JWTConfig{PrivateKey: priv, PublicKey: pub, KeyID: "test-key"},
 		}),
 		&config.Config{},
 	)
@@ -76,6 +77,7 @@ func TestNewOAuthHandlerPanicsWithoutUserRepository(t *testing.T) {
 	t.Cleanup(func() { mr.Close() })
 
 	tokenRepo := repository.NewOAuthTokenRepository(db)
+	priv, pub := testutils.GetTestRSAKeys(t)
 	oauthProviderService := service.NewOAuthProviderService(
 		repository.NewOAuthClientRepository(db),
 		repository.NewAuthorizationCodeRepository(db),
@@ -83,7 +85,7 @@ func TestNewOAuthHandlerPanicsWithoutUserRepository(t *testing.T) {
 		repository.NewUserConsentRepository(db),
 		repository.NewOAuthProviderConfigRepository(db),
 		service.NewTokenService(&config.Config{
-			JWT: config.JWTConfig{AccessSecret: "secret", RefreshSecret: "refresh"},
+			JWT: config.JWTConfig{PrivateKey: priv, PublicKey: pub, KeyID: "test-key"},
 		}),
 		&config.Config{},
 	)
@@ -358,6 +360,7 @@ func setupTokenRouter(t *testing.T) (*gin.Engine, *repository.OAuthClientReposit
 	tokenRepo := repository.NewOAuthTokenRepository(db)
 	userRepo := repository.NewUserRepository(db)
 
+	priv, pub := testutils.GetTestRSAKeys(t)
 	oauthProviderService := service.NewOAuthProviderService(
 		clientRepo,
 		codeRepo,
@@ -365,7 +368,7 @@ func setupTokenRouter(t *testing.T) (*gin.Engine, *repository.OAuthClientReposit
 		repository.NewUserConsentRepository(db),
 		repository.NewOAuthProviderConfigRepository(db),
 		service.NewTokenService(&config.Config{
-			JWT: config.JWTConfig{AccessSecret: "secret", RefreshSecret: "refresh"},
+			JWT: config.JWTConfig{PrivateKey: priv, PublicKey: pub, KeyID: "test-key"},
 		}),
 		&config.Config{},
 	)
