@@ -628,7 +628,21 @@ func (s *AuthService) Login(req *dto.LoginRequest, ipAddress, userAgent string) 
 
 // LoginWithOAuth handles login or registration via OAuth provider
 func (s *AuthService) LoginWithOAuth(email, oauthID, firstName, lastName, provider, ipAddress, userAgent string) (*dto.LoginResponse, error) {
-	user, err := s.userRepo.FindByEmail(email)
+	account, err := s.oauthAccountRepo.FindByProvider(
+		provider,
+		oauthID,
+	)
+
+	var user *models.User
+
+	if err == nil {
+		user, err = s.userRepo.FindByID(account.UserID)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		user, err = s.userRepo.FindByEmail(email)
+	}
 	if err != nil {
 		// User does not exist, create new one
 		password := s.tokenService.GenerateRandomString(32)
@@ -642,8 +656,6 @@ func (s *AuthService) LoginWithOAuth(email, oauthID, firstName, lastName, provid
 			PasswordHash:  hashedPassword,
 			FirstName:     firstName,
 			LastName:      lastName,
-			OAuthProvider: provider,
-			OAuthID:       oauthID,
 			IsActive:      true,
 			EmailVerified: true, // Trusted from OAuth
 		}
@@ -652,20 +664,56 @@ func (s *AuthService) LoginWithOAuth(email, oauthID, firstName, lastName, provid
 			return nil, errors.New("failed to create user")
 		}
 
+		oauthAccount := &models.UserOAuthAccount{
+			UserID:         user.ID,
+			Provider:       provider,
+			ProviderUserID: oauthID,
+		}
+
+		if err := s.oauthAccountRepo.Create(oauthAccount); err != nil {
+			return nil, err
+		}
+
 		s.auditService.LogEvent(&user.ID, "USER_REGISTERED_OAUTH", "USER", user.ID, "", "", map[string]interface{}{"provider": provider})
 	} else {
-		// User exists, link account if not generic local
-		// For now simple logic: if email matches, we log them in and update OAuth info if missing
-		updates := make(map[string]interface{})
-		if user.OAuthID == "" {
-			updates["oauth_provider"] = provider
-			updates["oauth_id"] = oauthID
-			// Also mark email as verified if not already
-			if !user.EmailVerified {
-				updates["email_verified"] = true
+
+		_, accountErr := s.oauthAccountRepo.FindByProvider(
+			provider,
+			oauthID,
+		)
+
+		if accountErr != nil {
+
+			oauthAccount := &models.UserOAuthAccount{
+				UserID:         user.ID,
+				Provider:       provider,
+				ProviderUserID: oauthID,
 			}
-			s.userRepo.Update(user.ID, updates)
-			s.auditService.LogEvent(&user.ID, "ACCOUNT_LINKED_OAUTH", "USER", user.ID, "", "", map[string]interface{}{"provider": provider})
+
+			if err := s.oauthAccountRepo.Create(oauthAccount); err != nil {
+				return nil, err
+			}
+
+			if !user.EmailVerified {
+				s.userRepo.Update(
+					user.ID,
+					map[string]interface{}{
+						"email_verified": true,
+					},
+				)
+			}
+
+			s.auditService.LogEvent(
+				&user.ID,
+				"ACCOUNT_LINKED_OAUTH",
+				"USER",
+				user.ID,
+				"",
+				"",
+				map[string]interface{}{
+					"provider": provider,
+				},
+			)
 		}
 	}
 
