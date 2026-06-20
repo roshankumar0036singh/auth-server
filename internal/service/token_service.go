@@ -59,8 +59,9 @@ func (s *TokenService) GenerateAccessToken(user *models.User, sessionID string) 
 		},
 	}
 
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	tokenString, err := token.SignedString([]byte(s.cfg.JWT.AccessSecret))
+	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
+	token.Header["kid"] = s.cfg.JWT.KeyID
+	tokenString, err := token.SignedString(s.cfg.JWT.PrivateKey)
 	if err != nil {
 		return "", err
 	}
@@ -84,8 +85,9 @@ func (s *TokenService) GenerateRefreshToken(user *models.User) (string, error) {
 		},
 	}
 
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	tokenString, err := token.SignedString([]byte(s.cfg.JWT.RefreshSecret))
+	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
+	token.Header["kid"] = s.cfg.JWT.KeyID
+	tokenString, err := token.SignedString(s.cfg.JWT.PrivateKey)
 	if err != nil {
 		return "", err
 	}
@@ -96,10 +98,10 @@ func (s *TokenService) GenerateRefreshToken(user *models.User) (string, error) {
 // ValidateAccessToken validates and parses an access token
 func (s *TokenService) ValidateAccessToken(tokenString string) (*JWTClaims, error) {
 	token, err := jwt.ParseWithClaims(tokenString, &JWTClaims{}, func(token *jwt.Token) (interface{}, error) {
-		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+		if _, ok := token.Method.(*jwt.SigningMethodRSA); !ok {
 			return nil, errors.New(errInvalidSignMethod)
 		}
-		return []byte(s.cfg.JWT.AccessSecret), nil
+		return s.cfg.JWT.PublicKey, nil
 	})
 
 	if err != nil {
@@ -133,8 +135,9 @@ func (s *TokenService) GenerateMFAToken(userID string) (string, error) {
 		},
 	}
 
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	return token.SignedString([]byte(s.cfg.JWT.AccessSecret))
+	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
+	token.Header["kid"] = s.cfg.JWT.KeyID
+	return token.SignedString(s.cfg.JWT.PrivateKey)
 }
 
 // ValidateMFAToken validates an MFA-pending token and returns the user ID it
@@ -142,10 +145,10 @@ func (s *TokenService) GenerateMFAToken(userID string) (string, error) {
 // marker, so access/refresh tokens cannot stand in for it.
 func (s *TokenService) ValidateMFAToken(tokenString string) (string, error) {
 	token, err := jwt.ParseWithClaims(tokenString, &JWTClaims{}, func(token *jwt.Token) (interface{}, error) {
-		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+		if _, ok := token.Method.(*jwt.SigningMethodRSA); !ok {
 			return nil, errors.New(errInvalidSignMethod)
 		}
-		return []byte(s.cfg.JWT.AccessSecret), nil
+		return s.cfg.JWT.PublicKey, nil
 	})
 	if err != nil {
 		return "", err
@@ -161,10 +164,10 @@ func (s *TokenService) ValidateMFAToken(tokenString string) (string, error) {
 // ValidateRefreshToken validates and parses a refresh token
 func (s *TokenService) ValidateRefreshToken(tokenString string) (*JWTClaims, error) {
 	token, err := jwt.ParseWithClaims(tokenString, &JWTClaims{}, func(token *jwt.Token) (interface{}, error) {
-		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+		if _, ok := token.Method.(*jwt.SigningMethodRSA); !ok {
 			return nil, errors.New(errInvalidSignMethod)
 		}
-		return []byte(s.cfg.JWT.RefreshSecret), nil
+		return s.cfg.JWT.PublicKey, nil
 	})
 
 	if err != nil {
