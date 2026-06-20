@@ -6,14 +6,17 @@ import (
 	"github.com/roshankumar0036singh/auth-server/internal/config"
 	"github.com/roshankumar0036singh/auth-server/internal/models"
 	"github.com/roshankumar0036singh/auth-server/internal/service"
+	"github.com/roshankumar0036singh/auth-server/internal/testutils"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestTokenService_GenerateAccessToken(t *testing.T) {
+	priv, pub := testutils.GetTestRSAKeys(t)
 	cfg := &config.Config{
 		JWT: config.JWTConfig{
-			AccessSecret:  "test-secret",
-			RefreshSecret: "test-refresh-secret",
+			PrivateKey: priv,
+			PublicKey:  pub,
+			KeyID:      "test-key",
 		},
 	}
 	svc := service.NewTokenService(cfg)
@@ -39,10 +42,12 @@ func TestTokenService_GenerateAccessToken(t *testing.T) {
 }
 
 func TestTokenService_GenerateRefreshToken(t *testing.T) {
+	priv, pub := testutils.GetTestRSAKeys(t)
 	cfg := &config.Config{
 		JWT: config.JWTConfig{
-			AccessSecret:  "test-secret",
-			RefreshSecret: "test-refresh-secret",
+			PrivateKey: priv,
+			PublicKey:  pub,
+			KeyID:      "test-key",
 		},
 	}
 	svc := service.NewTokenService(cfg)

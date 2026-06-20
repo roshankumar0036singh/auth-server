@@ -106,10 +106,12 @@ func TestAuthHandler_GetSessions_CurrentSessionFlag(t *testing.T) {
 
 	authHandler := NewAuthHandler(authService, nil, nil)
 
+	priv, pub := testutils.GetTestRSAKeys(t)
 	cfg := &config.Config{
 		JWT: config.JWTConfig{
-			AccessSecret:  "secret",
-			RefreshSecret: "refresh-secret",
+			PrivateKey: priv,
+			PublicKey:  pub,
+			KeyID:      "test-key",
 		},
 	}
 	tokenService := service.NewTokenService(cfg)
@@ -272,8 +274,10 @@ func TestAuthHandler_OAuthRedirectFlow(t *testing.T) {
 	configRepo := repository.NewOAuthProviderConfigRepository(db)
 	cfg := &config.Config{}
 	tokenService := service.NewTokenService(cfg)
+	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	t.Cleanup(func() { rdb.Close() })
 	oauthProviderService := service.NewOAuthProviderService(
-		clientRepo, codeRepo, tokenRepo, consentRepo, configRepo, tokenService, cfg,
+		clientRepo, codeRepo, tokenRepo, consentRepo, configRepo, tokenService, service.NewCacheService(rdb), cfg,
 	)
 
 	client, _, err := oauthProviderService.CreateClient("Test Client", []string{"http://localhost:5173/callback"}, []string{"read:profile"}, "user-1", true)

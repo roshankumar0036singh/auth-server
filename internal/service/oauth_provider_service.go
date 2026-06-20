@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/base64"
 	"errors"
@@ -30,6 +31,7 @@ type OAuthProviderService struct {
 	consentRepo  *repository.UserConsentRepository
 	configRepo   *repository.OAuthProviderConfigRepository
 	tokenService *TokenService
+	cacheService *CacheService
 	cfg          *config.Config
 }
 
@@ -40,6 +42,7 @@ func NewOAuthProviderService(
 	consentRepo *repository.UserConsentRepository,
 	configRepo *repository.OAuthProviderConfigRepository,
 	tokenService *TokenService,
+	cacheService *CacheService,
 	cfg *config.Config,
 ) *OAuthProviderService {
 	return &OAuthProviderService{
@@ -49,6 +52,7 @@ func NewOAuthProviderService(
 		consentRepo:  consentRepo,
 		configRepo:   configRepo,
 		tokenService: tokenService,
+		cacheService: cacheService,
 		cfg:          cfg,
 	}
 }
@@ -333,6 +337,36 @@ func (s *OAuthProviderService) ValidateAccessToken(tokenString string) (*models.
 	}
 
 	return token, nil
+}
+
+// IntrospectToken implements RFC 7662 token introspection logic.
+// It checks if the token is an active OAuth token in DB, or a valid/non-blacklisted JWT.
+func (s *OAuthProviderService) IntrospectToken(ctx context.Context, tokenString string) (*models.OAuthAccessToken, *JWTClaims, error) {
+	// Try parsing as OAuthAccessToken first
+	hashedToken := utils.HashToken(tokenString)
+	token, err := s.tokenRepo.FindByToken(hashedToken)
+	if err != nil {
+		// Fallback for backward compatibility
+		token, err = s.tokenRepo.FindByToken(tokenString)
+	}
+
+	if err == nil && !token.IsExpired() {
+		return token, nil, nil
+	}
+
+	// Try parsing as JWT access token
+	claims, err := s.tokenService.ValidateAccessToken(tokenString)
+	if err != nil {
+		return nil, nil, errors.New("invalid or expired token")
+	}
+
+	// Check Redis blacklist for JWT
+	blacklisted, err := s.cacheService.IsTokenBlacklisted(ctx, tokenString)
+	if err != nil || blacklisted {
+		return nil, nil, errors.New("token blacklisted")
+	}
+
+	return nil, claims, nil
 }
 
 // CheckConsent checks if user has previously consented to the client

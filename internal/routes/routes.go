@@ -63,6 +63,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, redisClient *redis.Client, cfg
 		userConsentRepo,
 		oauthProviderConfigRepo,
 		tokenService,
+		cacheService,
 		cfg,
 	)
 
@@ -71,6 +72,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, redisClient *redis.Client, cfg
 	adminHandler := handler.NewAdminHandler(authService)
 	oauthClientHandler := handler.NewOAuthClientHandler(oauthProviderService)
 	oauthHandler := handler.NewOAuthHandler(oauthProviderService, userRepo)
+	jwksHandler := handler.NewJWKSHandler(cfg)
 
 	// Apply global middleware
 	router.Use(middleware.CORSMiddleware(cfg))
@@ -121,10 +123,16 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, redisClient *redis.Client, cfg
 		})
 	})
 
+	// JWKS endpoint
+	router.GET("/.well-known/jwks.json", jwksHandler.GetJWKS)
+
+
+
 	// OAuth 2.0 Provider endpoints
 	router.GET("/oauth/authorize", middleware.OptionalAuthMiddleware(tokenService, cacheService), oauthHandler.Authorize)
 	router.POST("/oauth/authorize", middleware.AuthMiddleware(tokenService, cacheService), oauthHandler.AuthorizePost)
 	router.POST("/oauth/token", oauthHandler.Token)
+	router.POST("/oauth/introspect", oauthHandler.Introspect)
 	router.GET("/oauth/userinfo", oauthHandler.UserInfo)
 
 	// API routes

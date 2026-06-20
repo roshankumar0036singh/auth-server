@@ -23,6 +23,32 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
+        "/.well-known/jwks.json": {
+            "get": {
+                "description": "Returns the public keys used to verify JWTs issued by this server",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "OpenID Connect"
+                ],
+                "summary": "Get JSON Web Key Set",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_dto.JWKSResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.JWKSErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/admin/users": {
             "get": {
                 "security": [
@@ -1254,6 +1280,56 @@ const docTemplate = `{
                 }
             }
         },
+        "/oauth/introspect": {
+            "post": {
+                "description": "Returns the active state and metadata of a token",
+                "consumes": [
+                    "application/x-www-form-urlencoded"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "OAuth Provider"
+                ],
+                "summary": "OAuth Token Introspection",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "The token to introspect",
+                        "name": "token",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "OAuth Client ID (or via Basic Auth)",
+                        "name": "client_id",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "OAuth Client Secret (or via Basic Auth)",
+                        "name": "client_secret",
+                        "in": "formData"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Introspection result",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_dto.IntrospectionResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Invalid client credentials",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.OAuthErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/oauth/token": {
             "post": {
                 "description": "Exchanges authorization code for access token. Public clients must provide code_verifier for PKCE validation.",
@@ -1402,6 +1478,75 @@ const docTemplate = `{
             "properties": {
                 "email": {
                     "type": "string"
+                }
+            }
+        },
+        "github_com_roshankumar0036singh_auth-server_internal_dto.IntrospectionResponse": {
+            "type": "object",
+            "properties": {
+                "active": {
+                    "type": "boolean"
+                },
+                "client_id": {
+                    "type": "string"
+                },
+                "exp": {
+                    "type": "integer"
+                },
+                "iat": {
+                    "type": "integer"
+                },
+                "scope": {
+                    "type": "string"
+                },
+                "sub": {
+                    "type": "string"
+                },
+                "token_type": {
+                    "type": "string"
+                },
+                "username": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_roshankumar0036singh_auth-server_internal_dto.JWK": {
+            "type": "object",
+            "properties": {
+                "alg": {
+                    "description": "Algorithm",
+                    "type": "string"
+                },
+                "e": {
+                    "description": "Exponent (Base64url encoded)",
+                    "type": "string"
+                },
+                "kid": {
+                    "description": "Key ID",
+                    "type": "string"
+                },
+                "kty": {
+                    "description": "Key Type",
+                    "type": "string"
+                },
+                "n": {
+                    "description": "Modulus (Base64url encoded)",
+                    "type": "string"
+                },
+                "use": {
+                    "description": "Public Key Use (e.g., \"sig\")",
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_roshankumar0036singh_auth-server_internal_dto.JWKSResponse": {
+            "type": "object",
+            "properties": {
+                "keys": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_dto.JWK"
+                    }
                 }
             }
         },
@@ -1674,6 +1819,17 @@ const docTemplate = `{
                 }
             }
         },
+        "internal_handler.JWKSErrorResponse": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "error": {
+                    "type": "string"
+                }
+            }
+        },
         "internal_handler.ListOAuthClientsResponse": {
             "type": "object",
             "properties": {
@@ -1716,6 +1872,17 @@ const docTemplate = `{
                     "items": {
                         "type": "string"
                     }
+                }
+            }
+        },
+        "internal_handler.OAuthErrorResponse": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "type": "string"
+                },
+                "error_description": {
+                    "type": "string"
                 }
             }
         },

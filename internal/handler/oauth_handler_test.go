@@ -5,9 +5,10 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
-        "testing"
+	"testing"
 	"time"
 
+	"github.com/go-redis/redis/v8"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
         "golang.org/x/crypto/bcrypt"
@@ -27,8 +28,12 @@ func setupOAuthUserInfoRouter(t *testing.T) (*gin.Engine, *repository.UserReposi
 	_, db, mr := testutils.SetupIntegrationTest(t)
 	t.Cleanup(func() { mr.Close() })
 
+	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	t.Cleanup(func() { rdb.Close() })
+
 	userRepo := repository.NewUserRepository(db)
 	tokenRepo := repository.NewOAuthTokenRepository(db)
+	priv, pub := testutils.GetTestRSAKeys(t)
 	oauthProviderService := service.NewOAuthProviderService(
 		repository.NewOAuthClientRepository(db),
 		repository.NewAuthorizationCodeRepository(db),
@@ -36,8 +41,9 @@ func setupOAuthUserInfoRouter(t *testing.T) (*gin.Engine, *repository.UserReposi
 		repository.NewUserConsentRepository(db),
 		repository.NewOAuthProviderConfigRepository(db),
 		service.NewTokenService(&config.Config{
-			JWT: config.JWTConfig{AccessSecret: "secret", RefreshSecret: "refresh"},
+			JWT: config.JWTConfig{PrivateKey: priv, PublicKey: pub, KeyID: "test-key"},
 		}),
+		service.NewCacheService(rdb),
 		&config.Config{},
 	)
 
@@ -75,7 +81,11 @@ func TestNewOAuthHandlerPanicsWithoutUserRepository(t *testing.T) {
 	_, db, mr := testutils.SetupIntegrationTest(t)
 	t.Cleanup(func() { mr.Close() })
 
+	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	t.Cleanup(func() { rdb.Close() })
+
 	tokenRepo := repository.NewOAuthTokenRepository(db)
+	priv, pub := testutils.GetTestRSAKeys(t)
 	oauthProviderService := service.NewOAuthProviderService(
 		repository.NewOAuthClientRepository(db),
 		repository.NewAuthorizationCodeRepository(db),
@@ -83,8 +93,9 @@ func TestNewOAuthHandlerPanicsWithoutUserRepository(t *testing.T) {
 		repository.NewUserConsentRepository(db),
 		repository.NewOAuthProviderConfigRepository(db),
 		service.NewTokenService(&config.Config{
-			JWT: config.JWTConfig{AccessSecret: "secret", RefreshSecret: "refresh"},
+			JWT: config.JWTConfig{PrivateKey: priv, PublicKey: pub, KeyID: "test-key"},
 		}),
+		service.NewCacheService(rdb),
 		&config.Config{},
 	)
 
@@ -353,11 +364,15 @@ func setupTokenRouter(t *testing.T) (*gin.Engine, *repository.OAuthClientReposit
 	_, db, mr := testutils.SetupIntegrationTest(t)
 	t.Cleanup(func() { mr.Close() })
 
+	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	t.Cleanup(func() { rdb.Close() })
+
 	clientRepo := repository.NewOAuthClientRepository(db)
 	codeRepo := repository.NewAuthorizationCodeRepository(db)
 	tokenRepo := repository.NewOAuthTokenRepository(db)
 	userRepo := repository.NewUserRepository(db)
 
+	priv, pub := testutils.GetTestRSAKeys(t)
 	oauthProviderService := service.NewOAuthProviderService(
 		clientRepo,
 		codeRepo,
@@ -365,14 +380,17 @@ func setupTokenRouter(t *testing.T) (*gin.Engine, *repository.OAuthClientReposit
 		repository.NewUserConsentRepository(db),
 		repository.NewOAuthProviderConfigRepository(db),
 		service.NewTokenService(&config.Config{
-			JWT: config.JWTConfig{AccessSecret: "secret", RefreshSecret: "refresh"},
+			JWT: config.JWTConfig{PrivateKey: priv, PublicKey: pub, KeyID: "test-key"},
 		}),
+		service.NewCacheService(rdb),
 		&config.Config{},
 	)
 
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
-	r.POST("/oauth/token", handler.NewOAuthHandler(oauthProviderService, userRepo).Token)
+	oauthHandler := handler.NewOAuthHandler(oauthProviderService, userRepo)
+	r.POST("/oauth/token", oauthHandler.Token)
+	r.POST("/oauth/introspect", oauthHandler.Introspect)
 	return r, clientRepo, codeRepo
 }
 
@@ -419,6 +437,56 @@ func TestToken_PublicClient_MissingVerifier_Rejected(t *testing.T) {
 	var resp map[string]interface{}
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
 	assert.Equal(t, "invalid_request", resp["error"])
+}
+
+func TestOAuthHandler_Introspect(t *testing.T) {
+	r, clientRepo, _ := setupTokenRouter(t)
+
+	// Create client
+	client := &models.OAuthClient{
+		ID:           uuid.NewString(),
+		Name:         "Introspect Client",
+		ClientID:     "introspect-client",
+		ClientSecret: "secret-hash", // we won't fully test bcrypt here unless we mock or insert a real hash
+		IsActive:     true,
+	}
+	hash, _ := bcrypt.GenerateFromPassword([]byte("introspect-secret"), bcrypt.MinCost)
+	client.ClientSecret = string(hash)
+	clientRepo.Create(client)
+
+	t.Run("Missing Token", func(t *testing.T) {
+		req, _ := http.NewRequest(http.MethodPost, "/oauth/introspect", strings.NewReader(""))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusOK, w.Code)
+
+		var resp map[string]interface{}
+		json.Unmarshal(w.Body.Bytes(), &resp)
+		assert.Equal(t, false, resp["active"])
+	})
+
+	t.Run("Invalid Client Credentials", func(t *testing.T) {
+		req, _ := http.NewRequest(http.MethodPost, "/oauth/introspect", strings.NewReader("token=abc"))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		req.SetBasicAuth("introspect-client", "wrong-secret")
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusUnauthorized, w.Code)
+	})
+
+	t.Run("Invalid Token (Authenticated Client)", func(t *testing.T) {
+		req, _ := http.NewRequest(http.MethodPost, "/oauth/introspect", strings.NewReader("token=abc"))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		req.SetBasicAuth("introspect-client", "introspect-secret")
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusOK, w.Code)
+
+		var resp map[string]interface{}
+		json.Unmarshal(w.Body.Bytes(), &resp)
+		assert.Equal(t, false, resp["active"])
+	})
 }
 
 func TestToken_ConfidentialClient_MissingSecret_Rejected(t *testing.T) {
