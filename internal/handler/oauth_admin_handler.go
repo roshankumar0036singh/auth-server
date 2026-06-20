@@ -30,8 +30,8 @@ func NewOAuthClientHandler(oauthProviderService *service.OAuthProviderService) *
 // @Security BearerAuth
 // @Param request body CreateOAuthClientRequest true "Client details"
 // @Success 201 {object} CreateOAuthClientResponse
-// @Failure 400 {object} utils.ErrorResponse
-// @Failure 401 {object} utils.ErrorResponse
+// @Failure 400 {object} utils.Response
+// @Failure 401 {object} utils.Response
 // @Router /api/auth/oauth/clients [post]
 func (h *OAuthClientHandler) CreateOAuthClient(c *gin.Context) {
 	var req CreateOAuthClientRequest
@@ -83,7 +83,7 @@ func (h *OAuthClientHandler) CreateOAuthClient(c *gin.Context) {
 // @Produce json
 // @Security BearerAuth
 // @Success 200 {object} ListOAuthClientsResponse
-// @Failure 401 {object} utils.ErrorResponse
+// @Failure 401 {object} utils.Response
 // @Router /api/auth/oauth/clients [get]
 func (h *OAuthClientHandler) ListOAuthClients(c *gin.Context) {
 	userID, exists := c.Get("userID")
@@ -111,10 +111,10 @@ func (h *OAuthClientHandler) ListOAuthClients(c *gin.Context) {
 // @Produce json
 // @Security BearerAuth
 // @Param clientId path string true "Client ID (UUID)"
-// @Success 200 {object} utils.SuccessResponse
-// @Failure 401 {object} utils.ErrorResponse
-// @Failure 403 {object} utils.ErrorResponse
-// @Failure 404 {object} utils.ErrorResponse
+// @Success 200 {object} utils.Response
+// @Failure 401 {object} utils.Response
+// @Failure 403 {object} utils.Response
+// @Failure 404 {object} utils.Response
 // @Router /api/auth/oauth/clients/{clientId} [delete]
 func (h *OAuthClientHandler) DeleteOAuthClient(c *gin.Context) {
 	clientID := c.Param("clientId")
