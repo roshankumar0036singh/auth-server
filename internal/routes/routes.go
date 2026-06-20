@@ -72,6 +72,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, redisClient *redis.Client, cfg
 	oauthClientHandler := handler.NewOAuthClientHandler(oauthProviderService)
 	oauthHandler := handler.NewOAuthHandler(oauthProviderService, userRepo)
 	jwksHandler := handler.NewJWKSHandler(cfg)
+	discoveryHandler := handler.NewOIDCDiscoveryHandler(cfg)
 
 	// Apply global middleware
 	router.Use(middleware.CORSMiddleware(cfg))
@@ -124,6 +125,9 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, redisClient *redis.Client, cfg
 
 	// JWKS endpoint
 	router.GET("/.well-known/jwks.json", jwksHandler.GetJWKS)
+
+	// OIDC Discovery endpoint
+	router.GET("/.well-known/openid-configuration", discoveryHandler.GetConfiguration)
 
 
 
