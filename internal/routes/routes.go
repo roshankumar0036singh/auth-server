@@ -158,6 +158,8 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, redisClient *redis.Client, cfg
 			{
 				protected.GET("/me", authHandler.GetMe)
 				protected.PUT("/profile", authHandler.UpdateProfile)
+				protected.POST("/link/:provider", authHandler.LinkProvider)
+				protected.DELETE("/unlink/:provider", authHandler.UnlinkProvider)
 				protected.POST("/logout", authHandler.Logout)
 				protected.POST("/logout-all", authHandler.LogoutAll)
 				protected.GET("/sessions", authHandler.GetSessions)

@@ -663,7 +663,16 @@ func (s *AuthService) LoginWithOAuth(email, oauthID, firstName, lastName, provid
 		if err := s.userRepo.Create(user); err != nil {
 			return nil, errors.New("failed to create user")
 		}
+		if user.OAuthProvider != "" && user.OAuthID != "" {
 
+			oldAccount := &models.UserOAuthAccount{
+				UserID:         user.ID,
+				Provider:       user.OAuthProvider,
+				ProviderUserID: user.OAuthID,
+			}
+
+			_ = s.oauthAccountRepo.Create(oldAccount)
+		}
 		oauthAccount := &models.UserOAuthAccount{
 			UserID:         user.ID,
 			Provider:       provider,
@@ -1117,4 +1126,29 @@ func (s *AuthService) createLoginResponse(
 		RefreshToken: refreshTokenString,
 		User:         user.ToPublic(),
 	}, nil
+}
+func (s *AuthService) LinkOAuthProvider(
+	userID string,
+	provider string,
+	providerUserID string,
+) error {
+
+	account := &models.UserOAuthAccount{
+		UserID:         userID,
+		Provider:       provider,
+		ProviderUserID: providerUserID,
+	}
+
+	return s.oauthAccountRepo.Create(account)
+}
+
+func (s *AuthService) UnlinkOAuthProvider(
+	userID string,
+	provider string,
+) error {
+
+	return s.oauthAccountRepo.Delete(
+		userID,
+		provider,
+	)
 }
