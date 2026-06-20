@@ -73,6 +73,17 @@
             padding: 0 2rem;
         }
 
+        .header-main {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 2rem;
+        }
+
+        .header-copy {
+            min-width: 0;
+        }
+
         .header-title-row {
             display: flex;
             align-items: center;
@@ -125,6 +136,87 @@
             display: flex;
             align-items: center;
             gap: 0.5rem;
+        }
+
+        .swagger-login {
+            width: min(100%, 460px);
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 1rem;
+        }
+
+        .swagger-login-title {
+            color: #ffffff;
+            font-size: 0.9rem;
+            font-weight: 700;
+            margin-bottom: 0.75rem;
+        }
+
+        .swagger-login-fields {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto auto;
+            gap: 0.5rem;
+        }
+
+        .swagger-login input {
+            width: 100%;
+            min-width: 0;
+            background: var(--bg-base);
+            border: 1px solid var(--border-color);
+            color: #ffffff;
+            border-radius: 6px;
+            padding: 0.6rem 0.75rem;
+            font: inherit;
+        }
+
+        .swagger-login input:focus {
+            border-color: var(--primary);
+            outline: none;
+        }
+
+        .swagger-login button {
+            border: 1px solid var(--primary);
+            border-radius: 6px;
+            padding: 0.6rem 0.85rem;
+            font: inherit;
+            font-size: 0.85rem;
+            font-weight: 700;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+        .swagger-login-submit {
+            background: var(--primary);
+            color: #ffffff;
+        }
+
+        .swagger-login-submit:hover {
+            background: var(--primary-hover);
+        }
+
+        .swagger-login-clear {
+            background: transparent;
+            color: var(--primary);
+        }
+
+        .swagger-login-clear:hover {
+            background: rgba(59, 130, 246, 0.1);
+        }
+
+        .swagger-login-status {
+            min-height: 1rem;
+            margin-top: 0.65rem;
+            color: var(--text-muted);
+            font-size: 0.78rem;
+        }
+
+        .swagger-login-status.error {
+            color: #f87171;
+        }
+
+        .swagger-login-status.success {
+            color: #34d399;
         }
 
         .status-dot {
@@ -313,30 +405,72 @@
         .swagger-ui .expand-operation svg {
             fill: var(--text-muted) !important;
         }
+
+        @media (max-width: 960px) {
+            .header-main {
+                flex-direction: column;
+            }
+
+            .swagger-login {
+                width: 100%;
+            }
+        }
+
+        @media (max-width: 640px) {
+            .header {
+                padding: 1.5rem 0;
+            }
+
+            .header-content {
+                padding: 0 1rem;
+            }
+
+            .swagger-container {
+                padding: 1rem;
+            }
+
+            .swagger-login-fields {
+                grid-template-columns: 1fr;
+            }
+        }
     </style>
 </head>
 <body>
 
     <header class="header">
         <div class="header-content">
-            <div class="header-title-row">
-                <!-- Professional SVG Shield Icon -->
-                <svg class="logo-icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-                </svg>
-                <h1 class="header-title">Auth Server API</h1>
-            </div>
-            <p class="header-subtitle">Next-Generation Authentication & Authorization API</p>
+            <div class="header-main">
+                <div class="header-copy">
+                    <div class="header-title-row">
+                        <!-- Professional SVG Shield Icon -->
+                        <svg class="logo-icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                        </svg>
+                        <h1 class="header-title">Auth Server API</h1>
+                    </div>
+                    <p class="header-subtitle">Next-Generation Authentication & Authorization API</p>
 
-            <div class="badges">
-                <div class="badge live">
-                    <span class="status-dot"></span>
-                    <span>Operational</span>
+                    <div class="badges">
+                        <div class="badge live">
+                            <span class="status-dot"></span>
+                            <span>Operational</span>
+                        </div>
+                        <div class="badge">v1.0.0</div>
+                        <div class="badge">Go / Gin</div>
+                        <div class="badge">PostgreSQL + Redis</div>
+                        <div class="badge">OAuth 2.0</div>
+                    </div>
                 </div>
-                <div class="badge">v1.0.0</div>
-                <div class="badge">Go / Gin</div>
-                <div class="badge">PostgreSQL + Redis</div>
-                <div class="badge">OAuth 2.0</div>
+                <form id="swagger-login-form" class="swagger-login" autocomplete="on">
+                    <div class="swagger-login-title">Swagger Login</div>
+                    <div class="swagger-login-fields">
+                        <input id="swagger-login-email" type="email" name="email" placeholder="Email" autocomplete="username" required>
+                        <input id="swagger-login-password" type="password" name="password" placeholder="Password" autocomplete="current-password" required>
+                        <button id="swagger-login-submit" class="swagger-login-submit" type="submit">Login</button>
+                        <button id="swagger-login-clear" class="swagger-login-clear" type="button">Clear</button>
+                    </div>
+                    <div id="swagger-login-status" class="swagger-login-status" role="status" aria-live="polite"></div>
+                </form>
             </div>
         </div>
     </header>
@@ -348,6 +482,68 @@
     <script src="https://unpkg.com/swagger-ui-dist@5.11.0/swagger-ui-bundle.js"></script>
     <script src="https://unpkg.com/swagger-ui-dist@5.11.0/swagger-ui-standalone-preset.js"></script>
     <script>
+        const swaggerAuthStorageKey = "auth-server-swagger-access-token";
+
+        function setSwaggerLoginStatus(message, type) {
+            const status = document.getElementById("swagger-login-status");
+            status.textContent = message;
+            status.classList.remove("error", "success");
+            if (type) {
+                status.classList.add(type);
+            }
+        }
+
+        function authorizeSwagger(accessToken) {
+            window.ui.preauthorizeApiKey("BearerAuth", `Bearer ${accessToken}`);
+            sessionStorage.setItem(swaggerAuthStorageKey, accessToken);
+            setSwaggerLoginStatus("Authorized", "success");
+        }
+
+        function clearSwaggerAuth() {
+            sessionStorage.removeItem(swaggerAuthStorageKey);
+            if (window.ui && window.ui.authActions) {
+                window.ui.authActions.logout(["BearerAuth"]);
+            }
+            setSwaggerLoginStatus("Authorization cleared", "");
+        }
+
+        async function handleSwaggerLogin(event) {
+            event.preventDefault();
+
+            const form = event.currentTarget;
+            const submitButton = document.getElementById("swagger-login-submit");
+            const email = document.getElementById("swagger-login-email").value.trim();
+            const passwordInput = document.getElementById("swagger-login-password");
+
+            submitButton.disabled = true;
+            setSwaggerLoginStatus("Signing in...", "");
+
+            try {
+                const response = await fetch("/api/auth/login", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ email, password: passwordInput.value })
+                });
+                const payload = await response.json().catch(() => ({}));
+                const accessToken = payload && payload.data && payload.data.accessToken;
+
+                if (!response.ok) {
+                    throw new Error(payload.error || payload.message || "Login failed");
+                }
+                if (!accessToken) {
+                    throw new Error(payload && payload.data && payload.data.mfaRequired ? "MFA is required for this account" : "Login response did not include an access token");
+                }
+
+                authorizeSwagger(accessToken);
+                passwordInput.value = "";
+                form.reset();
+            } catch (error) {
+                setSwaggerLoginStatus(error.message || "Login failed", "error");
+            } finally {
+                submitButton.disabled = false;
+            }
+        }
+
         window.onload = function () {
             window.ui = SwaggerUIBundle({
                 url: "./swagger.json",
@@ -368,6 +564,14 @@
                 showRequestHeaders: true,
                 supportedSubmitMethods: ['get', 'post', 'put', 'delete', 'patch']
             });
+
+            document.getElementById("swagger-login-form").addEventListener("submit", handleSwaggerLogin);
+            document.getElementById("swagger-login-clear").addEventListener("click", clearSwaggerAuth);
+
+            const storedToken = sessionStorage.getItem(swaggerAuthStorageKey);
+            if (storedToken) {
+                authorizeSwagger(storedToken);
+            }
         };
     </script>
 </body>
