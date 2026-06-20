@@ -61,8 +61,8 @@ func (h *OAuthHandler) getAndValidateClient(c *gin.Context, clientID, redirectUR
 // @Param response_type query string true "Response Type (code)"
 // @Param scope query string false "Scopes"
 // @Param state query string false "State"
-// @Param code_challenge query string false "Code Challenge"
-// @Param code_challenge_method query string false "Code Challenge Method"
+// @Param code_challenge query string false "PKCE code challenge (base64url-encoded SHA256 hash)"
+// @Param code_challenge_method query string false "PKCE code challenge method (S256 or plain)"
 // @Success 302 "Redirect" @header Location {string} "Redirect URL with code or error"
 // @Failure 400 {object} ErrorResponse "Invalid request"
 // @Failure 401 {object} ErrorResponse "Unauthorized - user must be logged in"
@@ -228,7 +228,7 @@ func (h *OAuthHandler) AuthorizePost(c *gin.Context) {
 
 // Token handles the token exchange
 // @Summary OAuth Token Exchange
-// @Description Exchanges authorization code for access token
+// @Description Exchanges authorization code for access token. Public clients must provide code_verifier for PKCE validation.
 // @Tags OAuth Provider
 // @Accept  x-www-form-urlencoded
 // @Produce json
@@ -237,6 +237,7 @@ func (h *OAuthHandler) AuthorizePost(c *gin.Context) {
 // @Param   redirect_uri  formData string true  "Redirect URI"
 // @Param   client_id     formData string true  "OAuth Client ID"
 // @Param   client_secret formData string true  "OAuth Client Secret"
+// @Param   code_verifier formData string false "PKCE code verifier (required for public clients)"
 // @Success 200 {object} TokenResponse "Access token response"
 // @Failure 400 {object} ErrorResponse "Invalid request"
 // @Failure 401 {object} ErrorResponse "Invalid client credentials"
@@ -252,45 +253,46 @@ func (h *OAuthHandler) Token(c *gin.Context) {
 	// Validate grant type
 	if grantType != "authorization_code" {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error":             "unsupported_grant_type",
-			"error_description": "Only authorization_code grant type is supported",
+			"error": "unsupported_grant_type",
+			"code":  "UNSUPPORTED_GRANT_TYPE",
 		})
 		return
 	}
 
 	// Validate client credentials
 	client, err := h.oauthProviderService.ResolveClientForToken(clientID, clientSecret)
-        if err != nil {
-                c.JSON(http.StatusUnauthorized, gin.H{
-                        "error":             "invalid_client",
-                        "error_description": err.Error(),
-                })
-                return
-        }
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"error": "invalid_client",
+			"code":  "INVALID_CLIENT",
+		})
+		return
+	}
 
-        // Public clients MUST use PKCE — reject if no verifier was sent at all,
-        // independent of whether the stored auth code happens to have a challenge.
-        if client.IsPublic && codeVerifier == "" {
-                c.JSON(http.StatusBadRequest, gin.H{
-                        "error":             "invalid_request",
-                        "error_description": "code_verifier is required for public clients",
-                })
-                return
-        }
+	// Public clients MUST use PKCE — reject if no verifier was sent at all,
+	// independent of whether the stored auth code happens to have a challenge.
+	if client.IsPublic && codeVerifier == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":             "invalid_request",
+			"error_description": "code_verifier is required for public clients",
+			"code":              "INVALID_REQUEST",
+		})
+		return
+	}
 
 	// Exchange code for token
 	accessToken, err := h.oauthProviderService.ExchangeCodeForToken(code, clientID, redirectURI, codeVerifier, client.IsPublic)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error":             "invalid_grant",
-			"error_description": err.Error(),
+			"error": "invalid_grant",
+			"code":  "INVALID_GRANT",
 		})
 		return
 	}
 
 	// Return access token
 	c.JSON(http.StatusOK, gin.H{
-		"access_token": accessToken.Token,
+		"access_token": accessToken.RawToken,
 		"token_type":   "Bearer",
 		"expires_in":   3600, // 1 hour
 		"scope":        strings.Join(accessToken.Scopes, " "),
@@ -380,8 +382,18 @@ func buildUserInfoResponse(user *models.User, accessToken *models.OAuthAccessTok
 	return response
 }
 
+func isSafeRedirectURI(u *url.URL) bool {
+	scheme := strings.ToLower(u.Scheme)
+	// Use an allowlist for secure redirect URI schemes
+	return scheme == "http" || scheme == "https"
+}
+
 func redirectWithCode(c *gin.Context, redirectURI, code, state string) {
-	u, _ := url.Parse(redirectURI)
+	u, err := url.Parse(redirectURI)
+	if err != nil || !isSafeRedirectURI(u) {
+		c.HTML(http.StatusBadRequest, errTmpl, gin.H{"error": "Invalid or unsafe redirect_uri format"})
+		return
+	}
 	q := u.Query()
 	q.Set("code", code)
 	if state != "" {
@@ -392,7 +404,11 @@ func redirectWithCode(c *gin.Context, redirectURI, code, state string) {
 }
 
 func redirectError(c *gin.Context, redirectURI, errorCode, errorDesc, state string) {
-	u, _ := url.Parse(redirectURI)
+	u, err := url.Parse(redirectURI)
+	if err != nil || !isSafeRedirectURI(u) {
+		c.HTML(http.StatusBadRequest, errTmpl, gin.H{"error": "Invalid or unsafe redirect_uri format"})
+		return
+	}
 	q := u.Query()
 	q.Set("error", errorCode)
 	q.Set("error_description", errorDesc)

@@ -14,6 +14,14 @@ const (
 	cacheKeyMFAAttempts   = "mfa_attempts:%s"
 )
 
+var incrExpireScript = redis.NewScript(`
+	local count = redis.call("INCR", KEYS[1])
+	if count == 1 then
+		redis.call("PEXPIRE", KEYS[1], ARGV[1])
+	end
+	return count
+`)
+
 type CacheService struct {
 	client *redis.Client
 }
@@ -64,14 +72,9 @@ func (s *CacheService) DeleteSession(ctx context.Context, sessionID string) erro
 // IncrementLoginAttempts increments failed login attempts for an email
 func (s *CacheService) IncrementLoginAttempts(ctx context.Context, email string) (int64, error) {
 	key := fmt.Sprintf(cacheKeyLoginAttempts, email)
-	count, err := s.client.Incr(ctx, key).Result()
+	count, err := incrExpireScript.Run(ctx, s.client, []string{key}, (15 * time.Minute).Milliseconds()).Int64()
 	if err != nil {
 		return 0, err
-	}
-
-	// Set expiry on first attempt (15 minutes)
-	if count == 1 {
-		s.client.Expire(ctx, key, 15*time.Minute)
 	}
 
 	return count, nil
@@ -97,14 +100,9 @@ func (s *CacheService) ResetLoginAttempts(ctx context.Context, email string) err
 // IncrementMFAAttempts increments failed MFA code attempts for a user.
 func (s *CacheService) IncrementMFAAttempts(ctx context.Context, userID string) (int64, error) {
 	key := fmt.Sprintf(cacheKeyMFAAttempts, userID)
-	count, err := s.client.Incr(ctx, key).Result()
+	count, err := incrExpireScript.Run(ctx, s.client, []string{key}, (15 * time.Minute).Milliseconds()).Int64()
 	if err != nil {
 		return 0, err
-	}
-
-	// Set expiry on first attempt (15 minutes)
-	if count == 1 {
-		s.client.Expire(ctx, key, 15*time.Minute)
 	}
 
 	return count, nil
@@ -129,15 +127,9 @@ func (s *CacheService) ResetMFAAttempts(ctx context.Context, userID string) erro
 
 // AllowRequest checks if a request is allowed based on rate limiting logic
 func (s *CacheService) AllowRequest(ctx context.Context, key string, limit int, window time.Duration) (bool, error) {
-	// Simple counter based rate limiting
-	count, err := s.client.Incr(ctx, key).Result()
+	count, err := incrExpireScript.Run(ctx, s.client, []string{key}, window.Milliseconds()).Int64()
 	if err != nil {
 		return false, err
-	}
-
-	// Set expiry on first request
-	if count == 1 {
-		s.client.Expire(ctx, key, window)
 	}
 
 	return count <= int64(limit), nil

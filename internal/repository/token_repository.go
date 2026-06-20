@@ -97,6 +97,16 @@ func (r *TokenRepository) RevokeAllUserTokens(userID string) error {
 		Update("is_revoked", true).Error
 }
 
+// RevokeTokenFamily revokes all refresh tokens in a specific token family
+func (r *TokenRepository) RevokeTokenFamily(familyID string) error {
+	if familyID == "" {
+		return errors.New("family ID cannot be empty")
+	}
+	return r.db.Model(&models.RefreshToken{}).
+		Where("family_id = ? AND is_revoked = ?", familyID, false).
+		Update("is_revoked", true).Error
+}
+
 // DeleteExpiredTokens removes expired refresh tokens (cleanup job)
 func (r *TokenRepository) DeleteExpiredTokens() (int64, error) {
 	result := r.db.Where("expires_at < ?", time.Now()).
@@ -127,6 +137,19 @@ func (r *TokenRepository) CountUserActiveSessions(userID string) (int64, error) 
 		Where("user_id = ? AND is_revoked = ? AND expires_at > ?", userID, false, time.Now()).
 		Count(&count).Error
 	return count, err
+}
+
+func (r *TokenRepository) FindActiveTokenInFamily(familyID string) (*models.RefreshToken, error) {
+	var token models.RefreshToken
+	if err := r.db.Where("family_id = ? AND is_revoked = ? AND expires_at > ?", familyID, false, time.Now()).
+		Order("created_at desc").
+		First(&token).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &token, nil
 }
 
 func (r *TokenRepository) RotateRefreshToken(oldToken string, newToken *models.RefreshToken) error {

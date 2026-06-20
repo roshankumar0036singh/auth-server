@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
+	"github.com/go-redis/redis/v8"
 	"github.com/roshankumar0036singh/auth-server/internal/config"
 	"github.com/roshankumar0036singh/auth-server/internal/dto"
 	"github.com/roshankumar0036singh/auth-server/internal/middleware"
@@ -113,9 +114,13 @@ func TestAuthHandler_GetSessions_CurrentSessionFlag(t *testing.T) {
 	}
 	tokenService := service.NewTokenService(cfg)
 
+	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	t.Cleanup(func() { _ = rdb.Close() })
+	cacheService := service.NewCacheService(rdb)
+
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
-	r.Use(middleware.AuthMiddleware(tokenService))
+	r.Use(middleware.AuthMiddleware(tokenService, cacheService))
 
 	r.GET("/api/auth/sessions", authHandler.GetSessions)
 
@@ -389,4 +394,122 @@ func TestAuthHandler_OAuthRedirectFlow(t *testing.T) {
 		json.Unmarshal(w.Body.Bytes(), &b)
 		assert.True(t, b["success"].(bool))
 	})
+}
+
+func TestAuthHandler_GetAuditLogs(t *testing.T) {
+	authService, _, mr := testutils.SetupIntegrationTest(t)
+	defer mr.Close()
+
+	authHandler := NewAuthHandler(authService, nil, nil)
+
+	gin.SetMode(gin.TestMode)
+
+	user, err := authService.Register(&dto.RegisterRequest{
+		Email:     "audit_logs@example.com",
+		Password:  "Password123!",
+		FirstName: "Audit",
+		LastName:  "Logs",
+	})
+
+	assert.NoError(t, err)
+
+	tests := []struct {
+		name       string
+		userID     interface{}
+		query      string
+		wantStatus int
+	}{
+		{
+			name:       "should return unauthorized when userID is missing",
+			userID:     nil,
+			query:      "",
+			wantStatus: http.StatusUnauthorized,
+		},
+		{
+			name:       "should return unauthorized when userID type is invalid",
+			userID:     12345,
+			query:      "",
+			wantStatus: http.StatusUnauthorized,
+		},
+		{
+			name:       "should return audit logs with default pagination",
+			userID:     user.ID,
+			query:      "",
+			wantStatus: http.StatusOK,
+		},
+		{
+			name:       "should return audit logs with custom pagination",
+			userID:     user.ID,
+			query:      "?page=2&limit=5",
+			wantStatus: http.StatusOK,
+		},
+		{
+			name:       "should return bad request for invalid page",
+			userID:     user.ID,
+			query:      "?page=abc",
+			wantStatus: http.StatusBadRequest,
+		},
+		{
+			name:       "should return bad request for invalid limit",
+			userID:     user.ID,
+			query:      "?limit=abc",
+			wantStatus: http.StatusBadRequest,
+		},
+		{
+			name:       "should use default page when page is less than one",
+			userID:     user.ID,
+			query:      "?page=-1",
+			wantStatus: http.StatusOK,
+		},
+		{
+			name:       "should use default limit when limit is less than one",
+			userID:     user.ID,
+			query:      "?limit=-5",
+			wantStatus: http.StatusOK,
+		},
+		{
+			name:       "should cap limit when it exceeds maximum value",
+			userID:     user.ID,
+			query:      "?limit=200",
+			wantStatus: http.StatusOK,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := gin.New()
+
+			r.GET("/api/auth/audit-logs", func(c *gin.Context) {
+				if tt.userID != nil {
+					c.Set("userID", tt.userID)
+				}
+
+				authHandler.GetAuditLogs(c)
+			})
+
+			req, err := http.NewRequest(
+				http.MethodGet,
+				"/api/auth/audit-logs"+tt.query,
+				nil,
+			)
+
+			assert.NoError(t, err)
+
+			w := httptest.NewRecorder()
+
+			r.ServeHTTP(w, req)
+
+			assert.Equal(t, tt.wantStatus, w.Code)
+
+			if tt.wantStatus == http.StatusOK {
+				var response map[string]interface{}
+
+				err := json.Unmarshal(w.Body.Bytes(), &response)
+
+				assert.NoError(t, err)
+				assert.True(t, response["success"].(bool))
+				assert.NotNil(t, response["data"])
+			}
+		})
+	}
 }

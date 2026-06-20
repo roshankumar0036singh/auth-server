@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -41,7 +42,7 @@ func NewAuthHandler(authService *service.AuthService, oauthService *service.OAut
 // @Produce json
 // @Param request body dto.RegisterRequest true "Registration data"
 // @Success 201 {object} utils.Response
-// @Failure 400 {object} utils.Response
+// @failure 400 {object} utils.Response
 // @Router /api/auth/register [post]
 func (h *AuthHandler) Register(c *gin.Context) {
 	var req dto.RegisterRequest
@@ -249,6 +250,8 @@ func (h *AuthHandler) DeleteAccount(c *gin.Context) {
 // @Tags auth
 // @Accept json
 // @Produce json
+// @Param page query int false "Page number (default: 1)"
+// @Param limit query int false "Items per page (default: 20, max: 100)"
 // @Success 200 {object} utils.Response
 // @Router /api/auth/audit-logs [get]
 func (h *AuthHandler) GetAuditLogs(c *gin.Context) {
@@ -258,7 +261,45 @@ func (h *AuthHandler) GetAuditLogs(c *gin.Context) {
 		return
 	}
 
-	logs, err := h.authService.GetUserAuditLogs(userID.(string))
+	uid, ok := userID.(string)
+	if !ok || uid == "" {
+		c.JSON(http.StatusUnauthorized, utils.UnauthorizedResponse("Unauthorized"))
+		return
+	}
+
+	page := 1   //set to default
+	limit := 20 //set to default
+
+	if pageStr := c.Query("page"); pageStr != "" {
+		p, err := strconv.Atoi(pageStr)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, utils.ValidationErrorResponse("page must be a valid integer"))
+			return
+		}
+		page = p
+	}
+
+	if limitStr := c.Query("limit"); limitStr != "" {
+		l, err := strconv.Atoi(limitStr)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, utils.ValidationErrorResponse("limit must be a valid integer"))
+			return
+		}
+		limit = l
+	}
+
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 {
+		limit = 20
+	}
+
+	if limit > 100 {
+		limit = 100
+	}
+
+	logs, err := h.authService.GetUserAuditLogs(uid, page, limit)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, utils.ErrorResponse("Failed to retrieve audit logs", err))
 		return
@@ -556,12 +597,12 @@ func (h *AuthHandler) validateOAuthRedirectURI(clientID, redirectURI string) boo
 func (h *AuthHandler) completeOAuthLogin(c *gin.Context, loginResp *dto.LoginResponse, clientID string) {
 	isProd := gin.Mode() == gin.ReleaseMode
 	redirectURI, err := c.Cookie("oauth_redirect")
-	
+
 	if err != nil || redirectURI == "" {
 		c.JSON(http.StatusOK, utils.SuccessResponse(msgLoginSuccess, loginResp))
 		return
 	}
-	
+
 	c.SetCookie("oauth_redirect", "", -1, "/", "", isProd, true)
 
 	if !h.validateOAuthRedirectURI(clientID, redirectURI) {
@@ -657,13 +698,25 @@ func (h *AuthHandler) GoogleCallback(c *gin.Context) {
 		return
 	}
 
-	email := userInfo["email"].(string)
-	firstName := userInfo["given_name"].(string)
+	email, ok := userInfo["email"].(string)
+	if !ok || email == "" {
+		c.JSON(http.StatusBadRequest, utils.ErrorResponse("Google email not available", errors.New("missing or invalid email")))
+		return
+	}
+	firstName, ok := userInfo["given_name"].(string)
+	if !ok || firstName == "" {
+		c.JSON(http.StatusBadRequest, utils.ErrorResponse("Invalid Google user data", errors.New("missing or invalid given_name")))
+		return
+	}
 	lastName := ""
 	if val, ok := userInfo["family_name"].(string); ok {
 		lastName = val
 	}
-	oauthID := userInfo["id"].(string)
+	oauthID, ok := userInfo["id"].(string)
+	if !ok || oauthID == "" {
+		c.JSON(http.StatusBadRequest, utils.ErrorResponse("Invalid Google user data", errors.New("missing or invalid id")))
+		return
+	}
 
 	// Login or Register
 	ipAddress := c.ClientIP()
@@ -713,6 +766,26 @@ func (h *AuthHandler) GitHubLogin(c *gin.Context) {
 	c.Redirect(http.StatusTemporaryRedirect, url)
 }
 
+func getGitHubNames(userInfo map[string]interface{}) (string, string, error) {
+	if name, ok := userInfo["name"].(string); ok && name != "" {
+		parts := strings.SplitN(name, " ", 2)
+
+		lastName := ""
+		if len(parts) > 1 {
+			lastName = parts[1]
+		}
+
+		return parts[0], lastName, nil
+	}
+
+	login, ok := userInfo["login"].(string)
+	if !ok || login == "" {
+		return "", "", errors.New("missing or invalid login")
+	}
+
+	return login, "", nil
+}
+
 // GitHubCallback handles GitHub OAuth callback
 // @Summary GitHub OAuth callback
 // @Tags auth
@@ -748,22 +821,27 @@ func (h *AuthHandler) GitHubCallback(c *gin.Context) {
 		return
 	}
 
-	email := userInfo["email"].(string)
-
-	// GitHub names are often one string "Name" or just login
-	firstName := ""
-	lastName := ""
-	if name, ok := userInfo["name"].(string); ok && name != "" {
-		parts := strings.SplitN(name, " ", 2)
-		firstName = parts[0]
-		if len(parts) > 1 {
-			lastName = parts[1]
-		}
-	} else {
-		firstName = userInfo["login"].(string)
+	email, ok := userInfo["email"].(string)
+	if !ok || email == "" {
+		c.JSON(http.StatusBadRequest, utils.ErrorResponse("GitHub email not available", errors.New("missing or invalid email")))
+		return
 	}
 
-	oauthID := fmt.Sprintf("%.0f", userInfo["id"].(float64)) // GitHub ID is number
+	// GitHub names are often one string "Name" or just login
+	firstName, lastName, err := getGitHubNames(userInfo)
+	if err != nil {
+		c.JSON(http.StatusBadRequest,
+			utils.ErrorResponse("Invalid GitHub user data", err))
+		return
+	}
+
+	idValue, ok := userInfo["id"].(float64)
+	if !ok {
+		c.JSON(http.StatusBadRequest, utils.ErrorResponse("Invalid GitHub user data", errors.New("missing or invalid id")))
+		return
+	}
+
+	oauthID := fmt.Sprintf("%.0f", idValue) // GitHub ID is number
 
 	ipAddress := c.ClientIP()
 	userAgent := c.GetHeader(userAgentHeader)

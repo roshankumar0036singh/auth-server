@@ -41,6 +41,16 @@ func main() {
 	// Initialize database
 	db := config.InitDatabase(cfg)
 
+	// Pre-migration backfill for refresh_tokens.family_id
+	// Add column as nullable first to allow backfill
+	if err := db.Exec("ALTER TABLE refresh_tokens ADD COLUMN IF NOT EXISTS family_id uuid").Error; err != nil {
+		log.Printf("Warning: Could not add family_id column (may already exist): %v", err)
+	}
+	// Backfill existing tokens using their own ID as the family ID
+	if err := db.Exec("UPDATE refresh_tokens SET family_id = id WHERE family_id IS NULL").Error; err != nil {
+		log.Fatal("Failed to backfill family_id for existing refresh tokens:", err)
+	}
+
 	// Auto-migrate database models
 	err := config.AutoMigrate(db, &models.User{},
 		&models.RefreshToken{},
@@ -87,6 +97,28 @@ func main() {
 
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatal("Failed to start server:", err)
+		}
+	}()
+
+	// Start self-pinger to keep the server active
+	go func() {
+		pingURL := os.Getenv("PING_URL")
+		if pingURL == "" {
+			pingURL = fmt.Sprintf("http://localhost:%d/health", cfg.App.Port)
+		}
+
+		// Ping every 10 minutes (Heroku/Render typically sleep after 15-30m)
+		ticker := time.NewTicker(10 * time.Minute)
+		defer ticker.Stop()
+
+		for range ticker.C {
+			resp, err := http.Get(pingURL)
+			if err != nil {
+				log.Printf("Self-ping failed: %v", err)
+			} else {
+				resp.Body.Close()
+				log.Printf("Self-ping successful: %d", resp.StatusCode)
+			}
 		}
 	}()
 
