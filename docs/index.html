@@ -482,7 +482,9 @@
     <script src="https://unpkg.com/swagger-ui-dist@5.11.0/swagger-ui-bundle.js"></script>
     <script src="https://unpkg.com/swagger-ui-dist@5.11.0/swagger-ui-standalone-preset.js"></script>
     <script>
-        const swaggerAuthStorageKey = "auth-server-swagger-access-token";
+        // Held in memory only; never persisted to storage so an XSS payload
+        // cannot read a token at rest. Re-login is required after a reload.
+        let swaggerAccessToken = null;
 
         function setSwaggerLoginStatus(message, type) {
             const status = document.getElementById("swagger-login-status");
@@ -495,12 +497,12 @@
 
         function authorizeSwagger(accessToken) {
             window.ui.preauthorizeApiKey("BearerAuth", `Bearer ${accessToken}`);
-            sessionStorage.setItem(swaggerAuthStorageKey, accessToken);
+            swaggerAccessToken = accessToken;
             setSwaggerLoginStatus("Authorized", "success");
         }
 
         function clearSwaggerAuth() {
-            sessionStorage.removeItem(swaggerAuthStorageKey);
+            swaggerAccessToken = null;
             if (window.ui && window.ui.authActions) {
                 window.ui.authActions.logout(["BearerAuth"]);
             }
@@ -528,7 +530,7 @@
                 const accessToken = payload && payload.data && payload.data.accessToken;
 
                 if (!response.ok) {
-                    throw new Error(payload.error || payload.message || "Login failed");
+                    throw new Error((payload.error && payload.error.message) || payload.message || "Login failed");
                 }
                 if (!accessToken) {
                     throw new Error(payload && payload.data && payload.data.mfaRequired ? "MFA is required for this account" : "Login response did not include an access token");
@@ -567,11 +569,6 @@
 
             document.getElementById("swagger-login-form").addEventListener("submit", handleSwaggerLogin);
             document.getElementById("swagger-login-clear").addEventListener("click", clearSwaggerAuth);
-
-            const storedToken = sessionStorage.getItem(swaggerAuthStorageKey);
-            if (storedToken) {
-                authorizeSwagger(storedToken);
-            }
         };
     </script>
 </body>
