@@ -1,6 +1,8 @@
 package service_test
 
 import (
+	"crypto/rand"
+	"crypto/rsa"
 	"testing"
 
 	"github.com/roshankumar0036singh/auth-server/internal/config"
@@ -9,11 +11,18 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func getTestRSAKeys() (*rsa.PrivateKey, *rsa.PublicKey) {
+	priv, _ := rsa.GenerateKey(rand.Reader, 2048)
+	return priv, &priv.PublicKey
+}
+
 func TestTokenService_GenerateAccessToken(t *testing.T) {
+	priv, pub := getTestRSAKeys()
 	cfg := &config.Config{
 		JWT: config.JWTConfig{
-			AccessSecret:  "test-secret",
-			RefreshSecret: "test-refresh-secret",
+			PrivateKey: priv,
+			PublicKey:  pub,
+			KeyID:      "test-key",
 		},
 	}
 	svc := service.NewTokenService(cfg)
@@ -39,10 +48,12 @@ func TestTokenService_GenerateAccessToken(t *testing.T) {
 }
 
 func TestTokenService_GenerateRefreshToken(t *testing.T) {
+	priv, pub := getTestRSAKeys()
 	cfg := &config.Config{
 		JWT: config.JWTConfig{
-			AccessSecret:  "test-secret",
-			RefreshSecret: "test-refresh-secret",
+			PrivateKey: priv,
+			PublicKey:  pub,
+			KeyID:      "test-key",
 		},
 	}
 	svc := service.NewTokenService(cfg)

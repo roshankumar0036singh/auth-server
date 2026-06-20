@@ -1,10 +1,13 @@
 package config
 
 import (
+	"crypto/rand"
+	"crypto/rsa"
 	"log"
 	"os"
 	"strconv"
 
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/joho/godotenv"
 )
 
@@ -36,11 +39,12 @@ type RedisConfig struct {
 }
 
 type JWTConfig struct {
-	AccessSecret        string
-	RefreshSecret       string
-	AccessExpiry        string
-	RefreshExpiry       string
-	RefreshGracePeriod  string
+	PrivateKey         *rsa.PrivateKey
+	PublicKey          *rsa.PublicKey
+	KeyID              string
+	AccessExpiry       string
+	RefreshExpiry      string
+	RefreshGracePeriod string
 }
 type OAuthConfig struct {
 	Google GoogleOAuthConfig
@@ -112,14 +116,8 @@ func LoadConfig() *Config {
 
 	appURL := getEnv("APP_URL", "http://localhost:3000")
 
-	accessSecret := getEnv("JWT_SECRET", "")
-	refreshSecret := getEnv("JWT_REFRESH_SECRET", "")
-	if len(accessSecret) < 32 {
-		log.Fatal("JWT_SECRET must be set and at least 32 bytes long")
-	}
-	if len(refreshSecret) < 32 {
-		log.Fatal("JWT_REFRESH_SECRET must be set and at least 32 bytes long")
-	}
+	privKey, pubKey := loadRSAKeys()
+	keyID := getEnv("JWT_KEY_ID", "default-key-1")
 
 	encKey := getEnv("ENCRYPTION_KEY", "")
 	if encKey == "" || encKey == "0123456789abcdef0123456789abcdef" {
@@ -142,8 +140,9 @@ func LoadConfig() *Config {
 			TTL: redisTTL,
 		},
 		JWT: JWTConfig{
-			AccessSecret:       getEnv("JWT_SECRET", ""),
-			RefreshSecret:      getEnv("JWT_REFRESH_SECRET", ""),
+			PrivateKey:         privKey,
+			PublicKey:          pubKey,
+			KeyID:              keyID,
 			AccessExpiry:       getEnv("JWT_ACCESS_EXPIRY", "15m"),
 			RefreshExpiry:      getEnv("JWT_REFRESH_EXPIRY", "168h"),
 			RefreshGracePeriod: getEnv("JWT_REFRESH_GRACE_PERIOD", "10s"),
@@ -186,4 +185,33 @@ func getEnv(key, defaultValue string) string {
 		return value
 	}
 	return defaultValue
+}
+
+func loadRSAKeys() (*rsa.PrivateKey, *rsa.PublicKey) {
+	privPath := getEnv("JWT_PRIVATE_KEY_PATH", "private.pem")
+	pubPath := getEnv("JWT_PUBLIC_KEY_PATH", "public.pem")
+
+	privBytes, err1 := os.ReadFile(privPath)
+	pubBytes, err2 := os.ReadFile(pubPath)
+
+	if err1 != nil || err2 != nil {
+		log.Println("RSA keys not found at provided paths, generating temporary in-memory keys for development/testing...")
+		privKey, err := rsa.GenerateKey(rand.Reader, 2048)
+		if err != nil {
+			log.Fatalf("Failed to generate temp RSA key: %v", err)
+		}
+		return privKey, &privKey.PublicKey
+	}
+
+	privKey, err := jwt.ParseRSAPrivateKeyFromPEM(privBytes)
+	if err != nil {
+		log.Fatalf("Failed to parse private key: %v", err)
+	}
+
+	pubKey, err := jwt.ParseRSAPublicKeyFromPEM(pubBytes)
+	if err != nil {
+		log.Fatalf("Failed to parse public key: %v", err)
+	}
+
+	return privKey, pubKey
 }

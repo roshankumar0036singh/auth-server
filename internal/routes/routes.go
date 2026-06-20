@@ -71,6 +71,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, redisClient *redis.Client, cfg
 	adminHandler := handler.NewAdminHandler(authService)
 	oauthClientHandler := handler.NewOAuthClientHandler(oauthProviderService)
 	oauthHandler := handler.NewOAuthHandler(oauthProviderService, userRepo)
+	jwksHandler := handler.NewJWKSHandler(cfg)
 
 	// Apply global middleware
 	router.Use(middleware.CORSMiddleware(cfg))
@@ -120,6 +121,11 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, redisClient *redis.Client, cfg
 			"message": "Auth server is ready",
 		})
 	})
+
+	// JWKS endpoint
+	router.GET("/.well-known/jwks.json", jwksHandler.GetJWKS)
+
+
 
 	// OAuth 2.0 Provider endpoints
 	router.GET("/oauth/authorize", middleware.OptionalAuthMiddleware(tokenService, cacheService), oauthHandler.Authorize)
