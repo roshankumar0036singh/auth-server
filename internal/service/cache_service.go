@@ -2,10 +2,12 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
 	"github.com/go-redis/redis/v8"
+	"github.com/go-webauthn/webauthn/webauthn"
 )
 
 const (
@@ -67,6 +69,26 @@ func (s *CacheService) GetSession(ctx context.Context, sessionID string) (string
 func (s *CacheService) DeleteSession(ctx context.Context, sessionID string) error {
 	key := fmt.Sprintf(cacheKeySession, sessionID)
 	return s.client.Del(ctx, key).Err()
+}
+
+func (s *CacheService) StoreWebAuthnSession(ctx context.Context, sessionID string, data webauthn.SessionData, expiry time.Duration) error {
+	key := fmt.Sprintf("webauthn_session:%s", sessionID)
+	bytes, err := json.Marshal(data)
+	if err != nil {
+		return err
+	}
+	return s.client.Set(ctx, key, bytes, expiry).Err()
+}
+
+func (s *CacheService) GetWebAuthnSession(ctx context.Context, sessionID string) (webauthn.SessionData, error) {
+	key := fmt.Sprintf("webauthn_session:%s", sessionID)
+	val, err := s.client.Get(ctx, key).Result()
+	if err != nil {
+		return webauthn.SessionData{}, err
+	}
+	var data webauthn.SessionData
+	err = json.Unmarshal([]byte(val), &data)
+	return data, err
 }
 
 // IncrementLoginAttempts increments failed login attempts for an email

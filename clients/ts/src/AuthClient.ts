@@ -1,4 +1,4 @@
-import { AuthClientConfig, Session, User, ApiResponse, SessionInfo, AuditLog, AuthStateChangeCallback, AuthEvents } from './types';
+import { AuthClientConfig, Session, User, ApiResponse, SessionInfo, AuditLog, AuthStateChangeCallback, AuthEvents, StorageAdapter } from './types';
 
 export class AuthError extends Error {
   public code: string;
@@ -26,6 +26,9 @@ export class AuthClient {
   private keepAliveIntervalId: ReturnType<typeof setInterval> | null = null;
   private readonly retries: number;
   private readonly retryDelay: number;
+  private readonly onNetworkError?: (error: Error) => void;
+  private readonly debug: boolean;
+  private readonly storageAdapter?: StorageAdapter;
 
   constructor(config: AuthClientConfig) {
     if (!config.serverUrl) throw new Error('serverUrl is required');
@@ -37,6 +40,9 @@ export class AuthClient {
     this.storageKey = config.storageKey || `auth_session_${this.clientId}`;
     this.retries = config.retries ?? 0;
     this.retryDelay = config.retryDelay ?? 1000;
+    this.onNetworkError = config.onNetworkError;
+    this.debug = config.debug ?? false;
+    this.storageAdapter = config.storageAdapter;
 
     if (config.keepAlive && globalThis.setInterval !== undefined) {
       const interval = config.keepAliveInterval ?? 300000; // 5 minutes
@@ -45,7 +51,7 @@ export class AuthClient {
       }, interval);
     }
 
-    this.loadSession();
+    this.loadSession().catch(() => {});
   }
 
   /**
@@ -63,18 +69,27 @@ export class AuthClient {
     }
   }
 
+  // --- Internal Utilities ---
+
+  private log(message: string, ...args: any[]): void {
+    if (this.debug) {
+      console.log(`[AuthClient] ${message}`, ...args);
+    }
+  }
+
   // --- Storage & Events ---
 
-  private getStorage(): Storage | null {
+  private getStorage(): StorageAdapter | null {
+    if (this.storageAdapter) return this.storageAdapter;
     if (this.storageType === 'memory' || globalThis.window === undefined) return null;
     return this.storageType === 'localStorage' ? globalThis.localStorage : globalThis.sessionStorage;
   }
 
-  private loadSession() {
+  private async loadSession() {
     const storage = this.getStorage();
     if (!storage) return;
 
-    const stored = storage.getItem(this.storageKey);
+    const stored = await storage.getItem(this.storageKey);
     if (stored) {
       try {
         const session = JSON.parse(stored) as Session;
@@ -82,19 +97,25 @@ export class AuthClient {
         if (session.refreshToken) {
           this.refreshToken = session.refreshToken;
         }
+        this.scheduleTokenRefresh(session.accessToken);
+        this.emit('session', {
+          accessToken: session.accessToken,
+          refreshToken: session.refreshToken || undefined,
+          user: session.user,
+        });
       } catch {
-        storage.removeItem(this.storageKey);
+        await storage.removeItem(this.storageKey);
       }
     }
   }
 
-  private saveSession(session: Session) {
+  private async saveSession(session: Session) {
     this.accessToken = session.accessToken;
     this.refreshToken = session.refreshToken ?? null;
 
     const storage = this.getStorage();
     if (storage) {
-      storage.setItem(this.storageKey, JSON.stringify({
+      await storage.setItem(this.storageKey, JSON.stringify({
         accessToken: this.accessToken,
         refreshToken: this.refreshToken
       }));
@@ -109,7 +130,7 @@ export class AuthClient {
     });
   }
 
-  private clearSession() {
+  private async clearSession() {
     this.accessToken = null;
     this.refreshToken = null;
     
@@ -120,7 +141,7 @@ export class AuthClient {
 
     const storage = this.getStorage();
     if (storage) {
-      storage.removeItem(this.storageKey);
+      await storage.removeItem(this.storageKey);
     }
 
     this.emit('session', null);
@@ -272,10 +293,12 @@ export class AuthClient {
         data.error?.code || 'API_ERROR',
         response.status
       );
+      this.log("Execute request failed", path, authErr);
       this.emit('error', authErr);
       throw authErr;
     }
 
+    this.log("Execute request successful", path);
     return data;
   }
 
@@ -318,6 +341,9 @@ export class AuthClient {
           const msg = err instanceof Error ? err.message : String(err);
           const authErr = new AuthError(`Network error: unable to reach the auth server (${msg})`, 'NETWORK_ERROR', 0);
           this.emit('error', authErr);
+          if (this.onNetworkError) {
+            this.onNetworkError(authErr);
+          }
           throw authErr;
         }
       }
@@ -326,7 +352,11 @@ export class AuthClient {
       const delay = this.retryDelay * Math.pow(2, attempt - 1);
       await new Promise(r => setTimeout(r, delay));
     }
-    throw new AuthError("Network error: request failed", 'NETWORK_ERROR', 0);
+    const networkErr = new AuthError("Network error: request failed", 'NETWORK_ERROR', 0);
+    if (this.onNetworkError) {
+      this.onNetworkError(networkErr);
+    }
+    throw networkErr;
   }
 
   private async handleUnauthorizedRetry(path: string, options: RequestInit, headers: Headers): Promise<Response> {
@@ -506,6 +536,38 @@ export class AuthClient {
 
   // --- User Profile & Account ---
 
+  /** 
+   * Extract user information from the access token locally (offline fallback).
+   * Useful when the backend is unreachable.
+   */
+  public getUserFromToken(): Partial<User> | null {
+    if (!this.accessToken) return null;
+    try {
+      const payloadBase64Url = this.accessToken.split('.')[1];
+      if (!payloadBase64Url) return null;
+      
+      const payloadBase64 = payloadBase64Url.replaceAll('-', '+').replaceAll('_', '/');
+      let payloadJson = '';
+      if (typeof atob === 'undefined') {
+        if (typeof globalThis !== 'undefined' && (globalThis as any).Buffer) {
+          payloadJson = (globalThis as any).Buffer.from(payloadBase64, 'base64').toString('utf8');
+        } else {
+          return null;
+        }
+      } else {
+        payloadJson = atob(payloadBase64);
+      }
+      
+      const decoded = JSON.parse(payloadJson);
+      return {
+        id: decoded.id || decoded.sub || decoded.user_id,
+        email: decoded.email,
+      };
+    } catch {
+      return null;
+    }
+  }
+
   /** Get the authenticated user's profile */
   public async getUser(): Promise<User> {
     const data = await this.fetchApi<User>("/api/auth/me", { method: "GET" });
@@ -611,6 +673,103 @@ export class AuthClient {
     return data.data;
   }
 
+  // --- WebAuthn / Passkeys ---
+
+  /** 
+   * Register a new Passkey/WebAuthn credential for the currently logged-in user.
+   */
+  public async registerPasskey(): Promise<void> {
+    if (!globalThis.navigator?.credentials) {
+      throw new Error("WebAuthn is not supported in this environment");
+    }
+
+    const beginData = await this.fetchApi<any>("/api/auth/webauthn/register/begin", { method: "POST" });
+    const options = beginData.data.options;
+    const sessionId = beginData.data.session_id;
+
+    options.publicKey.challenge = base64urlToBuffer(options.publicKey.challenge);
+    options.publicKey.user.id = base64urlToBuffer(options.publicKey.user.id);
+    if (options.publicKey.excludeCredentials) {
+      options.publicKey.excludeCredentials.forEach((cred: any) => {
+        cred.id = base64urlToBuffer(cred.id);
+      });
+    }
+
+    const credential = await navigator.credentials.create(options) as PublicKeyCredential;
+    if (!credential) throw new Error("Passkey registration cancelled");
+
+    const response = credential.response as AuthenticatorAttestationResponse;
+    const finishBody = {
+      id: credential.id,
+      rawId: bufferToBase64url(credential.rawId),
+      type: credential.type,
+      response: {
+        attestationObject: bufferToBase64url(response.attestationObject),
+        clientDataJSON: bufferToBase64url(response.clientDataJSON),
+      }
+    };
+
+    await this.fetchApi(`/api/auth/webauthn/register/finish/${sessionId}`, {
+      method: "POST",
+      body: JSON.stringify(finishBody)
+    });
+  }
+
+  /**
+   * Forces a local WebAuthn re-verification (e.g. FaceID/TouchID) before proceeding.
+   * Useful before displaying sensitive data or performing critical actions.
+   * Note: The user must already have a passkey registered.
+   * @param email The email of the user to step up.
+   * @returns true if verification succeeded, false otherwise.
+   */
+  public async requireStepUp(email: string): Promise<boolean> {
+    if (!globalThis.navigator?.credentials) return false;
+
+    try {
+      const beginData = await this.fetchApi<any>("/api/auth/webauthn/login/begin", {
+        method: "POST",
+        body: JSON.stringify({ email })
+      });
+
+      const options = beginData.data.options;
+      const sessionId = beginData.data.session_id;
+
+      options.publicKey.challenge = base64urlToBuffer(options.publicKey.challenge);
+      if (options.publicKey.allowCredentials) {
+        options.publicKey.allowCredentials.forEach((cred: any) => {
+          cred.id = base64urlToBuffer(cred.id);
+        });
+      }
+
+      const credential = await navigator.credentials.get(options) as PublicKeyCredential;
+      if (!credential) return false;
+
+      const response = credential.response as AuthenticatorAssertionResponse;
+      const finishBody = {
+        id: credential.id,
+        rawId: bufferToBase64url(credential.rawId),
+        type: credential.type,
+        response: {
+          authenticatorData: bufferToBase64url(response.authenticatorData),
+          clientDataJSON: bufferToBase64url(response.clientDataJSON),
+          signature: bufferToBase64url(response.signature),
+          userHandle: response.userHandle ? bufferToBase64url(response.userHandle) : null,
+        }
+      };
+
+      const finishData = await this.fetchApi<Session>(`/api/auth/webauthn/login/finish/${sessionId}`, {
+        method: "POST",
+        body: JSON.stringify(finishBody)
+      });
+
+      this.saveSession(finishData.data);
+      return true;
+    } catch (e) {
+      console.error("Step up verification failed:", e);
+      return false;
+    }
+  }
+
   // --- Sessions & Logs ---
 
   /** Get all active sessions for the user */
@@ -629,4 +788,28 @@ export class AuthClient {
     const data = await this.fetchApi<AuditLog[]>("/api/auth/audit-logs", { method: "GET" });
     return data.data;
   }
+}
+
+// --- WebAuthn Helpers ---
+function bufferToBase64url(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  let str = '';
+  for (const charCode of bytes) {
+    str += String.fromCharCode(charCode);
+  }
+  const base64String = btoa(str);
+  return base64String.replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+}
+
+function base64urlToBuffer(base64url: string): ArrayBuffer {
+  const padding = '==='.slice((base64url.length + 4) % 4);
+  const base64 = (base64url + padding)
+    .replace(/-/g, '+')
+    .replace(/_/g, '/');
+  const rawData = atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; ++i) {
+    outputArray[i] = rawData.charCodeAt(i);
+  }
+  return outputArray.buffer;
 }

@@ -16,12 +16,19 @@ type Config struct {
 	OAuth    OAuthConfig
 	Email    EmailConfig
 	Security SecurityConfig
+	WebAuthn WebAuthnConfig
 }
 
 type AppConfig struct {
 	Port int
 	Env  string
 	URL  string
+}
+
+type WebAuthnConfig struct {
+	RPDisplayName string
+	RPID          string
+	RPOrigins     []string
 }
 
 type DatabaseConfig struct {
@@ -177,6 +184,11 @@ func LoadConfig() *Config {
 
 			ForgotRateLimitMax:    forgotRateLimitMax,
 			ForgotRateLimitWindow: forgotRateLimitWindow,
+		},
+		WebAuthn: WebAuthnConfig{
+			RPDisplayName: getEnv("WEBAUTHN_RP_DISPLAY_NAME", "Auth Server"),
+			RPID:          getEnv("WEBAUTHN_RP_ID", "localhost"),
+			RPOrigins:     []string{appURL}, // Assuming APP_URL is the primary origin
 		},
 	}
 }

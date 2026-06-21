@@ -15,10 +15,28 @@ export interface User {
   lastLoginAt?: string;
 }
 
+export interface PaginationMetaData {
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
+export interface UsersResponse {
+  users: User[];
+  meta: PaginationMetaData;
+}
+
 export interface Session {
   accessToken: string;
   refreshToken?: string;
   user?: User;
+}
+
+export interface StorageAdapter {
+  getItem(key: string): string | null | Promise<string | null>;
+  setItem(key: string, value: string): void | Promise<void>;
+  removeItem(key: string): void | Promise<void>;
 }
 
 export interface AuthClientConfig {
@@ -35,6 +53,8 @@ export interface AuthClientConfig {
   storage?: 'localStorage' | 'sessionStorage' | 'memory';
   /** Custom storage key. Defaults to `auth_session_<clientId>` */
   storageKey?: string;
+  /** Custom storage adapter for environments like React Native */
+  storageAdapter?: StorageAdapter;
   /** Max retries for failed network requests (excluding 4xx errors). Default 0. */
   retries?: number;
   /** Initial delay in ms before first retry. Doubles on each subsequent retry. Default 1000. */
@@ -43,6 +63,10 @@ export interface AuthClientConfig {
   keepAlive?: boolean;
   /** Interval in ms for the keepAlive ping. Default 5 minutes (300000ms). */
   keepAliveInterval?: number;
+  /** Callback fired specifically on network errors (e.g., offline) to allow showing offline banners. */
+  onNetworkError?: (error: Error) => void;
+  /** Enables verbose debug logging to the console. Default false. */
+  debug?: boolean;
 }
 
 export interface ApiResponse<T = any> {

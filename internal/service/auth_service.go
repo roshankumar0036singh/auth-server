@@ -435,7 +435,7 @@ func (s *AuthService) VerifyLoginMFA(mfaToken, code, ipAddress, userAgent string
 
 	s.cacheService.ResetMFAAttempts(ctx, userID)
 
-	response, err := s.createLoginResponse(user, ipAddress, userAgent)
+	response, err := s.CreateLoginResponse(user, ipAddress, userAgent)
 	if err != nil {
 		return nil, err
 	}
@@ -614,7 +614,7 @@ func (s *AuthService) Login(req *dto.LoginRequest, ipAddress, userAgent string) 
 		log.Printf("Failed to update last login for user %s: %v", user.ID, err)
 	}
 
-	response, err := s.createLoginResponse(user, ipAddress, userAgent)
+	response, err := s.CreateLoginResponse(user, ipAddress, userAgent)
 	if err != nil {
 		return nil, err
 	}
@@ -670,7 +670,7 @@ func (s *AuthService) LoginWithOAuth(email, oauthID, firstName, lastName, provid
 		}
 	}
 
-	response, err := s.createLoginResponse(user, ipAddress, userAgent)
+	response, err := s.CreateLoginResponse(user, ipAddress, userAgent)
 	if err != nil {
 		return nil, err
 	}
@@ -1039,7 +1039,7 @@ func (s *AuthService) UnlockUser(userID, adminID, ipAddress, userAgent string) e
 	return nil
 }
 
-func (s *AuthService) createLoginResponse(
+func (s *AuthService) CreateLoginResponse(
 	user *models.User,
 	ipAddress string,
 	userAgent string,
