@@ -194,4 +194,19 @@ describe('AuthClient', () => {
       expect.objectContaining({ method: 'POST' })
     );
   });
+
+  describe('base64urlDecode', () => {
+    // We can access the exported helper function for testing.
+    it('decodes base64url strings with various padding needs (%4 == 0, 2, 3)', async () => {
+      // We will dynamically import the helpers to test them
+      const { base64urlDecode } = await import('../AuthClient');
+      
+      // % 4 == 0
+      expect(base64urlDecode('YWJjZA')).toBe('abcd');
+      // % 4 == 2
+      expect(base64urlDecode('YWI')).toBe('ab');
+      // % 4 == 3
+      expect(base64urlDecode('YWJj')).toBe('abc');
+    });
+  });
 });

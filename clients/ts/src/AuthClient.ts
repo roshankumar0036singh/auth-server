@@ -120,7 +120,8 @@ export class AuthClient {
     if (storage) {
       await storage.setItem(this.storageKey, JSON.stringify({
         accessToken: this.accessToken,
-        refreshToken: this.refreshToken
+        refreshToken: this.refreshToken,
+        user: session.user
       }));
     }
 
@@ -279,6 +280,7 @@ export class AuthClient {
   // --- Interceptor & Fetch Logic ---
 
   private async fetchApi<T = any>(path: string, options: RequestInit = {}): Promise<ApiResponse<T>> {
+    await this.ready;
     const headers = new Headers(options.headers || {});
 
     // Only set Content-Type for requests that have a body
@@ -291,9 +293,12 @@ export class AuthClient {
     const data = await response.json().catch(() => ({}));
 
     if (!response.ok) {
+      const flatMsg = typeof data.error === 'string' ? data.error : null;
+      const flatCode = typeof data.code === 'string' ? data.code : null;
+
       const authErr = new AuthError(
-        data.error?.message || data.message || `Request failed with status ${response.status}`,
-        data.error?.code || 'API_ERROR',
+        flatMsg || data.error?.message || data.message || `Request failed with status ${response.status}`,
+        flatCode || data.error?.code || 'API_ERROR',
         response.status
       );
       this.log("Execute request failed", path, authErr);
@@ -341,6 +346,7 @@ export class AuthClient {
         }
       } catch (err: unknown) {
         if (attempt >= maxAttempts) {
+          if (err instanceof AuthError) throw err;
           const msg = err instanceof Error ? err.message : String(err);
           const authErr = new AuthError(`Network error: unable to reach the auth server (${msg})`, 'NETWORK_ERROR', 0);
           this.emit('error', authErr);
@@ -355,11 +361,7 @@ export class AuthClient {
       const delay = this.retryDelay * Math.pow(2, attempt - 1);
       await new Promise(r => setTimeout(r, delay));
     }
-    const networkErr = new AuthError("Network error: request failed", 'NETWORK_ERROR', 0);
-    if (this.onNetworkError) {
-      this.onNetworkError(networkErr);
-    }
-    throw networkErr;
+    throw new Error("Unreachable");
   }
 
   private async handleUnauthorizedRetry(path: string, options: RequestInit, headers: Headers): Promise<Response> {
@@ -369,7 +371,7 @@ export class AuthClient {
       headers.set("Authorization", `Bearer ${this.accessToken!}`);
       return await fetch(`${this.serverUrl}${path}`, { ...options, headers });
     } catch {
-      this.clearSession();
+      await this.clearSession();
       throw new AuthError("Session expired. Please log in again.", 'SESSION_EXPIRED', 401);
     }
   }
@@ -403,7 +405,7 @@ export class AuthClient {
       method: "POST",
       body: JSON.stringify({ email, password }),
     });
-    this.saveSession(data.data);
+    await this.saveSession(data.data);
     this.emit('login', data.data);
     return data.data;
   }
@@ -428,12 +430,12 @@ export class AuthClient {
     this.refreshPromise = this.fetchApi<Session>("/api/auth/refresh", {
       method: "POST",
       body: JSON.stringify({ refreshToken: this.refreshToken }),
-    }).then(res => {
-      this.saveSession(res.data);
+    }).then(async res => {
+      await this.saveSession(res.data);
       this.emit('token:refreshed', res.data);
       return res.data;
-    }).catch(err => {
-      this.clearSession();
+    }).catch(async err => {
+      await this.clearSession();
       throw err;
     }).finally(() => {
       this.isRefreshing = false;
@@ -455,14 +457,14 @@ export class AuthClient {
     } catch {
       // Best-effort server-side logout; always clear client session
     }
-    this.clearSession();
+    await this.clearSession();
     this.emit('logout');
   }
 
   /** Logout from all devices */
   public async logoutAll(): Promise<void> {
     await this.fetchApi("/api/auth/logout-all", { method: "POST" });
-    this.clearSession();
+    await this.clearSession();
     this.emit('logout');
   }
 
@@ -511,7 +513,7 @@ export class AuthClient {
    *
    * @param href Optional URL to parse instead of `window.location.href`.
    */
-  public completeOAuthRedirect(href?: string): Session | null {
+  public async completeOAuthRedirect(href?: string): Promise<Session | null> {
     const source = href ?? (globalThis.window === undefined ? undefined : globalThis.window.location.href);
     if (!source) return null;
 
@@ -526,7 +528,7 @@ export class AuthClient {
 
     const refreshToken = parsed.searchParams.get('refresh_token') ?? undefined;
     const session: Session = { accessToken, refreshToken };
-    this.saveSession(session);
+    await this.saveSession(session);
 
     if (!href && globalThis.window !== undefined) {
       parsed.searchParams.delete('access_token');
@@ -587,7 +589,7 @@ export class AuthClient {
   /** Delete the user's account */
   public async deleteAccount(): Promise<void> {
     await this.fetchApi("/api/auth/me", { method: "DELETE" });
-    this.clearSession();
+    await this.clearSession();
   }
 
   // --- Verification & Reset ---
@@ -662,7 +664,7 @@ export class AuthClient {
       method: "POST",
       body: JSON.stringify({ mfaToken, code }),
     });
-    this.saveSession(data.data);
+    await this.saveSession(data.data);
     return data.data;
   }
 
@@ -784,7 +786,7 @@ export class AuthClient {
 }
 
 // --- WebAuthn Helpers ---
-function bufferToBase64url(buffer: ArrayBuffer): string {
+export function bufferToBase64url(buffer: ArrayBuffer): string {
   const bytes = new Uint8Array(buffer);
   let str = '';
   for (const charCode of bytes) {
@@ -794,9 +796,9 @@ function bufferToBase64url(buffer: ArrayBuffer): string {
   return base64String.replaceAll('+', '-').replaceAll('/', '_').replaceAll('=', '');
 }
 
-function base64urlDecode(base64url: string): string {
-  const padding = '==='.slice((base64url.length + 4) % 4);
-  const base64 = (base64url + padding)
+export function base64urlDecode(base64url: string): string {
+  const pad = (4 - (base64url.length % 4)) % 4;
+  const base64 = (base64url + '='.repeat(pad))
     .replaceAll('-', '+')
     .replaceAll('_', '/');
     
@@ -809,11 +811,11 @@ function base64urlDecode(base64url: string): string {
   return atob(base64);
 }
 
-function base64urlToBuffer(base64url: string): ArrayBuffer {
+export function base64urlToBuffer(base64url: string): ArrayBuffer {
   const rawData = base64urlDecode(base64url);
   const outputArray = new Uint8Array(rawData.length);
   for (let i = 0; i < rawData.length; ++i) {
-    outputArray[i] = rawData.charCodeAt(i);
+    outputArray[i] = rawData.codePointAt(i) ?? 0;
   }
   return outputArray.buffer;
 }

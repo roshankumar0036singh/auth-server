@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -21,7 +22,6 @@ type WebAuthnService struct {
 	webAuthn     *webauthn.WebAuthn
 	userRepo     *repository.UserRepository
 	cacheService *CacheService
-	db           *gorm.DB
 }
 
 func NewWebAuthnService(cfg *config.Config, userRepo *repository.UserRepository, cacheService *CacheService, db *gorm.DB) (*WebAuthnService, error) {
@@ -41,13 +41,17 @@ func NewWebAuthnService(cfg *config.Config, userRepo *repository.UserRepository,
 		webAuthn:     wa,
 		userRepo:     userRepo,
 		cacheService: cacheService,
-		db:           db,
 	}, nil
 }
 
-func (s *WebAuthnService) BeginRegistration(ctx context.Context, user *models.User) (*protocol.CredentialCreation, string, error) {
+func (s *WebAuthnService) BeginRegistration(ctx context.Context, userID string) (*protocol.CredentialCreation, string, error) {
+	user, err := s.userRepo.FindByID(userID)
+	if err != nil {
+		return nil, "", err
+	}
+
 	// Preload passkeys so user.WebAuthnCredentials() has them
-	if err := s.db.Model(user).Association("Passkeys").Find(&user.Passkeys); err != nil {
+	if err := s.userRepo.LoadPasskeys(user); err != nil {
 		return nil, "", err
 	}
 
@@ -65,12 +69,17 @@ func (s *WebAuthnService) BeginRegistration(ctx context.Context, user *models.Us
 	return options, sessionID, nil
 }
 
-func (s *WebAuthnService) FinishRegistration(ctx context.Context, user *models.User, sessionID string, r *http.Request) (*models.WebAuthnCredential, error) {
-	if err := s.db.Model(user).Association("Passkeys").Find(&user.Passkeys); err != nil {
+func (s *WebAuthnService) FinishRegistration(ctx context.Context, userID string, sessionID string, r *http.Request) (*models.WebAuthnCredential, error) {
+	user, err := s.userRepo.FindByID(userID)
+	if err != nil {
 		return nil, err
 	}
 
-	userID, sessionData, err := s.cacheService.GetWebAuthnSession(ctx, sessionID)
+	if err := s.userRepo.LoadPasskeys(user); err != nil {
+		return nil, err
+	}
+
+	userID, sessionData, err := s.cacheService.ConsumeWebAuthnSession(ctx, sessionID)
 	if err != nil {
 		return nil, fmt.Errorf("invalid or expired registration session")
 	}
@@ -83,24 +92,26 @@ func (s *WebAuthnService) FinishRegistration(ctx context.Context, user *models.U
 		return nil, err
 	}
 
-	// Clean up session
-	s.cacheService.client.Del(ctx, "webauthn_session:"+sessionID)
-
 	// Save credential
 	modelCred, err := models.FromWebAuthn(user.ID, credential)
 	if err != nil {
 		return nil, err
 	}
 
-	if err := s.db.Create(modelCred).Error; err != nil {
+	if err := s.userRepo.CreateWebAuthnCredential(modelCred); err != nil {
 		return nil, err
 	}
 
 	return modelCred, nil
 }
 
-func (s *WebAuthnService) BeginLogin(ctx context.Context, user *models.User) (*protocol.CredentialAssertion, string, error) {
-	if err := s.db.Model(user).Association("Passkeys").Find(&user.Passkeys); err != nil {
+func (s *WebAuthnService) BeginLogin(ctx context.Context, email string) (*protocol.CredentialAssertion, string, error) {
+	user, err := s.userRepo.FindByEmail(email)
+	if err != nil {
+		return nil, "", err
+	}
+
+	if err := s.userRepo.LoadPasskeys(user); err != nil {
 		return nil, "", err
 	}
 
@@ -118,17 +129,27 @@ func (s *WebAuthnService) BeginLogin(ctx context.Context, user *models.User) (*p
 }
 
 func (s *WebAuthnService) FinishLogin(ctx context.Context, sessionID string, r *http.Request) (*models.User, *webauthn.Credential, error) {
-	userID, sessionData, err := s.cacheService.GetWebAuthnSession(ctx, sessionID)
+	userID, sessionData, err := s.cacheService.ConsumeWebAuthnSession(ctx, sessionID)
 	if err != nil {
 		return nil, nil, fmt.Errorf("invalid or expired authentication session")
 	}
 
 	user, err := s.userRepo.FindByID(userID)
 	if err != nil {
-		return nil, nil, fmt.Errorf("user not found")
+		if errors.Is(err, repository.ErrUserNotFound) {
+			return nil, nil, ErrUserNotFound
+		}
+		return nil, nil, fmt.Errorf("failed to retrieve user: %w", err)
 	}
 
-	if err := s.db.Model(user).Association("Passkeys").Find(&user.Passkeys); err != nil {
+	if user.LockedUntil != nil && time.Now().Before(*user.LockedUntil) {
+		return nil, nil, fmt.Errorf("account is locked")
+	}
+	if !user.IsActive {
+		return nil, nil, fmt.Errorf("account is inactive")
+	}
+
+	if err := s.userRepo.LoadPasskeys(user); err != nil {
 		return nil, nil, err
 	}
 
@@ -137,18 +158,13 @@ func (s *WebAuthnService) FinishLogin(ctx context.Context, sessionID string, r *
 		return nil, nil, err
 	}
 
-	// Clean up session
-	s.cacheService.client.Del(ctx, "webauthn_session:"+sessionID)
-
 	modelCred, err := models.FromWebAuthn(user.ID, credential)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	// Update the data blob
-	if err := s.db.Model(&models.WebAuthnCredential{}).
-		Where("credential_id = ?", credential.ID).
-		Update("data", modelCred.Data).Error; err != nil {
+	if err := s.userRepo.UpdateWebAuthnCredentialData(string(credential.ID), modelCred.Data); err != nil {
 		log.Printf("failed to update webauthn signCount for credential %s: %v", credential.ID, err)
 	}
 

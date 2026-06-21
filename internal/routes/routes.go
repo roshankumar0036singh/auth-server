@@ -72,7 +72,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, redisClient *redis.Client, cfg
 	if err != nil {
 		log.Fatalf("Failed to initialize WebAuthn service: %v", err)
 	}
-	webAuthnHandler := handler.NewWebAuthnHandler(webAuthnService, userRepo, authService)
+	webAuthnHandler := handler.NewWebAuthnHandler(webAuthnService, authService)
 
 	// Initialize handlers
 	authHandler := handler.NewAuthHandler(authService, oauthService, oauthProviderService)

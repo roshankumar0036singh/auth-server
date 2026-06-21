@@ -1,4 +1,4 @@
-import { inject, Plugin, App, reactive, readonly } from 'vue';
+import { inject, Plugin, App, reactive, readonly, computed } from 'vue';
 import { AuthClient, Session, AuthClientConfig } from '../index';
 
 const AuthSymbol = Symbol('AuthClient');
@@ -37,8 +37,8 @@ export const useAuth = () => {
   
   return {
     client,
-    session: sessionState.session,
-    isAuthenticated: !!sessionState.session,
-    isLoading: sessionState.isLoading
+    session: computed(() => sessionState.session),
+    isAuthenticated: computed(() => !!sessionState.session),
+    isLoading: computed(() => sessionState.isLoading)
   };
 };

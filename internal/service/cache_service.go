@@ -89,9 +89,9 @@ func (s *CacheService) StoreWebAuthnSession(ctx context.Context, sessionID strin
 	return s.client.Set(ctx, key, bytes, expiry).Err()
 }
 
-func (s *CacheService) GetWebAuthnSession(ctx context.Context, sessionID string) (string, webauthn.SessionData, error) {
+func (s *CacheService) ConsumeWebAuthnSession(ctx context.Context, sessionID string) (string, webauthn.SessionData, error) {
 	key := fmt.Sprintf("webauthn_session:%s", sessionID)
-	val, err := s.client.Get(ctx, key).Result()
+	val, err := s.client.GetDel(ctx, key).Result()
 	if err != nil {
 		return "", webauthn.SessionData{}, err
 	}

@@ -35,6 +35,7 @@ export function AuthProvider({ client, children }: AuthProviderProps) {
 
   useEffect(() => {
     let mounted = true;
+    setIsLoading(true);
 
     const handleSessionChange = async (newSession: Session | null) => {
       if (!mounted) return;

@@ -4,21 +4,17 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/roshankumar0036singh/auth-server/internal/repository"
 	"github.com/roshankumar0036singh/auth-server/internal/service"
-	"github.com/roshankumar0036singh/auth-server/internal/utils"
 )
 
 type WebAuthnHandler struct {
 	webAuthnService *service.WebAuthnService
-	userRepo        *repository.UserRepository
 	authService     *service.AuthService
 }
 
-func NewWebAuthnHandler(was *service.WebAuthnService, ur *repository.UserRepository, as *service.AuthService) *WebAuthnHandler {
+func NewWebAuthnHandler(was *service.WebAuthnService, as *service.AuthService) *WebAuthnHandler {
 	return &WebAuthnHandler{
 		webAuthnService: was,
-		userRepo:        ur,
 		authService:     as,
 	}
 }
@@ -26,19 +22,17 @@ func NewWebAuthnHandler(was *service.WebAuthnService, ur *repository.UserReposit
 func (h *WebAuthnHandler) BeginRegistration(c *gin.Context) {
 	userID, exists := c.Get("userID")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, utils.ErrorResponse("User not found in context", nil))
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not found in context", "code": "UNAUTHORIZED"})
 		return
 	}
 
-	user, err := h.userRepo.FindByID(userID.(string))
+	options, sessionID, err := h.webAuthnService.BeginRegistration(c.Request.Context(), userID.(string))
 	if err != nil {
-		c.JSON(http.StatusNotFound, utils.ErrorResponse("User not found", err))
-		return
-	}
-
-	options, sessionID, err := h.webAuthnService.BeginRegistration(c.Request.Context(), user)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, utils.ErrorResponse(err.Error(), err))
+		if err == service.ErrUserNotFound {
+			c.JSON(http.StatusNotFound, gin.H{"error": "User not found", "code": "USER_NOT_FOUND"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "code": "INTERNAL_SERVER_ERROR"})
 		return
 	}
 
@@ -51,25 +45,19 @@ func (h *WebAuthnHandler) BeginRegistration(c *gin.Context) {
 func (h *WebAuthnHandler) FinishRegistration(c *gin.Context) {
 	userID, exists := c.Get("userID")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, utils.ErrorResponse("User not found in context", nil))
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not found in context", "code": "UNAUTHORIZED"})
 		return
 	}
 
 	sessionID := c.Param("session_id")
 	if sessionID == "" {
-		c.JSON(http.StatusBadRequest, utils.ErrorResponse("session_id is required", nil))
+		c.JSON(http.StatusBadRequest, gin.H{"error": "session_id is required", "code": "BAD_REQUEST"})
 		return
 	}
 
-	user, err := h.userRepo.FindByID(userID.(string))
+	credential, err := h.webAuthnService.FinishRegistration(c.Request.Context(), userID.(string), sessionID, c.Request)
 	if err != nil {
-		c.JSON(http.StatusNotFound, utils.ErrorResponse("User not found", err))
-		return
-	}
-
-	credential, err := h.webAuthnService.FinishRegistration(c.Request.Context(), user, sessionID, c.Request)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, utils.ErrorResponse(err.Error(), err))
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error(), "code": "BAD_REQUEST"})
 		return
 	}
 
@@ -86,19 +74,17 @@ type BeginLoginRequest struct {
 func (h *WebAuthnHandler) BeginLogin(c *gin.Context) {
 	var req BeginLoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, utils.ErrorResponse("Invalid request body", err))
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body", "code": "BAD_REQUEST"})
 		return
 	}
 
-	user, err := h.userRepo.FindByEmail(req.Email)
+	options, sessionID, err := h.webAuthnService.BeginLogin(c.Request.Context(), req.Email)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, utils.ErrorResponse("Invalid credentials", nil))
-		return
-	}
-
-	options, sessionID, err := h.webAuthnService.BeginLogin(c.Request.Context(), user)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, utils.ErrorResponse(err.Error(), err))
+		if err == service.ErrUserNotFound {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid credentials", "code": "UNAUTHORIZED"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "code": "INTERNAL_SERVER_ERROR"})
 		return
 	}
 
@@ -111,13 +97,13 @@ func (h *WebAuthnHandler) BeginLogin(c *gin.Context) {
 func (h *WebAuthnHandler) FinishLogin(c *gin.Context) {
 	sessionID := c.Param("session_id")
 	if sessionID == "" {
-		c.JSON(http.StatusBadRequest, utils.ErrorResponse("Invalid session_id", nil))
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid session_id", "code": "BAD_REQUEST"})
 		return
 	}
 
 	user, _, err := h.webAuthnService.FinishLogin(c.Request.Context(), sessionID, c.Request)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, utils.ErrorResponse(err.Error(), err))
+		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error(), "code": "UNAUTHORIZED"})
 		return
 	}
 
@@ -126,7 +112,7 @@ func (h *WebAuthnHandler) FinishLogin(c *gin.Context) {
 
 	response, err := h.authService.CreateLoginResponse(user, ipAddress, userAgent)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, utils.ErrorResponse("Failed to generate tokens", err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate tokens", "code": "INTERNAL_SERVER_ERROR"})
 		return
 	}
 

@@ -18,9 +18,6 @@ export class AdminClient {
     this.adminToken = config.adminToken;
   }
 
-  public async init(): Promise<void> {
-    // Initialization logic
-  }
 
   private async fetchApi<T>(path: string, options: RequestInit = {}): Promise<ApiResponse<T>> {
     const headers = new Headers(options.headers || {});

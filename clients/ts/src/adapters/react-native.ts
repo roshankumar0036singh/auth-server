@@ -13,7 +13,13 @@ import { StorageAdapter } from '../types';
  *   storageAdapter: createReactNativeAdapter(AsyncStorage)
  * });
  */
-export const createReactNativeAdapter = (asyncStorageInstance: any): StorageAdapter => {
+export interface AsyncStorageLike {
+  getItem(key: string): Promise<string | null>;
+  setItem(key: string, value: string): Promise<void>;
+  removeItem(key: string): Promise<void>;
+}
+
+export const createReactNativeAdapter = (asyncStorageInstance: AsyncStorageLike): StorageAdapter => {
   return {
     getItem: async (key: string) => {
       return await asyncStorageInstance.getItem(key);

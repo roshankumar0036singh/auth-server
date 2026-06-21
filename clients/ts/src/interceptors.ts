@@ -33,6 +33,8 @@ export const createFetchInterceptor = (authClient: AuthClient, originalFetch: ty
         }
       } catch (err) {
         // Refresh failed, original 401 response will be returned
+        // We intentionally swallow the error here because authClient.refresh()
+        // already emits error events internally for observability.
         console.warn('Token refresh failed during interceptor retry:', err);
       }
     }

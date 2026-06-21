@@ -118,3 +118,20 @@ func (r *UserRepository) UnlockUser(userID string) error {
 
 	return nil
 }
+
+// LoadPasskeys loads WebAuthn credentials for a user
+func (r *UserRepository) LoadPasskeys(user *models.User) error {
+	return r.db.Model(user).Association("Passkeys").Find(&user.Passkeys)
+}
+
+// CreateWebAuthnCredential creates a new passkey
+func (r *UserRepository) CreateWebAuthnCredential(cred *models.WebAuthnCredential) error {
+	return r.db.Create(cred).Error
+}
+
+// UpdateWebAuthnCredentialData updates the data field of a passkey
+func (r *UserRepository) UpdateWebAuthnCredentialData(credentialID string, data models.JSONB) error {
+	return r.db.Model(&models.WebAuthnCredential{}).
+		Where("credential_id = ?", credentialID).
+		Update("data", data).Error
+}
