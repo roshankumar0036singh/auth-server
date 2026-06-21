@@ -1,7 +1,6 @@
 import { AxiosInstance, InternalAxiosRequestConfig } from 'axios';
 import { AuthClient } from './AuthClient';
 
-// 1. Fix: Augment Axios types so TypeScript recognizes our custom '_retry' flag
 declare module 'axios' {
   export interface InternalAxiosRequestConfig {
     _retry?: boolean;
@@ -13,7 +12,6 @@ interface FailedRequestQueueItem {
   reject: (error: any) => void;
 }
 
-// 3. Fix: Added explicit return type declaration ': () => void' for cleanup
 export function createAuthInterceptor(axiosInstance: AxiosInstance, authClient: AuthClient): () => void {
   let isRefreshing = false;
   let failedQueue: FailedRequestQueueItem[] = [];
@@ -22,17 +20,15 @@ export function createAuthInterceptor(axiosInstance: AxiosInstance, authClient: 
     failedQueue.forEach((promise) => {
       if (error) {
         promise.reject(error);
-      } else if (token != null) { // 2. Fix: Ensure checking strict null/undefined
+      } else if (typeof token === 'string' && token.length > 0) { // Fix L25: Avoids unexpected negated condition
         promise.resolve(token);
       } else {
-        // 2. Fix: Prevent promises from hanging if refresh returns empty
         promise.reject(new Error('Token refresh succeeded but no access token returned'));
       }
     });
     failedQueue = [];
   };
 
-  // 3. Fix: Capture the unique Interceptor ID
   const requestInterceptorId = axiosInstance.interceptors.request.use(
     (config) => {
       const token = authClient.getAccessToken(); 
@@ -41,10 +37,9 @@ export function createAuthInterceptor(axiosInstance: AxiosInstance, authClient: 
       }
       return config;
     },
-    (error) => Promise.reject(error)
+    (error) => Promise.reject(error) // Left as-is: This isn't an async function, so Promise.reject is correct here
   );
 
-  // 3. Fix: Capture the unique Interceptor ID
   const responseInterceptorId = axiosInstance.interceptors.response.use(
     (response) => response,
     async (error) => {
@@ -73,7 +68,6 @@ export function createAuthInterceptor(axiosInstance: AxiosInstance, authClient: 
           const session = await authClient.refresh(); 
           const newAccessToken = session.accessToken;
 
-          // 2. Fix: Defensive guard clause for the returned token
           if (!newAccessToken) {
             throw new Error('Token refresh succeeded but no access token returned');
           }
@@ -87,17 +81,16 @@ export function createAuthInterceptor(axiosInstance: AxiosInstance, authClient: 
         } catch (refreshError) {
           processQueue(refreshError, null);
           await authClient.logout();
-          return Promise.reject(refreshError);
+          throw refreshError; // Fix L90: Prefer 'throw error' over 'return Promise.reject' inside async blocks
         } finally {
           isRefreshing = false;
         }
       }
 
-      return Promise.reject(error);
+      throw error; // Fix L96: Prefer 'throw error' over 'return Promise.reject' inside async blocks
     }
   );
 
-  // 3. Fix: Return an executable eject/cleanup function for SPAs and testing
   return () => {
     axiosInstance.interceptors.request.eject(requestInterceptorId);
     axiosInstance.interceptors.response.eject(responseInterceptorId);
