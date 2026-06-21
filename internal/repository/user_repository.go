@@ -30,7 +30,7 @@ func (r *UserRepository) GetUsers(limit, offset int) (models.PaginatedUsers, err
 	}
 
 	if err := query.
-		Order("createdAt DESC").
+		Order("created_at DESC").
 		Limit(limit).
 		Offset(offset).
 		Find(&users).Error; err != nil {
@@ -155,7 +155,7 @@ func (r *UserRepository) CreateWebAuthnCredential(cred *models.WebAuthnCredentia
 }
 
 // UpdateWebAuthnCredentialData updates the data field of a passkey
-func (r *UserRepository) UpdateWebAuthnCredentialData(credentialID string, data models.JSONB) error {
+func (r *UserRepository) UpdateWebAuthnCredentialData(credentialID []byte, data models.JSONB) error {
 	return r.db.Model(&models.WebAuthnCredential{}).
 		Where("credential_id = ?", credentialID).
 		Update("data", data).Error

@@ -249,6 +249,15 @@ describe('AuthClient', () => {
 
       await expect(client.registerPasskey()).resolves.toBeUndefined();
       expect(mockCreate).toHaveBeenCalled();
+
+      const finishCall = mockFetch.mock.calls[1];
+      expect(finishCall[0]).toBe('https://auth.example.com/api/auth/webauthn/register/finish/mock-session-id');
+      const body = JSON.parse(finishCall[1].body);
+      expect(body.id).toBe('dGVzdC1pZA');
+      expect(body.rawId).toBe('AAAAAAAAAAAAAAAAAAAAAA');
+      expect(body.type).toBe('public-key');
+      expect(body.response.clientDataJSON).toBe('AAAAAAAAAAAAAAAAAAAAAA');
+      expect(body.response.attestationObject).toBe('AAAAAAAAAAAAAAAAAAAAAA');
     });
 
     it('requireStepUp resolves successfully when WebAuthn succeeds', async () => {
@@ -292,6 +301,17 @@ describe('AuthClient', () => {
 
       await expect(client.requireStepUp()).resolves.toBe(true);
       expect(mockGet).toHaveBeenCalled();
+
+      const finishCall = mockFetch.mock.calls[1];
+      expect(finishCall[0]).toBe('https://auth.example.com/api/auth/webauthn/login/finish/mock-session-id');
+      const body = JSON.parse(finishCall[1].body);
+      expect(body.id).toBe('dGVzdC1pZA');
+      expect(body.rawId).toBe('AAAAAAAAAAAAAAAAAAAAAA');
+      expect(body.type).toBe('public-key');
+      expect(body.response.authenticatorData).toBe('AAAAAAAAAAAAAAAAAAAAAA');
+      expect(body.response.clientDataJSON).toBe('AAAAAAAAAAAAAAAAAAAAAA');
+      expect(body.response.signature).toBe('AAAAAAAAAAAAAAAAAAAAAA');
+      expect(body.response.userHandle).toBe('AAAAAAAAAAAAAAAAAAAAAA');
     });
   });
 });

@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -28,7 +29,7 @@ func (h *WebAuthnHandler) BeginRegistration(c *gin.Context) {
 
 	options, sessionID, err := h.webAuthnService.BeginRegistration(c.Request.Context(), userID.(string))
 	if err != nil {
-		if err == service.ErrUserNotFound {
+		if errors.Is(err, service.ErrUserNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "User not found", "code": "USER_NOT_FOUND"})
 			return
 		}
@@ -80,7 +81,7 @@ func (h *WebAuthnHandler) BeginLogin(c *gin.Context) {
 
 	options, sessionID, err := h.webAuthnService.BeginLogin(c.Request.Context(), req.Email)
 	if err != nil {
-		if err == service.ErrUserNotFound {
+		if errors.Is(err, service.ErrUserNotFound) {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid credentials", "code": "UNAUTHORIZED"})
 			return
 		}

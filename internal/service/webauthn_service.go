@@ -14,7 +14,6 @@ import (
 	"github.com/roshankumar0036singh/auth-server/internal/config"
 	"github.com/roshankumar0036singh/auth-server/internal/models"
 	"github.com/roshankumar0036singh/auth-server/internal/repository"
-	"gorm.io/gorm"
 )
 
 type WebAuthnService struct {
@@ -24,7 +23,7 @@ type WebAuthnService struct {
 	cacheService *CacheService
 }
 
-func NewWebAuthnService(cfg *config.Config, userRepo *repository.UserRepository, cacheService *CacheService, db *gorm.DB) (*WebAuthnService, error) {
+func NewWebAuthnService(cfg *config.Config, userRepo *repository.UserRepository, cacheService *CacheService) (*WebAuthnService, error) {
 	wconfig := &webauthn.Config{
 		RPDisplayName: cfg.WebAuthn.RPDisplayName,
 		RPID:          cfg.WebAuthn.RPID,
@@ -79,11 +78,11 @@ func (s *WebAuthnService) FinishRegistration(ctx context.Context, userID string,
 		return nil, err
 	}
 
-	userID, sessionData, err := s.cacheService.ConsumeWebAuthnSession(ctx, sessionID)
+	sessionUserID, sessionData, err := s.cacheService.ConsumeWebAuthnSession(ctx, sessionID)
 	if err != nil {
 		return nil, fmt.Errorf("invalid or expired registration session")
 	}
-	if userID != user.ID {
+	if sessionUserID != user.ID {
 		return nil, fmt.Errorf("session user mismatch")
 	}
 
@@ -164,7 +163,7 @@ func (s *WebAuthnService) FinishLogin(ctx context.Context, sessionID string, r *
 	}
 
 	// Update the data blob
-	if err := s.userRepo.UpdateWebAuthnCredentialData(string(credential.ID), modelCred.Data); err != nil {
+	if err := s.userRepo.UpdateWebAuthnCredentialData(credential.ID, modelCred.Data); err != nil {
 		log.Printf("failed to update webauthn signCount for credential %s: %v", credential.ID, err)
 	}
 
