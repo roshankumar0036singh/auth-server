@@ -780,6 +780,7 @@ func (s *AuthService) RefreshAccessToken(refreshTokenString string, ipAddress, u
 	ctx := context.Background()
 	lockKey := "refresh_lock:" + refreshTokenString
 
+	lockAcquired := false
 	// Attempt to handle concurrent requests
 	for i := 0; i < 50; i++ {
 		acquired, err := s.cacheService.AcquireLock(ctx, lockKey, 10*time.Second)
@@ -788,6 +789,7 @@ func (s *AuthService) RefreshAccessToken(refreshTokenString string, ipAddress, u
 		}
 
 		if acquired {
+			lockAcquired = true
 			defer s.cacheService.ReleaseLock(ctx, lockKey)
 			break
 		}
@@ -801,6 +803,10 @@ func (s *AuthService) RefreshAccessToken(refreshTokenString string, ipAddress, u
 			log.Printf("Grace period: returning cached concurrent refresh response")
 			return cachedResp, nil
 		}
+	}
+
+	if !lockAcquired {
+		return nil, errors.New("unable to acquire refresh token lock")
 	}
 
 	storedToken, userID, isGrace, err := s.verifyRefreshTokenState(ctx, refreshTokenString, ipAddress, userAgent)
