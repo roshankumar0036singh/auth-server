@@ -1,9 +1,20 @@
 # Changelog
 
-All notable changes to this project will be documented in this file.
+## [2.0.0] - 2026-06-21
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+### Changed
+- **BREAKING**: `AdminClient.listUsers()` now returns a paginated structure containing `{ users, meta }` instead of a flat array of users.
+- **BREAKING**: `AuthClient.completeOAuthRedirect()` is now `async` and returns a `Promise<Session | null>`. Callers must `await` it.
+- **BREAKING**: The `StorageAdapter` interface now requires `getItem`, `setItem`, and `removeItem` to return `Promise`s.
+
+**Migration Guide**:
+```typescript
+// Old
+const users = await admin.listUsers();
+
+// New
+const { users } = await admin.listUsers();
+```
 
 ## [1.0.5] - 2026-06-19
 

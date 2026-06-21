@@ -435,7 +435,7 @@ func (s *AuthService) VerifyLoginMFA(mfaToken, code, ipAddress, userAgent string
 
 	s.cacheService.ResetMFAAttempts(ctx, userID)
 
-	response, err := s.createLoginResponse(user, ipAddress, userAgent)
+	response, err := s.CreateLoginResponse(user, ipAddress, userAgent)
 	if err != nil {
 		return nil, err
 	}
@@ -582,6 +582,10 @@ func (s *AuthService) Login(req *dto.LoginRequest, ipAddress, userAgent string) 
 		return nil, errors.New("invalid email or password")
 	}
 
+	return s.ProcessPostLogin(ctx, user, ipAddress, userAgent, false)
+}
+
+func (s *AuthService) ProcessPostLogin(ctx context.Context, user *models.User, ipAddress, userAgent string, skipMFA bool) (*dto.LoginResponse, error) {
 	// Reset failed attempts on successful login
 	if user.FailedLoginAttempts > 0 || user.LockedUntil != nil {
 		s.userRepo.Update(user.ID, map[string]interface{}{
@@ -591,17 +595,15 @@ func (s *AuthService) Login(req *dto.LoginRequest, ipAddress, userAgent string) 
 	}
 
 	// Reset Redis attempts too
-	s.cacheService.ResetLoginAttempts(ctx, req.Email)
+	s.cacheService.ResetLoginAttempts(ctx, user.Email)
 
 	// Check if user is active
 	if !user.IsActive {
 		return nil, errors.New("account is deactivated")
 	}
 
-	// Check MFA. The password step has succeeded; issue a short-lived
-	// MFA-pending token the client must present to /login/mfa. No access or
-	// refresh token is issued until the MFA code is verified.
-	if user.MFAEnabled {
+	// Check MFA
+	if user.MFAEnabled && !skipMFA {
 		mfaToken, err := s.tokenService.GenerateMFAToken(user.ID)
 		if err != nil {
 			return nil, err
@@ -614,7 +616,7 @@ func (s *AuthService) Login(req *dto.LoginRequest, ipAddress, userAgent string) 
 		log.Printf("Failed to update last login for user %s: %v", user.ID, err)
 	}
 
-	response, err := s.createLoginResponse(user, ipAddress, userAgent)
+	response, err := s.CreateLoginResponse(user, ipAddress, userAgent)
 	if err != nil {
 		return nil, err
 	}
@@ -670,7 +672,7 @@ func (s *AuthService) LoginWithOAuth(email, oauthID, firstName, lastName, provid
 		}
 	}
 
-	response, err := s.createLoginResponse(user, ipAddress, userAgent)
+	response, err := s.CreateLoginResponse(user, ipAddress, userAgent)
 	if err != nil {
 		return nil, err
 	}
@@ -1080,7 +1082,7 @@ func (s *AuthService) UnlockUser(userID, adminID, ipAddress, userAgent string) e
 	return nil
 }
 
-func (s *AuthService) createLoginResponse(
+func (s *AuthService) CreateLoginResponse(
 	user *models.User,
 	ipAddress string,
 	userAgent string,
