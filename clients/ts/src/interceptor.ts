@@ -1,12 +1,20 @@
-import { AxiosInstance } from 'axios';
+import { AxiosInstance, InternalAxiosRequestConfig } from 'axios';
 import { AuthClient } from './AuthClient';
+
+// 1. Fix: Augment Axios types so TypeScript recognizes our custom '_retry' flag
+declare module 'axios' {
+  export interface InternalAxiosRequestConfig {
+    _retry?: boolean;
+  }
+}
 
 interface FailedRequestQueueItem {
   resolve: (token: string) => void;
   reject: (error: any) => void;
 }
 
-export function createAuthInterceptor(axiosInstance: AxiosInstance, authClient: AuthClient) {
+// 3. Fix: Added explicit return type declaration ': () => void' for cleanup
+export function createAuthInterceptor(axiosInstance: AxiosInstance, authClient: AuthClient): () => void {
   let isRefreshing = false;
   let failedQueue: FailedRequestQueueItem[] = [];
 
@@ -14,15 +22,18 @@ export function createAuthInterceptor(axiosInstance: AxiosInstance, authClient: 
     failedQueue.forEach((promise) => {
       if (error) {
         promise.reject(error);
-      } else if (token) {
+      } else if (token != null) { // 2. Fix: Ensure checking strict null/undefined
         promise.resolve(token);
+      } else {
+        // 2. Fix: Prevent promises from hanging if refresh returns empty
+        promise.reject(new Error('Token refresh succeeded but no access token returned'));
       }
     });
     failedQueue = [];
   };
 
-  // 1. Request Interceptor: Attach the current token to outgoing requests
-  axiosInstance.interceptors.request.use(
+  // 3. Fix: Capture the unique Interceptor ID
+  const requestInterceptorId = axiosInstance.interceptors.request.use(
     (config) => {
       const token = authClient.getAccessToken(); 
       if (token && config.headers) {
@@ -33,13 +44,13 @@ export function createAuthInterceptor(axiosInstance: AxiosInstance, authClient: 
     (error) => Promise.reject(error)
   );
 
-  // 2. Response Interceptor: Catch 401 errors and handle seamless token refreshes
-  axiosInstance.interceptors.response.use(
+  // 3. Fix: Capture the unique Interceptor ID
+  const responseInterceptorId = axiosInstance.interceptors.response.use(
     (response) => response,
     async (error) => {
-      const originalRequest = error.config;
+      const originalRequest = error.config as InternalAxiosRequestConfig;
 
-      if (error.response?.status === 401 && !originalRequest._retry) {
+      if (error.response?.status === 401 && originalRequest && !originalRequest._retry) {
         
         if (isRefreshing) {
           return new Promise((resolve, reject) => {
@@ -59,9 +70,13 @@ export function createAuthInterceptor(axiosInstance: AxiosInstance, authClient: 
         isRefreshing = true;
 
         try {
-          // Hits your AuthClient's deduplicated refresh route
           const session = await authClient.refresh(); 
           const newAccessToken = session.accessToken;
+
+          // 2. Fix: Defensive guard clause for the returned token
+          if (!newAccessToken) {
+            throw new Error('Token refresh succeeded but no access token returned');
+          }
 
           processQueue(null, newAccessToken);
 
@@ -81,4 +96,10 @@ export function createAuthInterceptor(axiosInstance: AxiosInstance, authClient: 
       return Promise.reject(error);
     }
   );
+
+  // 3. Fix: Return an executable eject/cleanup function for SPAs and testing
+  return () => {
+    axiosInstance.interceptors.request.eject(requestInterceptorId);
+    axiosInstance.interceptors.response.eject(responseInterceptorId);
+  };
 }
