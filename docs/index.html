@@ -531,11 +531,15 @@
         // expiry countdown shown to the user.
         function getTokenExpiryMs(accessToken) {
             try {
-                const payload = accessToken.split(".")[1];
-                const json = atob(payload.replace(/-/g, "+").replace(/_/g, "/"));
-                const claims = JSON.parse(json);
+                let base64 = accessToken.split(".")[1].replaceAll("-", "+").replaceAll("_", "/");
+                // JWT payloads are unpadded base64url; pad so atob() works everywhere.
+                while (base64.length % 4 !== 0) {
+                    base64 += "=";
+                }
+                const claims = JSON.parse(atob(base64));
                 return typeof claims.exp === "number" ? claims.exp * 1000 : null;
-            } catch (error) {
+            } catch {
+                // Malformed token: skip the expiry display rather than fail login.
                 return null;
             }
         }
@@ -669,7 +673,7 @@
                 setSwaggerLoginStatus("Start by entering your email and password", "error");
                 return;
             }
-            if (!code) {
+            if (!/^\d{6}$/.test(code)) {
                 setSwaggerLoginStatus("Enter the 6-digit MFA code", "error");
                 return;
             }

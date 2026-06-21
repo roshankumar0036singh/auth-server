@@ -18,17 +18,31 @@ func readSwaggerIndex(t *testing.T) string {
 	return string(content)
 }
 
-// extractInlineScript returns the body of the page's inline <script> block (the
-// one without a src attribute that holds the login logic).
+// extractInlineScript returns the body of the inline <script> block that holds
+// the login logic. It scans every script block rather than assuming a position,
+// so reordering or adding scripts cannot make it silently grab the wrong one.
 func extractInlineScript(t *testing.T, html string) string {
 	t.Helper()
-	const open = "<script>"
-	start := strings.Index(html, open)
-	require.NotEqual(t, -1, start, "inline <script> block not found")
-	start += len(open)
-	end := strings.Index(html[start:], "</script>")
-	require.NotEqual(t, -1, end, "closing </script> not found")
-	return html[start : start+end]
+	const marker = "handleSwaggerLogin"
+	rest := html
+	for {
+		open := strings.Index(rest, "<script")
+		if open == -1 {
+			break
+		}
+		gt := strings.Index(rest[open:], ">")
+		require.NotEqual(t, -1, gt, "unterminated <script> tag")
+		bodyStart := open + gt + 1
+		end := strings.Index(rest[bodyStart:], "</script>")
+		require.NotEqual(t, -1, end, "closing </script> not found")
+		body := rest[bodyStart : bodyStart+end]
+		if strings.Contains(body, marker) {
+			return body
+		}
+		rest = rest[bodyStart+end+len("</script>"):]
+	}
+	t.Fatalf("inline <script> block containing %q not found", marker)
+	return ""
 }
 
 func TestSwaggerIndexProvidesNativeLogin(t *testing.T) {
