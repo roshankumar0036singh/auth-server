@@ -1,6 +1,9 @@
 package testutils
 
 import (
+	"crypto/rand"
+	"crypto/rsa"
+	"sync"
 	"testing"
 
 	"github.com/alicebob/miniredis/v2"
@@ -13,6 +16,24 @@ import (
 	"github.com/stretchr/testify/assert"
 	"gorm.io/gorm"
 )
+
+var (
+	testPrivKey *rsa.PrivateKey
+	testPubKey  *rsa.PublicKey
+	testKeyOnce sync.Once
+)
+
+func GetTestRSAKeys(t *testing.T) (*rsa.PrivateKey, *rsa.PublicKey) {
+	testKeyOnce.Do(func() {
+		var err error
+		testPrivKey, err = rsa.GenerateKey(rand.Reader, 2048)
+		if err != nil {
+			t.Fatalf("Failed to generate test RSA key: %v", err)
+		}
+		testPubKey = &testPrivKey.PublicKey
+	})
+	return testPrivKey, testPubKey
+}
 
 // MockEmailSender
 type MockEmailSender struct {
@@ -109,8 +130,9 @@ func SetupIntegrationTest(t *testing.T) (*service.AuthService, *gorm.DB, *minire
 	auditRepo := repository.NewAuditRepository(db)
 
 	// 4. Services
+	priv, pub := GetTestRSAKeys(t)
 	cfg := &config.Config{
-		JWT:      config.JWTConfig{AccessSecret: "secret", RefreshSecret: "refresh"},
+		JWT:      config.JWTConfig{PrivateKey: priv, PublicKey: pub, KeyID: "test-key"},
 		Security: config.SecurityConfig{RateLimitMax: 10, RateLimitWindow: 60},
 		App:      config.AppConfig{URL: "http://localhost"},
 	}

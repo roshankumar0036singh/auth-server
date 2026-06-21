@@ -18,9 +18,10 @@ import (
 
 // testCfg mirrors the secrets used by testutils.SetupIntegrationTest so a
 // TokenService built here produces tokens the integration AuthService accepts.
-func testCfg() *config.Config {
+func testCfg(t *testing.T) *config.Config {
+	priv, pub := testutils.GetTestRSAKeys(t)
 	return &config.Config{
-		JWT:      config.JWTConfig{AccessSecret: "secret", RefreshSecret: "refresh"},
+		JWT:      config.JWTConfig{PrivateKey: priv, PublicKey: pub, KeyID: "test-key"},
 		Security: config.SecurityConfig{RateLimitMax: 10, EncryptionKey: "12345678901234567890123456789012"},
 		App:      config.AppConfig{URL: "http://localhost"},
 	}
@@ -37,8 +38,8 @@ func newProviderService(t *testing.T) (*service.OAuthProviderService, *repositor
 		tokenRepo,
 		repository.NewUserConsentRepository(db),
 		repository.NewOAuthProviderConfigRepository(db),
-		service.NewTokenService(testCfg()),
-		testCfg(),
+		service.NewTokenService(testCfg(t)),
+		testCfg(t),
 	)
 	return ps, tokenRepo
 }

@@ -23,6 +23,26 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
+        "/.well-known/jwks.json": {
+            "get": {
+                "description": "Returns the public keys used to verify JWTs issued by this server",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "OpenID Connect"
+                ],
+                "summary": "Get JSON Web Key Set",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_dto.JWKSResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/admin/users": {
             "get": {
                 "security": [
@@ -1402,6 +1422,46 @@ const docTemplate = `{
             "properties": {
                 "email": {
                     "type": "string"
+                }
+            }
+        },
+        "github_com_roshankumar0036singh_auth-server_internal_dto.JWK": {
+            "type": "object",
+            "properties": {
+                "alg": {
+                    "description": "Algorithm",
+                    "type": "string"
+                },
+                "e": {
+                    "description": "Exponent (Base64url encoded)",
+                    "type": "string"
+                },
+                "kid": {
+                    "description": "Key ID",
+                    "type": "string"
+                },
+                "kty": {
+                    "description": "Key Type",
+                    "type": "string"
+                },
+                "n": {
+                    "description": "Modulus (Base64url encoded)",
+                    "type": "string"
+                },
+                "use": {
+                    "description": "Public Key Use (e.g., \"sig\")",
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_roshankumar0036singh_auth-server_internal_dto.JWKSResponse": {
+            "type": "object",
+            "properties": {
+                "keys": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_dto.JWK"
+                    }
                 }
             }
         },
