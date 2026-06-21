@@ -776,6 +776,30 @@ func (s *AuthService) revokeRefreshTokenFamily(storedToken *models.RefreshToken,
 // RefreshAccessToken generates a new access token using refresh token with rotation
 func (s *AuthService) RefreshAccessToken(refreshTokenString string, ipAddress, userAgent string) (*dto.TokenRefreshResponse, error) {
 	ctx := context.Background()
+	lockKey := "refresh_lock:" + refreshTokenString
+
+	// Attempt to handle concurrent requests
+	for i := 0; i < 50; i++ {
+		acquired, err := s.cacheService.AcquireLock(ctx, lockKey, 10*time.Second)
+		if err != nil {
+			return nil, err
+		}
+
+		if acquired {
+			defer s.cacheService.ReleaseLock(ctx, lockKey)
+			break
+		}
+
+		// We didn't get the lock, meaning another request is currently refreshing this token.
+		// Sleep briefly, then check if it finished and cached the response.
+		time.Sleep(100 * time.Millisecond)
+
+		cachedResp, err := s.cacheService.GetCachedRefreshResponse(ctx, refreshTokenString)
+		if err == nil && cachedResp != nil {
+			log.Printf("Grace period: returning cached concurrent refresh response")
+			return cachedResp, nil
+		}
+	}
 
 	storedToken, userID, isGrace, err := s.verifyRefreshTokenState(ctx, refreshTokenString, ipAddress, userAgent)
 	if err != nil {
@@ -786,6 +810,18 @@ func (s *AuthService) RefreshAccessToken(refreshTokenString string, ipAddress, u
 	user, err := s.userRepo.FindByID(userID)
 	if err != nil {
 		return nil, ErrUserNotFound
+	}
+
+	if isGrace {
+		newAccessToken, err := s.tokenService.GenerateAccessToken(user, storedToken.ID)
+		if err != nil {
+			return nil, errors.New(errGenAccessToken)
+		}
+
+		return &dto.TokenRefreshResponse{
+			AccessToken:  newAccessToken,
+			RefreshToken: storedToken.Token,
+		}, nil
 	}
 
 	// Token rotation: Generate new refresh token
@@ -804,18 +840,6 @@ func (s *AuthService) RefreshAccessToken(refreshTokenString string, ipAddress, u
 		UserAgent: userAgent,
 	}
 
-	if isGrace {
-		newAccessToken, err := s.tokenService.GenerateAccessToken(user, storedToken.ID)
-		if err != nil {
-			return nil, errors.New(errGenAccessToken)
-		}
-
-		return &dto.TokenRefreshResponse{
-			AccessToken:  newAccessToken,
-			RefreshToken: storedToken.Token,
-		}, nil
-	}
-
 	// Generate new access token
 	newAccessToken, err := s.tokenService.GenerateAccessToken(user, newRefreshToken.ID)
 	if err != nil {
@@ -830,10 +854,17 @@ func (s *AuthService) RefreshAccessToken(refreshTokenString string, ipAddress, u
 		return nil, errors.New("failed to rotate refresh token")
 	}
 
-	return &dto.TokenRefreshResponse{
+	response := &dto.TokenRefreshResponse{
 		AccessToken:  newAccessToken,
 		RefreshToken: newRefreshTokenString,
-	}, nil
+	}
+
+	// Cache the response so concurrent requests can use it (30s TTL)
+	if err := s.cacheService.CacheRefreshResponse(ctx, refreshTokenString, response, 30*time.Second); err != nil {
+		log.Printf("Warning: failed to cache refresh response: %v", err)
+	}
+
+	return response, nil
 }
 
 // Logout revokes the refresh token and blacklists the access token
