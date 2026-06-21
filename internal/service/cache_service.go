@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/go-redis/redis/v8"
+	"github.com/roshankumar0036singh/auth-server/internal/dto"
 	"github.com/go-webauthn/webauthn/webauthn"
 )
 
@@ -164,4 +165,42 @@ func (s *CacheService) AllowRequest(ctx context.Context, key string, limit int, 
 	}
 
 	return count <= int64(limit), nil
+}
+
+// AcquireLock attempts to acquire a distributed lock using SET NX
+func (s *CacheService) AcquireLock(ctx context.Context, key string, expiration time.Duration) (bool, error) {
+	// SET key value EX expiration NX
+	// Returns true if key was set (lock acquired), false if key already exists
+	return s.client.SetNX(ctx, key, "1", expiration).Result()
+}
+
+// ReleaseLock removes the distributed lock
+func (s *CacheService) ReleaseLock(ctx context.Context, key string) error {
+	return s.client.Del(ctx, key).Err()
+}
+
+// CacheRefreshResponse stores the token refresh response in Redis
+func (s *CacheService) CacheRefreshResponse(ctx context.Context, key string, response *dto.TokenRefreshResponse, expiration time.Duration) error {
+	data, err := json.Marshal(response)
+	if err != nil {
+		return err
+	}
+	return s.client.Set(ctx, "refresh_grace:"+key, data, expiration).Err()
+}
+
+// GetCachedRefreshResponse retrieves a cached token refresh response from Redis
+func (s *CacheService) GetCachedRefreshResponse(ctx context.Context, key string) (*dto.TokenRefreshResponse, error) {
+	data, err := s.client.Get(ctx, "refresh_grace:"+key).Bytes()
+	if err == redis.Nil {
+		return nil, nil // Not found
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	var response dto.TokenRefreshResponse
+	if err := json.Unmarshal(data, &response); err != nil {
+		return nil, err
+	}
+	return &response, nil
 }

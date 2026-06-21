@@ -2,6 +2,7 @@ package service_test
 
 import (
 	"errors"
+	"sync"
 	"testing"
 	"time"
 
@@ -500,4 +501,69 @@ func TestAuthService_RefreshAccessToken_GracePeriod_ConcurrentRotation_Integrati
 	err = db.Model(&models.RefreshToken{}).Where("user_id = ? AND is_revoked = ?", user.ID, false).Count(&activeCount).Error
 	assert.NoError(t, err)
 	assert.Equal(t, int64(0), activeCount)
+}
+
+// Test race condition by spawning multiple goroutines simultaneously
+func TestAuthService_RefreshAccessToken_RaceCondition_Integration(t *testing.T) {
+	authService, db, mr := testutils.SetupIntegrationTest(t)
+	defer mr.Close()
+
+	authService.SetRefreshTokenGracePeriod("30s")
+
+	user, loginResp := setupTestUserAndLogin(t, authService, "race@example.com", "Race")
+
+	var wg sync.WaitGroup
+	numRequests := 5
+
+	responses := make([]*dto.TokenRefreshResponse, numRequests)
+	errorsList := make([]error, numRequests)
+
+	// Barrier to try and synchronize the start of goroutines
+	startBarrier := make(chan struct{})
+
+	for i := 0; i < numRequests; i++ {
+		wg.Add(1)
+		go func(idx int) {
+			defer wg.Done()
+			<-startBarrier // Wait for the barrier to close
+			resp, err := authService.RefreshAccessToken(loginResp.RefreshToken, "127.0.0.1", "UserAgent")
+			responses[idx] = resp
+			errorsList[idx] = err
+		}(i)
+	}
+
+	// Release the hounds
+	close(startBarrier)
+	wg.Wait()
+
+	// Assertions
+	var successCount int
+	var firstSuccessResponse *dto.TokenRefreshResponse
+
+	for i := 0; i < numRequests; i++ {
+		if errorsList[i] == nil {
+			successCount++
+			if firstSuccessResponse == nil {
+				firstSuccessResponse = responses[i]
+			} else {
+				// All successful responses MUST return the EXACT same tokens
+				assert.Equal(t, firstSuccessResponse.AccessToken, responses[i].AccessToken, "Concurrent requests should return identical access tokens")
+				assert.Equal(t, firstSuccessResponse.RefreshToken, responses[i].RefreshToken, "Concurrent requests should return identical refresh tokens")
+			}
+		} else {
+			t.Logf("Request %d failed: %v", i, errorsList[i])
+		}
+	}
+
+	// All 5 should succeed thanks to the lock and cache
+	assert.Equal(t, numRequests, successCount, "All concurrent requests should succeed seamlessly")
+
+	// Ensure exactly 1 active refresh token exists in DB for this family
+	var activeTokens []models.RefreshToken
+	err := db.Where("user_id = ? AND is_revoked = ?", user.ID, false).Find(&activeTokens).Error
+	assert.NoError(t, err)
+	assert.Len(t, activeTokens, 1, "Only one new token should be created in the database")
+
+	// Ensure the returned refresh token matches the one in DB
+	assert.Equal(t, firstSuccessResponse.RefreshToken, activeTokens[0].Token, "Returned refresh token should match the active DB token")
 }
