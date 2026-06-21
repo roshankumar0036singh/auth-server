@@ -1,6 +1,7 @@
 package routes
 
 import (
+	"log"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -65,6 +66,13 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, redisClient *redis.Client, cfg
 		tokenService,
 		cfg,
 	)
+
+	// WebAuthn service and handler
+	webAuthnService, err := service.NewWebAuthnService(cfg, userRepo, cacheService)
+	if err != nil {
+		log.Fatalf("Failed to initialize WebAuthn service: %v", err)
+	}
+	webAuthnHandler := handler.NewWebAuthnHandler(webAuthnService, authService)
 
 	// Initialize handlers
 	authHandler := handler.NewAuthHandler(authService, oauthService, oauthProviderService)
@@ -144,6 +152,10 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, redisClient *redis.Client, cfg
 			auth.POST("/forgot-password", authHandler.ForgotPassword)
 			auth.POST("/reset-password", authHandler.ResetPassword)
 
+			// WebAuthn Login
+			auth.POST("/webauthn/login/begin", webAuthnHandler.BeginLogin)
+			auth.POST("/webauthn/login/finish/:session_id", webAuthnHandler.FinishLogin)
+
 			// OAuth Routes
 			auth.GET("/google/login", authHandler.GoogleLogin)
 			auth.GET("/google/callback", authHandler.GoogleCallback)
@@ -163,6 +175,10 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, redisClient *redis.Client, cfg
 				protected.POST("/password", authHandler.ChangePassword)
 				protected.DELETE("/me", authHandler.DeleteAccount)
 				protected.GET("/audit-logs", authHandler.GetAuditLogs)
+
+				// WebAuthn Registration
+				protected.POST("/webauthn/register/begin", webAuthnHandler.BeginRegistration)
+				protected.POST("/webauthn/register/finish/:session_id", webAuthnHandler.FinishRegistration)
 
 				// MFA Routes
 				protected.POST("/mfa/enable", authHandler.EnableMFA)

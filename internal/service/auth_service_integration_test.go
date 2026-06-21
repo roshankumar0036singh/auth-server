@@ -453,6 +453,7 @@ func TestAuthService_RefreshAccessToken_ReuseDetection_Integration(t *testing.T)
 	assert.NotEqual(t, loginResp.RefreshToken, refreshResp1.RefreshToken)
 
 	// 2. Second refresh attempt using the same original refresh token (reuse) should fail
+	time.Sleep(1 * time.Second) // Ensure time.Since > 0s (SQLite truncates to seconds)
 	_, err = authService.RefreshAccessToken(loginResp.RefreshToken, "127.0.0.1", "UserAgent")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid or expired refresh token")

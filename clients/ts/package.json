@@ -1,6 +1,6 @@
 {
   "name": "@authserver/client",
-  "version": "1.0.5",
+  "version": "2.0.0",
   "description": "Official TypeScript SDK for the Auth Server — auto token refresh, session persistence, React bindings",
   "main": "dist/index.js",
   "module": "dist/index.mjs",
@@ -32,11 +32,26 @@
       "types": "./dist/AdminClient.d.ts",
       "import": "./dist/AdminClient.mjs",
       "require": "./dist/AdminClient.js"
+    },
+    "./vue": {
+      "types": "./dist/vue/index.d.ts",
+      "import": "./dist/vue/index.mjs",
+      "require": "./dist/vue/index.js"
+    },
+    "./svelte": {
+      "types": "./dist/svelte/index.d.ts",
+      "import": "./dist/svelte/index.mjs",
+      "require": "./dist/svelte/index.js"
+    },
+    "./react-native": {
+      "types": "./dist/adapters/react-native.d.ts",
+      "import": "./dist/adapters/react-native.mjs",
+      "require": "./dist/adapters/react-native.js"
     }
   },
   "scripts": {
-    "build": "tsup src/index.ts src/react/index.tsx src/nextjs/index.ts src/AdminClient.ts --format cjs,esm --dts --clean",
-    "dev": "tsup src/index.ts src/react/index.tsx src/nextjs/index.ts src/AdminClient.ts --format cjs,esm --dts --watch",
+    "build": "tsup src/index.ts src/react/index.tsx src/nextjs/index.ts src/AdminClient.ts src/vue/index.ts src/svelte/index.ts src/adapters/react-native.ts --format cjs,esm --dts --clean",
+    "dev": "tsup src/index.ts src/react/index.tsx src/nextjs/index.ts src/AdminClient.ts src/vue/index.ts src/svelte/index.ts src/adapters/react-native.ts --format cjs,esm --dts --watch",
     "prepublishOnly": "npm run build",
     "test": "vitest run --environment jsdom"
   },
@@ -85,14 +100,19 @@
     "@types/react-dom": "^19.2.3",
     "@vitest/browser": "^4.1.9",
     "jsdom": "^29.1.1",
+    "svelte": "^5.56.3",
     "tsup": "^8.0.2",
     "typescript": "^5.4.5",
-    "vitest": "^4.1.9"
+    "vitest": "^4.1.9",
+    "vue": "^3.5.38"
   },
   "peerDependencies": {
     "next": ">=13.0.0",
     "react": ">=18.0.0",
-    "react-dom": ">=18.0.0"
+    "react-dom": ">=18.0.0",
+    "vue": ">=3.0.0",
+    "svelte": ">=4.0.0",
+    "@react-native-async-storage/async-storage": ">=1.17.0"
   },
   "peerDependenciesMeta": {
     "next": {
@@ -102,6 +122,15 @@
       "optional": true
     },
     "react-dom": {
+      "optional": true
+    },
+    "vue": {
+      "optional": true
+    },
+    "svelte": {
+      "optional": true
+    },
+    "@react-native-async-storage/async-storage": {
       "optional": true
     }
   }

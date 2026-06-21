@@ -93,6 +93,16 @@ func SetupIntegrationTest(t *testing.T) (*service.AuthService, *gorm.DB, *minire
         )`).Error
         assert.NoError(t, err)
 
+        err = db.Exec(`CREATE TABLE IF NOT EXISTS web_authn_credentials (
+            id TEXT PRIMARY KEY,
+            user_id TEXT NOT NULL,
+            credential_id BLOB UNIQUE NOT NULL,
+            data TEXT NOT NULL,
+            created_at DATETIME,
+            updated_at DATETIME
+        )`).Error
+        assert.NoError(t, err)
+
         // 2. Miniredis
 	mr, err := miniredis.Run()
 	assert.NoError(t, err)
