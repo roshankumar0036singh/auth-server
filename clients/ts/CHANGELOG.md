@@ -4,6 +4,8 @@
 
 ### Changed
 - **BREAKING**: `AdminClient.listUsers()` now returns a paginated structure containing `{ users, meta }` instead of a flat array of users.
+- **BREAKING**: `AuthClient.completeOAuthRedirect()` is now `async` and returns a `Promise<Session | null>`. Callers must `await` it.
+- **BREAKING**: The `StorageAdapter` interface now requires `getItem`, `setItem`, and `removeItem` to return `Promise`s.
 
 **Migration Guide**:
 ```typescript

@@ -106,7 +106,8 @@ export class AuthClient {
           refreshToken: session.refreshToken || undefined,
           user: session.user,
         });
-      } catch {
+      } catch (e) {
+        console.error("Failed to load session:", e);
         await storage.removeItem(this.storageKey);
       }
     }
@@ -361,7 +362,7 @@ export class AuthClient {
       const delay = this.retryDelay * Math.pow(2, attempt - 1);
       await new Promise(r => setTimeout(r, delay));
     }
-    throw new Error("Unreachable");
+    throw new AuthError("Max retries exceeded", "NETWORK_ERROR", 0);
   }
 
   private async handleUnauthorizedRetry(path: string, options: RequestInit, headers: Headers): Promise<Response> {
@@ -760,7 +761,7 @@ export class AuthClient {
       await this.saveSession(finishData.data);
       return true;
     } catch (e) {
-      console.error("Step up verification failed:", e);
+      this.log("Step up verification failed:", e);
       return false;
     }
   }

@@ -209,4 +209,89 @@ describe('AuthClient', () => {
       expect(base64urlDecode('YWJj')).toBe('abc');
     });
   });
+
+  describe('WebAuthn flows', () => {
+    it('registerPasskey resolves successfully when WebAuthn succeeds', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({
+          success: true,
+          data: {
+            options: {
+              publicKey: {
+                challenge: 'dGVzdC1jaGFsbGVuZ2U',
+                rp: { name: 'Test RP' },
+                user: { id: 'dGVzdC11c2Vy', name: 'user@test.com', displayName: 'User' },
+                pubKeyCredParams: [{ type: 'public-key', alg: -7 }]
+              }
+            },
+            session_id: 'mock-session-id'
+          }
+        })
+      });
+
+      // Mock navigator.credentials.create
+      const mockCreate = vi.fn().mockResolvedValue({
+        id: 'dGVzdC1pZA',
+        rawId: new ArrayBuffer(16),
+        type: 'public-key',
+        response: {
+          clientDataJSON: new ArrayBuffer(16),
+          attestationObject: new ArrayBuffer(16)
+        }
+      });
+      globalThis.navigator = { credentials: { create: mockCreate } } as any;
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ success: true, data: { id: 'mock-credential' } })
+      });
+
+      await expect(client.registerPasskey()).resolves.toBeUndefined();
+      expect(mockCreate).toHaveBeenCalled();
+    });
+
+    it('requireStepUp resolves successfully when WebAuthn succeeds', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({
+          success: true,
+          data: {
+            options: {
+              publicKey: {
+                challenge: 'dGVzdC1jaGFsbGVuZ2U',
+                allowCredentials: [{ id: 'dGVzdC1pZA', type: 'public-key' }]
+              }
+            },
+            session_id: 'mock-session-id'
+          }
+        })
+      });
+
+      // Mock navigator.credentials.get
+      const mockGet = vi.fn().mockResolvedValue({
+        id: 'dGVzdC1pZA',
+        rawId: new ArrayBuffer(16),
+        type: 'public-key',
+        response: {
+          authenticatorData: new ArrayBuffer(16),
+          clientDataJSON: new ArrayBuffer(16),
+          signature: new ArrayBuffer(16),
+          userHandle: new ArrayBuffer(16)
+        }
+      });
+      globalThis.navigator = { credentials: { get: mockGet } } as any;
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({
+          success: true,
+          data: { accessToken: 'new-token' }
+        })
+      });
+
+      await expect(client.requireStepUp()).resolves.toBe(true);
+      expect(mockGet).toHaveBeenCalled();
+    });
+  });
 });

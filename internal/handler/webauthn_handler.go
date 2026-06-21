@@ -110,7 +110,7 @@ func (h *WebAuthnHandler) FinishLogin(c *gin.Context) {
 	ipAddress := c.ClientIP()
 	userAgent := c.Request.UserAgent()
 
-	response, err := h.authService.CreateLoginResponse(user, ipAddress, userAgent)
+	response, err := h.authService.ProcessPostLogin(c.Request.Context(), user, ipAddress, userAgent, false)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate tokens", "code": "INTERNAL_SERVER_ERROR"})
 		return

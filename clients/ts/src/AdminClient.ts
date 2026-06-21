@@ -1,4 +1,4 @@
-import { ApiResponse, UsersResponse } from './types';
+import { ApiResponse, User, UsersResponse } from './types';
 
 export interface AdminClientConfig {
   serverUrl: string;
@@ -14,7 +14,7 @@ export class AdminClient {
   private readonly adminToken: string;
 
   constructor(config: AdminClientConfig) {
-    this.serverUrl = config.serverUrl.endsWith('/') ? config.serverUrl.slice(0, -1) : config.serverUrl;
+    this.serverUrl = config.serverUrl.replace(/\/$/, "");
     this.adminToken = config.adminToken;
   }
 
