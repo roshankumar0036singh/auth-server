@@ -29,6 +29,7 @@ export class AuthClient {
   private readonly onNetworkError?: (error: Error) => void;
   private readonly debug: boolean;
   private readonly storageAdapter?: StorageAdapter;
+  public readonly ready: Promise<void>;
 
   constructor(config: AuthClientConfig) {
     if (!config.serverUrl) throw new Error('serverUrl is required');
@@ -51,7 +52,9 @@ export class AuthClient {
       }, interval);
     }
 
-    this.loadSession().catch(() => {});
+    this.ready = this.loadSession().catch((e) => {
+      this.log("Failed to load session", e);
+    });
   }
 
   /**
@@ -546,17 +549,7 @@ export class AuthClient {
       const payloadBase64Url = this.accessToken.split('.')[1];
       if (!payloadBase64Url) return null;
       
-      const payloadBase64 = payloadBase64Url.replaceAll('-', '+').replaceAll('_', '/');
-      let payloadJson = '';
-      if (typeof atob === 'undefined') {
-        if (typeof globalThis !== 'undefined' && (globalThis as any).Buffer) {
-          payloadJson = (globalThis as any).Buffer.from(payloadBase64, 'base64').toString('utf8');
-        } else {
-          return null;
-        }
-      } else {
-        payloadJson = atob(payloadBase64);
-      }
+      const payloadJson = base64urlDecode(payloadBase64Url);
       
       const decoded = JSON.parse(payloadJson);
       return {
@@ -762,7 +755,7 @@ export class AuthClient {
         body: JSON.stringify(finishBody)
       });
 
-      this.saveSession(finishData.data);
+      await this.saveSession(finishData.data);
       return true;
     } catch (e) {
       console.error("Step up verification failed:", e);
@@ -795,18 +788,29 @@ function bufferToBase64url(buffer: ArrayBuffer): string {
   const bytes = new Uint8Array(buffer);
   let str = '';
   for (const charCode of bytes) {
-    str += String.fromCharCode(charCode);
+    str += String.fromCodePoint(charCode);
   }
   const base64String = btoa(str);
-  return base64String.replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+  return base64String.replaceAll('+', '-').replaceAll('/', '_').replaceAll('=', '');
+}
+
+function base64urlDecode(base64url: string): string {
+  const padding = '==='.slice((base64url.length + 4) % 4);
+  const base64 = (base64url + padding)
+    .replaceAll('-', '+')
+    .replaceAll('_', '/');
+    
+  if (typeof atob === 'undefined') {
+    if (typeof globalThis !== 'undefined' && (globalThis as any).Buffer) {
+      return (globalThis as any).Buffer.from(base64, 'base64').toString('utf8');
+    }
+    throw new Error('No base64 decoding available');
+  }
+  return atob(base64);
 }
 
 function base64urlToBuffer(base64url: string): ArrayBuffer {
-  const padding = '==='.slice((base64url.length + 4) % 4);
-  const base64 = (base64url + padding)
-    .replace(/-/g, '+')
-    .replace(/_/g, '/');
-  const rawData = atob(base64);
+  const rawData = base64urlDecode(base64url);
   const outputArray = new Uint8Array(rawData.length);
   for (let i = 0; i < rawData.length; ++i) {
     outputArray[i] = rawData.charCodeAt(i);

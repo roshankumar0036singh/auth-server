@@ -14,8 +14,12 @@ export class AdminClient {
   private readonly adminToken: string;
 
   constructor(config: AdminClientConfig) {
-    this.serverUrl = config.serverUrl.replace(/\/$/, "");
+    this.serverUrl = config.serverUrl.endsWith('/') ? config.serverUrl.slice(0, -1) : config.serverUrl;
     this.adminToken = config.adminToken;
+  }
+
+  public async init(): Promise<void> {
+    // Initialization logic
   }
 
   private async fetchApi<T>(path: string, options: RequestInit = {}): Promise<ApiResponse<T>> {

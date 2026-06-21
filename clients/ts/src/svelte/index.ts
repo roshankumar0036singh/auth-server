@@ -1,19 +1,31 @@
 import { writable, Readable } from 'svelte/store';
 import { AuthClient, Session, AuthClientConfig } from '../index';
 
-export interface SvelteAuthStore extends Readable<Session | null> {
+export interface AuthState {
+  session: Session | null;
+  isLoading: boolean;
+  isAuthenticated: boolean;
+}
+
+export interface SvelteAuthStore extends Readable<AuthState> {
   client: AuthClient;
 }
 
 export function createAuthStore(config: AuthClientConfig): SvelteAuthStore {
   const client = new AuthClient(config);
   
-  // Use a sensible default of null for initial load
-  const { subscribe, set } = writable<Session | null>(null);
+  const { subscribe, update } = writable<AuthState>({
+    session: null,
+    isLoading: true,
+    isAuthenticated: false
+  });
 
-  // When the session changes in AuthClient, update the svelte store
+  client.ready.finally(() => {
+    update(state => ({ ...state, isLoading: false }));
+  });
+
   client.on('session', (session) => {
-    set(session);
+    update(state => ({ ...state, session, isAuthenticated: !!session }));
   });
 
   return {

@@ -71,24 +71,33 @@ func (s *CacheService) DeleteSession(ctx context.Context, sessionID string) erro
 	return s.client.Del(ctx, key).Err()
 }
 
-func (s *CacheService) StoreWebAuthnSession(ctx context.Context, sessionID string, data webauthn.SessionData, expiry time.Duration) error {
+type WebAuthnSession struct {
+	UserID      string               `json:"user_id"`
+	SessionData webauthn.SessionData `json:"session_data"`
+}
+
+func (s *CacheService) StoreWebAuthnSession(ctx context.Context, sessionID string, userID string, data webauthn.SessionData, expiry time.Duration) error {
 	key := fmt.Sprintf("webauthn_session:%s", sessionID)
-	bytes, err := json.Marshal(data)
+	payload := WebAuthnSession{
+		UserID:      userID,
+		SessionData: data,
+	}
+	bytes, err := json.Marshal(payload)
 	if err != nil {
 		return err
 	}
 	return s.client.Set(ctx, key, bytes, expiry).Err()
 }
 
-func (s *CacheService) GetWebAuthnSession(ctx context.Context, sessionID string) (webauthn.SessionData, error) {
+func (s *CacheService) GetWebAuthnSession(ctx context.Context, sessionID string) (string, webauthn.SessionData, error) {
 	key := fmt.Sprintf("webauthn_session:%s", sessionID)
 	val, err := s.client.Get(ctx, key).Result()
 	if err != nil {
-		return webauthn.SessionData{}, err
+		return "", webauthn.SessionData{}, err
 	}
-	var data webauthn.SessionData
+	var data WebAuthnSession
 	err = json.Unmarshal([]byte(val), &data)
-	return data, err
+	return data.UserID, data.SessionData, err
 }
 
 // IncrementLoginAttempts increments failed login attempts for an email

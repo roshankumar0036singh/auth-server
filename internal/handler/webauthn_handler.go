@@ -2,7 +2,6 @@ package handler
 
 import (
 	"net/http"
-	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/roshankumar0036singh/auth-server/internal/repository"
@@ -111,20 +110,12 @@ func (h *WebAuthnHandler) BeginLogin(c *gin.Context) {
 
 func (h *WebAuthnHandler) FinishLogin(c *gin.Context) {
 	sessionID := c.Param("session_id")
-	if sessionID == "" || !strings.HasSuffix(sessionID, "_auth") {
+	if sessionID == "" {
 		c.JSON(http.StatusBadRequest, utils.ErrorResponse("Invalid session_id", nil))
 		return
 	}
 
-	userID := strings.TrimSuffix(sessionID, "_auth")
-	
-	user, err := h.userRepo.FindByID(userID)
-	if err != nil {
-		c.JSON(http.StatusUnauthorized, utils.ErrorResponse("Invalid credentials", nil))
-		return
-	}
-
-	_, err = h.webAuthnService.FinishLogin(c.Request.Context(), user, sessionID, c.Request)
+	user, _, err := h.webAuthnService.FinishLogin(c.Request.Context(), sessionID, c.Request)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, utils.ErrorResponse(err.Error(), err))
 		return

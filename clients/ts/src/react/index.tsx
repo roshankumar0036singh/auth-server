@@ -42,13 +42,11 @@ export function AuthProvider({ client, children }: AuthProviderProps) {
 
       if (!newSession?.accessToken) {
         setUser(null);
-        setIsLoading(false);
         return;
       }
 
       if (newSession.user) {
         setUser(newSession.user);
-        setIsLoading(false);
         return;
       }
 
@@ -57,10 +55,12 @@ export function AuthProvider({ client, children }: AuthProviderProps) {
         if (mounted) setUser(fetchedUser);
       } catch {
         // Don't wipe session — the interceptor handles 401s
-      } finally {
-        if (mounted) setIsLoading(false);
       }
     };
+
+    client.ready.finally(() => {
+      if (mounted) setIsLoading(false);
+    });
 
     const unsubscribe = client.onAuthStateChanged(handleSessionChange);
 

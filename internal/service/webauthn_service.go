@@ -3,11 +3,13 @@ package service
 import (
 	"context"
 	"fmt"
+	"log"
 	"net/http"
 	"time"
 
 	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/go-webauthn/webauthn/webauthn"
+	"github.com/google/uuid"
 	"github.com/roshankumar0036singh/auth-server/internal/config"
 	"github.com/roshankumar0036singh/auth-server/internal/models"
 	"github.com/roshankumar0036singh/auth-server/internal/repository"
@@ -55,8 +57,8 @@ func (s *WebAuthnService) BeginRegistration(ctx context.Context, user *models.Us
 	}
 
 	// Generate a unique session ID and store sessionData in cache
-	sessionID := user.ID + "_reg" // Simple session ID tying to user ID
-	if err := s.cacheService.StoreWebAuthnSession(ctx, sessionID, *sessionData, 10*time.Minute); err != nil {
+	sessionID := uuid.New().String()
+	if err := s.cacheService.StoreWebAuthnSession(ctx, sessionID, user.ID, *sessionData, 10*time.Minute); err != nil {
 		return nil, "", err
 	}
 
@@ -68,9 +70,12 @@ func (s *WebAuthnService) FinishRegistration(ctx context.Context, user *models.U
 		return nil, err
 	}
 
-	sessionData, err := s.cacheService.GetWebAuthnSession(ctx, sessionID)
+	userID, sessionData, err := s.cacheService.GetWebAuthnSession(ctx, sessionID)
 	if err != nil {
 		return nil, fmt.Errorf("invalid or expired registration session")
+	}
+	if userID != user.ID {
+		return nil, fmt.Errorf("session user mismatch")
 	}
 
 	credential, err := s.webAuthn.FinishRegistration(user, sessionData, r)
@@ -104,27 +109,32 @@ func (s *WebAuthnService) BeginLogin(ctx context.Context, user *models.User) (*p
 		return nil, "", err
 	}
 
-	sessionID := user.ID + "_auth"
-	if err := s.cacheService.StoreWebAuthnSession(ctx, sessionID, *sessionData, 10*time.Minute); err != nil {
+	sessionID := uuid.New().String()
+	if err := s.cacheService.StoreWebAuthnSession(ctx, sessionID, user.ID, *sessionData, 10*time.Minute); err != nil {
 		return nil, "", err
 	}
 
 	return options, sessionID, nil
 }
 
-func (s *WebAuthnService) FinishLogin(ctx context.Context, user *models.User, sessionID string, r *http.Request) (*webauthn.Credential, error) {
-	if err := s.db.Model(user).Association("Passkeys").Find(&user.Passkeys); err != nil {
-		return nil, err
+func (s *WebAuthnService) FinishLogin(ctx context.Context, sessionID string, r *http.Request) (*models.User, *webauthn.Credential, error) {
+	userID, sessionData, err := s.cacheService.GetWebAuthnSession(ctx, sessionID)
+	if err != nil {
+		return nil, nil, fmt.Errorf("invalid or expired authentication session")
 	}
 
-	sessionData, err := s.cacheService.GetWebAuthnSession(ctx, sessionID)
+	user, err := s.userRepo.FindByID(userID)
 	if err != nil {
-		return nil, fmt.Errorf("invalid or expired authentication session")
+		return nil, nil, fmt.Errorf("user not found")
+	}
+
+	if err := s.db.Model(user).Association("Passkeys").Find(&user.Passkeys); err != nil {
+		return nil, nil, err
 	}
 
 	credential, err := s.webAuthn.FinishLogin(user, sessionData, r)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// Clean up session
@@ -132,15 +142,15 @@ func (s *WebAuthnService) FinishLogin(ctx context.Context, user *models.User, se
 
 	modelCred, err := models.FromWebAuthn(user.ID, credential)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// Update the data blob
 	if err := s.db.Model(&models.WebAuthnCredential{}).
 		Where("credential_id = ?", credential.ID).
 		Update("data", modelCred.Data).Error; err != nil {
-		// Log error but login still succeeds
+		log.Printf("failed to update webauthn signCount for credential %s: %v", credential.ID, err)
 	}
 
-	return credential, nil
+	return user, credential, nil
 }

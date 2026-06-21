@@ -8,7 +8,14 @@ export const createAuth = (config: AuthClientConfig): Plugin => {
   return {
     install(app: App) {
       const client = new AuthClient(config);
-      const sessionState = reactive<{ session: Session | null }>({ session: null });
+      const sessionState = reactive<{ session: Session | null; isLoading: boolean }>({ 
+        session: null, 
+        isLoading: true 
+      });
+
+      client.ready.finally(() => {
+        sessionState.isLoading = false;
+      });
 
       client.on('session', (newSession) => {
         sessionState.session = newSession;
@@ -22,7 +29,7 @@ export const createAuth = (config: AuthClientConfig): Plugin => {
 
 export const useAuth = () => {
   const client = inject<AuthClient>(AuthSymbol);
-  const sessionState = inject<{ session: Session | null }>(SessionSymbol);
+  const sessionState = inject<{ session: Session | null; isLoading: boolean }>(SessionSymbol);
   
   if (!client || !sessionState) {
     throw new Error('useAuth must be used within a Vue app installed with createAuth plugin');
@@ -31,6 +38,7 @@ export const useAuth = () => {
   return {
     client,
     session: sessionState.session,
-    isAuthenticated: !!sessionState.session
+    isAuthenticated: !!sessionState.session,
+    isLoading: sessionState.isLoading
   };
 };
