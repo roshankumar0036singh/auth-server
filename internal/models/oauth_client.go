@@ -14,8 +14,8 @@ type OAuthClient struct {
 	Name         string         `gorm:"not null" json:"name"`
 	ClientID     string         `gorm:"uniqueIndex;not null" json:"client_id"`
 	ClientSecret string         `gorm:"not null" json:"-"` // Hashed, never expose
-	RedirectURIs pq.StringArray `gorm:"type:text[]" json:"redirect_uris"`
-	Scopes       pq.StringArray `gorm:"type:text[]" json:"scopes"`
+	RedirectURIs pq.StringArray `gorm:"type:text[]" json:"redirect_uris" swaggertype:"array,string"`
+	Scopes       pq.StringArray `gorm:"type:text[]" json:"scopes" swaggertype:"array,string"`
 	OwnerID      string         `gorm:"type:uuid" json:"owner_id"`
 	IsActive     bool           `gorm:"default:true" json:"is_active"`
 	IsPublic     bool           `gorm:"default:false" json:"is_public"`

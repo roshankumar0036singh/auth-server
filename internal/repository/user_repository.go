@@ -18,6 +18,31 @@ func NewUserRepository(db *gorm.DB) *UserRepository {
 	return &UserRepository{db: db}
 }
 
+// GetUsers get all users by limit and offset [Pagination]
+func (r *UserRepository) GetUsers(limit, offset int) (models.PaginatedUsers, error) {
+	var users []models.User
+	var total int64
+
+	query := r.db.Model(&models.User{}).Where("role = ?", "user")
+
+	if err := query.Count(&total).Error; err != nil {
+		return models.PaginatedUsers{}, err
+	}
+
+	if err := query.
+		Order("createdAt DESC").
+		Limit(limit).
+		Offset(offset).
+		Find(&users).Error; err != nil {
+		return models.PaginatedUsers{}, err
+	}
+
+	return models.PaginatedUsers{
+		Users: users,
+		Total: total,
+	}, nil
+}
+
 // FindByID finds a user by ID
 func (r *UserRepository) FindByID(id string) (*models.User, error) {
 	var user models.User

@@ -745,7 +745,8 @@ func (s *AuthService) verifyRefreshTokenState(ctx context.Context, refreshTokenS
 }
 
 func (s *AuthService) handleRevokedRefreshToken(ctx context.Context, storedToken *models.RefreshToken, userID, ipAddress, userAgent string) (*models.RefreshToken, bool, error) {
-	if time.Since(storedToken.UpdatedAt) <= s.getRefreshTokenGracePeriod() {
+	gracePeriod := s.getRefreshTokenGracePeriod()
+	if gracePeriod > 0 && time.Since(storedToken.UpdatedAt) <= gracePeriod {
 		activeToken, err := s.tokenRepo.FindActiveTokenInFamily(storedToken.FamilyID)
 		if err != nil {
 			return nil, false, errors.New("failed to verify refresh token state")
@@ -898,6 +899,15 @@ func (s *AuthService) GetUserByID(userID string) (*models.User, error) {
 		return nil, ErrUserNotFound
 	}
 	return user, nil
+}
+
+// GetUsers get all users by limit and offset [Pagination]
+func (s *AuthService) GetUsers(limit, offset int) (models.PaginatedUsers, error) {
+	users, err := s.userRepo.GetUsers(limit, offset)
+	if err != nil {
+		return models.PaginatedUsers{}, err
+	}
+	return users, nil
 }
 
 // GetUserSessions retrieves all active sessions for a user

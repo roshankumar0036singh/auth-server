@@ -1,6 +1,6 @@
 basePath: /
 definitions:
-  github_com_roshankumar0036singh_auth-server_internal_dto.ChangePasswordRequest:
+  dto.ChangePasswordRequest:
     properties:
       currentPassword:
         type: string
@@ -11,14 +11,14 @@ definitions:
     - currentPassword
     - newPassword
     type: object
-  github_com_roshankumar0036singh_auth-server_internal_dto.ForgotPasswordRequest:
+  dto.ForgotPasswordRequest:
     properties:
       email:
         type: string
     required:
     - email
     type: object
-  github_com_roshankumar0036singh_auth-server_internal_dto.LoginRequest:
+  dto.LoginRequest:
     properties:
       email:
         type: string
@@ -28,12 +28,12 @@ definitions:
     - email
     - password
     type: object
-  github_com_roshankumar0036singh_auth-server_internal_dto.LogoutRequest:
+  dto.LogoutRequest:
     properties:
       refreshToken:
         type: string
     type: object
-  github_com_roshankumar0036singh_auth-server_internal_dto.MFADisableRequest:
+  dto.MFADisableRequest:
     properties:
       code:
         type: string
@@ -44,7 +44,7 @@ definitions:
     - code
     - password
     type: object
-  github_com_roshankumar0036singh_auth-server_internal_dto.MFALoginRequest:
+  dto.MFALoginRequest:
     properties:
       code:
         type: string
@@ -54,21 +54,21 @@ definitions:
     - code
     - mfaToken
     type: object
-  github_com_roshankumar0036singh_auth-server_internal_dto.MFAVerifyRequest:
+  dto.MFAVerifyRequest:
     properties:
       code:
         type: string
     required:
     - code
     type: object
-  github_com_roshankumar0036singh_auth-server_internal_dto.RefreshTokenRequest:
+  dto.RefreshTokenRequest:
     properties:
       refreshToken:
         type: string
     required:
     - refreshToken
     type: object
-  github_com_roshankumar0036singh_auth-server_internal_dto.RegisterRequest:
+  dto.RegisterRequest:
     properties:
       email:
         type: string
@@ -85,14 +85,14 @@ definitions:
     - lastName
     - password
     type: object
-  github_com_roshankumar0036singh_auth-server_internal_dto.ResendVerificationRequest:
+  dto.ResendVerificationRequest:
     properties:
       email:
         type: string
     required:
     - email
     type: object
-  github_com_roshankumar0036singh_auth-server_internal_dto.ResetPasswordRequest:
+  dto.ResetPasswordRequest:
     properties:
       password:
         minLength: 8
@@ -103,7 +103,7 @@ definitions:
     - password
     - token
     type: object
-  github_com_roshankumar0036singh_auth-server_internal_dto.UpdateProfileRequest:
+  dto.UpdateProfileRequest:
     properties:
       firstName:
         maxLength: 100
@@ -115,7 +115,120 @@ definitions:
         maxLength: 20
         type: string
     type: object
-  github_com_roshankumar0036singh_auth-server_internal_models.OAuthClient:
+  handler.CreateOAuthClientRequest:
+    properties:
+      is_public:
+        type: boolean
+      name:
+        type: string
+      redirect_uris:
+        items:
+          type: string
+        minItems: 1
+        type: array
+      scopes:
+        items:
+          type: string
+        minItems: 1
+        type: array
+    required:
+    - name
+    - redirect_uris
+    - scopes
+    type: object
+  handler.CreateOAuthClientResponse:
+    properties:
+      data:
+        $ref: '#/definitions/handler.OAuthClientData'
+      message:
+        type: string
+      success:
+        type: boolean
+    type: object
+  handler.ErrorResponse:
+    properties:
+      code:
+        type: string
+      error:
+        type: string
+      message:
+        type: string
+    type: object
+  handler.ListOAuthClientsResponse:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/models.OAuthClient'
+        type: array
+      success:
+        type: boolean
+    type: object
+  handler.OAuthClientData:
+    properties:
+      client_id:
+        type: string
+      client_secret:
+        description: Only in creation response
+        type: string
+      created_at: {}
+      id:
+        type: string
+      name:
+        type: string
+      redirect_uris:
+        items:
+          type: string
+        type: array
+      scopes:
+        items:
+          type: string
+        type: array
+    type: object
+  handler.ProviderConfigRequest:
+    properties:
+      provider_client_id:
+        type: string
+      provider_client_secret:
+        type: string
+    required:
+    - provider_client_id
+    - provider_client_secret
+    type: object
+  handler.TokenResponse:
+    properties:
+      access_token:
+        type: string
+      expires_in:
+        type: integer
+      refresh_token:
+        type: string
+      scope:
+        type: string
+      token_type:
+        type: string
+    type: object
+  handler.UserInfoResponse:
+    properties:
+      email:
+        type: string
+      email_verified:
+        type: boolean
+      family_name:
+        type: string
+      given_name:
+        type: string
+      name:
+        type: string
+      picture:
+        type: string
+      scopes:
+        items:
+          type: string
+        type: array
+      sub:
+        type: string
+    type: object
+  models.OAuthClient:
     properties:
       client_id:
         type: string
@@ -142,135 +255,22 @@ definitions:
       updated_at:
         type: string
     type: object
-  github_com_roshankumar0036singh_auth-server_internal_utils.ErrorDetail:
+  utils.ErrorDetail:
     properties:
       code:
         type: string
       message:
         type: string
     type: object
-  github_com_roshankumar0036singh_auth-server_internal_utils.Response:
+  utils.Response:
     properties:
       data: {}
       error:
-        $ref: '#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.ErrorDetail'
+        $ref: '#/definitions/utils.ErrorDetail'
       message:
         type: string
       success:
         type: boolean
-    type: object
-  internal_handler.CreateOAuthClientRequest:
-    properties:
-      is_public:
-        type: boolean
-      name:
-        type: string
-      redirect_uris:
-        items:
-          type: string
-        minItems: 1
-        type: array
-      scopes:
-        items:
-          type: string
-        minItems: 1
-        type: array
-    required:
-    - name
-    - redirect_uris
-    - scopes
-    type: object
-  internal_handler.CreateOAuthClientResponse:
-    properties:
-      data:
-        $ref: '#/definitions/internal_handler.OAuthClientData'
-      message:
-        type: string
-      success:
-        type: boolean
-    type: object
-  internal_handler.ErrorResponse:
-    properties:
-      code:
-        type: string
-      error:
-        type: string
-      message:
-        type: string
-    type: object
-  internal_handler.ListOAuthClientsResponse:
-    properties:
-      data:
-        items:
-          $ref: '#/definitions/github_com_roshankumar0036singh_auth-server_internal_models.OAuthClient'
-        type: array
-      success:
-        type: boolean
-    type: object
-  internal_handler.OAuthClientData:
-    properties:
-      client_id:
-        type: string
-      client_secret:
-        description: Only in creation response
-        type: string
-      created_at: {}
-      id:
-        type: string
-      name:
-        type: string
-      redirect_uris:
-        items:
-          type: string
-        type: array
-      scopes:
-        items:
-          type: string
-        type: array
-    type: object
-  internal_handler.ProviderConfigRequest:
-    properties:
-      provider_client_id:
-        type: string
-      provider_client_secret:
-        type: string
-    required:
-    - provider_client_id
-    - provider_client_secret
-    type: object
-  internal_handler.TokenResponse:
-    properties:
-      access_token:
-        type: string
-      expires_in:
-        type: integer
-      refresh_token:
-        type: string
-      scope:
-        type: string
-      token_type:
-        type: string
-    type: object
-  internal_handler.UserInfoResponse:
-    properties:
-      email:
-        type: string
-      email_verified:
-        type: boolean
-      family_name:
-        type: string
-      given_name:
-        type: string
-      name:
-        type: string
-      picture:
-        type: string
-      scopes:
-        items:
-          type: string
-        type: array
-      sub:
-        type: string
     type: object
 host: localhost:8080
 info:
@@ -287,13 +287,24 @@ info:
 paths:
   /api/admin/users:
     get:
+      parameters:
+      - default: 1
+        description: Page number
+        in: query
+        name: page
+        type: integer
+      - default: 10
+        description: Items per page
+        in: query
+        name: limit
+        type: integer
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response'
+            $ref: '#/definitions/utils.Response'
       security:
       - BearerAuth: []
       summary: List all users
@@ -311,7 +322,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response'
+            $ref: '#/definitions/utils.Response'
       security:
       - BearerAuth: []
       summary: Delete user
@@ -329,7 +340,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response'
+            $ref: '#/definitions/utils.Response'
       security:
       - BearerAuth: []
       summary: Lock user
@@ -347,7 +358,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response'
+            $ref: '#/definitions/utils.Response'
       security:
       - BearerAuth: []
       summary: Unlock user
@@ -357,22 +368,13 @@ paths:
     get:
       consumes:
       - application/json
-      parameters:
-      - description: 'Page number (default: 1)'
-        in: query
-        name: page
-        type: integer
-      - description: 'Items per page (default: 20, max: 100)'
-        in: query
-        name: limit
-        type: integer
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response'
+            $ref: '#/definitions/utils.Response'
       summary: Get audit logs
       tags:
       - auth
@@ -386,14 +388,14 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/github_com_roshankumar0036singh_auth-server_internal_dto.ForgotPasswordRequest'
+          $ref: '#/definitions/dto.ForgotPasswordRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response'
+            $ref: '#/definitions/utils.Response'
       summary: Request password reset
       tags:
       - auth
@@ -431,18 +433,18 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/github_com_roshankumar0036singh_auth-server_internal_dto.LoginRequest'
+          $ref: '#/definitions/dto.LoginRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response'
+            $ref: '#/definitions/utils.Response'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response'
+            $ref: '#/definitions/utils.Response'
       summary: Login user
       tags:
       - auth
@@ -456,14 +458,14 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/github_com_roshankumar0036singh_auth-server_internal_dto.MFALoginRequest'
+          $ref: '#/definitions/dto.MFALoginRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response'
+            $ref: '#/definitions/utils.Response'
       summary: Login with MFA
       tags:
       - auth
@@ -476,14 +478,14 @@ paths:
         in: body
         name: request
         schema:
-          $ref: '#/definitions/github_com_roshankumar0036singh_auth-server_internal_dto.LogoutRequest'
+          $ref: '#/definitions/dto.LogoutRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response'
+            $ref: '#/definitions/utils.Response'
       security:
       - BearerAuth: []
       summary: Logout user
@@ -497,7 +499,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response'
+            $ref: '#/definitions/utils.Response'
       security:
       - BearerAuth: []
       summary: Logout from all devices
@@ -513,7 +515,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response'
+            $ref: '#/definitions/utils.Response'
       summary: Delete account
       tags:
       - auth
@@ -524,11 +526,11 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response'
+            $ref: '#/definitions/utils.Response'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response'
+            $ref: '#/definitions/utils.Response'
       security:
       - BearerAuth: []
       summary: Get current user
@@ -544,30 +546,30 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/github_com_roshankumar0036singh_auth-server_internal_dto.MFADisableRequest'
+          $ref: '#/definitions/dto.MFADisableRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response'
+            $ref: '#/definitions/utils.Response'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response'
+            $ref: '#/definitions/utils.Response'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response'
+            $ref: '#/definitions/utils.Response'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response'
+            $ref: '#/definitions/utils.Response'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response'
+            $ref: '#/definitions/utils.Response'
       security:
       - BearerAuth: []
       summary: Disable MFA
@@ -581,7 +583,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response'
+            $ref: '#/definitions/utils.Response'
       security:
       - BearerAuth: []
       summary: Enable MFA
@@ -597,14 +599,14 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/github_com_roshankumar0036singh_auth-server_internal_dto.MFAVerifyRequest'
+          $ref: '#/definitions/dto.MFAVerifyRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response'
+            $ref: '#/definitions/utils.Response'
       security:
       - BearerAuth: []
       summary: Verify and enable MFA
@@ -619,11 +621,11 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/internal_handler.ListOAuthClientsResponse'
+            $ref: '#/definitions/handler.ListOAuthClientsResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response'
+            $ref: '#/definitions/utils.Response'
       security:
       - BearerAuth: []
       summary: List My OAuth Clients
@@ -639,22 +641,22 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/internal_handler.CreateOAuthClientRequest'
+          $ref: '#/definitions/handler.CreateOAuthClientRequest'
       produces:
       - application/json
       responses:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/internal_handler.CreateOAuthClientResponse'
+            $ref: '#/definitions/handler.CreateOAuthClientResponse'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response'
+            $ref: '#/definitions/utils.Response'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response'
+            $ref: '#/definitions/utils.Response'
       security:
       - BearerAuth: []
       summary: Create OAuth Client
@@ -675,19 +677,19 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response'
+            $ref: '#/definitions/utils.Response'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response'
+            $ref: '#/definitions/utils.Response'
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response'
+            $ref: '#/definitions/utils.Response'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response'
+            $ref: '#/definitions/utils.Response'
       security:
       - BearerAuth: []
       summary: Delete OAuth Client
@@ -712,7 +714,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response'
+            $ref: '#/definitions/utils.Response'
       security:
       - BearerAuth: []
       summary: Delete OAuth Provider Config
@@ -736,7 +738,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response'
+            $ref: '#/definitions/utils.Response'
       security:
       - BearerAuth: []
       summary: Get OAuth Provider Config
@@ -761,14 +763,14 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/internal_handler.ProviderConfigRequest'
+          $ref: '#/definitions/handler.ProviderConfigRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response'
+            $ref: '#/definitions/utils.Response'
       security:
       - BearerAuth: []
       summary: Create/Update OAuth Provider Config
@@ -784,14 +786,14 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/github_com_roshankumar0036singh_auth-server_internal_dto.ChangePasswordRequest'
+          $ref: '#/definitions/dto.ChangePasswordRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response'
+            $ref: '#/definitions/utils.Response'
       summary: Change password
       tags:
       - auth
@@ -805,14 +807,14 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/github_com_roshankumar0036singh_auth-server_internal_dto.UpdateProfileRequest'
+          $ref: '#/definitions/dto.UpdateProfileRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response'
+            $ref: '#/definitions/utils.Response'
       summary: Update user profile
       tags:
       - auth
@@ -826,18 +828,18 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/github_com_roshankumar0036singh_auth-server_internal_dto.RefreshTokenRequest'
+          $ref: '#/definitions/dto.RefreshTokenRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response'
+            $ref: '#/definitions/utils.Response'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response'
+            $ref: '#/definitions/utils.Response'
       summary: Refresh access token
       tags:
       - auth
@@ -851,18 +853,18 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/github_com_roshankumar0036singh_auth-server_internal_dto.RegisterRequest'
+          $ref: '#/definitions/dto.RegisterRequest'
       produces:
       - application/json
       responses:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response'
+            $ref: '#/definitions/utils.Response'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response'
+            $ref: '#/definitions/utils.Response'
       summary: Register a new user
       tags:
       - auth
@@ -876,14 +878,14 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/github_com_roshankumar0036singh_auth-server_internal_dto.ResendVerificationRequest'
+          $ref: '#/definitions/dto.ResendVerificationRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response'
+            $ref: '#/definitions/utils.Response'
       summary: Resend verification email
       tags:
       - auth
@@ -897,14 +899,14 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/github_com_roshankumar0036singh_auth-server_internal_dto.ResetPasswordRequest'
+          $ref: '#/definitions/dto.ResetPasswordRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response'
+            $ref: '#/definitions/utils.Response'
       summary: Reset password
       tags:
       - auth
@@ -916,7 +918,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response'
+            $ref: '#/definitions/utils.Response'
       security:
       - BearerAuth: []
       summary: Get active sessions
@@ -936,7 +938,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response'
+            $ref: '#/definitions/utils.Response'
       security:
       - BearerAuth: []
       summary: Revoke a session
@@ -958,7 +960,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response'
+            $ref: '#/definitions/utils.Response'
       summary: Verify email
       tags:
       - auth
@@ -988,11 +990,11 @@ paths:
         in: query
         name: state
         type: string
-      - description: PKCE code challenge (base64url-encoded SHA256 hash)
+      - description: Code Challenge
         in: query
         name: code_challenge
         type: string
-      - description: PKCE code challenge method (S256 or plain)
+      - description: Code Challenge Method
         in: query
         name: code_challenge_method
         type: string
@@ -1005,11 +1007,11 @@ paths:
         "400":
           description: Invalid request
           schema:
-            $ref: '#/definitions/internal_handler.ErrorResponse'
+            $ref: '#/definitions/handler.ErrorResponse'
         "401":
           description: Unauthorized - user must be logged in
           schema:
-            $ref: '#/definitions/internal_handler.ErrorResponse'
+            $ref: '#/definitions/handler.ErrorResponse'
       summary: Authorize OAuth client
       tags:
       - oauth
@@ -1055,11 +1057,11 @@ paths:
         "400":
           description: Invalid request
           schema:
-            $ref: '#/definitions/internal_handler.ErrorResponse'
+            $ref: '#/definitions/handler.ErrorResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/internal_handler.ErrorResponse'
+            $ref: '#/definitions/handler.ErrorResponse'
       summary: OAuth Authorization Consent
       tags:
       - OAuth Provider
@@ -1067,8 +1069,7 @@ paths:
     post:
       consumes:
       - application/x-www-form-urlencoded
-      description: Exchanges authorization code for access token. Public clients must
-        provide code_verifier for PKCE validation.
+      description: Exchanges authorization code for access token
       parameters:
       - description: Grant type (authorization_code)
         in: formData
@@ -1095,25 +1096,21 @@ paths:
         name: client_secret
         required: true
         type: string
-      - description: PKCE code verifier (required for public clients)
-        in: formData
-        name: code_verifier
-        type: string
       produces:
       - application/json
       responses:
         "200":
           description: Access token response
           schema:
-            $ref: '#/definitions/internal_handler.TokenResponse'
+            $ref: '#/definitions/handler.TokenResponse'
         "400":
           description: Invalid request
           schema:
-            $ref: '#/definitions/internal_handler.ErrorResponse'
+            $ref: '#/definitions/handler.ErrorResponse'
         "401":
           description: Invalid client credentials
           schema:
-            $ref: '#/definitions/internal_handler.ErrorResponse'
+            $ref: '#/definitions/handler.ErrorResponse'
       summary: OAuth Token Exchange
       tags:
       - OAuth Provider
@@ -1134,15 +1131,15 @@ paths:
         "200":
           description: User profile information
           schema:
-            $ref: '#/definitions/internal_handler.UserInfoResponse'
+            $ref: '#/definitions/handler.UserInfoResponse'
         "401":
           description: Invalid or expired token
           schema:
-            $ref: '#/definitions/internal_handler.ErrorResponse'
+            $ref: '#/definitions/handler.ErrorResponse'
         "404":
           description: User not found
           schema:
-            $ref: '#/definitions/internal_handler.ErrorResponse'
+            $ref: '#/definitions/handler.ErrorResponse'
       summary: OAuth User Info
       tags:
       - OAuth Provider

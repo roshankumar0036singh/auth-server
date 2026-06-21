@@ -30,8 +30,8 @@ func NewOAuthClientHandler(oauthProviderService *service.OAuthProviderService) *
 // @Security BearerAuth
 // @Param request body CreateOAuthClientRequest true "Client details"
 // @Success 201 {object} CreateOAuthClientResponse
-// @failure 400 {object} utils.Response
-// @failure 401 {object} utils.Response
+// @Failure 400 {object} utils.Response
+// @Failure 401 {object} utils.Response
 // @Router /api/auth/oauth/clients [post]
 func (h *OAuthClientHandler) CreateOAuthClient(c *gin.Context) {
 	var req CreateOAuthClientRequest
@@ -49,12 +49,12 @@ func (h *OAuthClientHandler) CreateOAuthClient(c *gin.Context) {
 
 	// Create the OAuth client
 	client, clientSecret, err := h.oauthProviderService.CreateClient(
-		req.Name,
-		req.RedirectURIs,
-		req.Scopes,
-		userID.(string),
-		req.IsPublic,
-	)
+                req.Name,
+                req.RedirectURIs,
+                req.Scopes,
+                userID.(string),
+                req.IsPublic,
+        )
 	if err != nil {
 		utils.BadRequestResponse(c, err.Error())
 		return
@@ -83,7 +83,7 @@ func (h *OAuthClientHandler) CreateOAuthClient(c *gin.Context) {
 // @Produce json
 // @Security BearerAuth
 // @Success 200 {object} ListOAuthClientsResponse
-// @failure 401 {object} utils.Response
+// @Failure 401 {object} utils.Response
 // @Router /api/auth/oauth/clients [get]
 func (h *OAuthClientHandler) ListOAuthClients(c *gin.Context) {
 	userID, exists := c.Get("userID")
@@ -112,9 +112,9 @@ func (h *OAuthClientHandler) ListOAuthClients(c *gin.Context) {
 // @Security BearerAuth
 // @Param clientId path string true "Client ID (UUID)"
 // @Success 200 {object} utils.Response
-// @failure 401 {object} utils.Response
-// @failure 403 {object} utils.Response
-// @failure 404 {object} utils.Response
+// @Failure 401 {object} utils.Response
+// @Failure 403 {object} utils.Response
+// @Failure 404 {object} utils.Response
 // @Router /api/auth/oauth/clients/{clientId} [delete]
 func (h *OAuthClientHandler) DeleteOAuthClient(c *gin.Context) {
 	clientID := c.Param("clientId")
@@ -160,3 +160,4 @@ type ListOAuthClientsResponse struct {
 	Success bool                 `json:"success"`
 	Data    []models.OAuthClient `json:"data"`
 }
+

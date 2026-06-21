@@ -73,6 +73,17 @@
             padding: 0 2rem;
         }
 
+        .header-main {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 2rem;
+        }
+
+        .header-copy {
+            min-width: 0;
+        }
+
         .header-title-row {
             display: flex;
             align-items: center;
@@ -125,6 +136,105 @@
             display: flex;
             align-items: center;
             gap: 0.5rem;
+        }
+
+        .swagger-login {
+            width: min(100%, 460px);
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 1rem;
+        }
+
+        .swagger-login-title {
+            color: #ffffff;
+            font-size: 0.9rem;
+            font-weight: 700;
+            margin-bottom: 0.75rem;
+        }
+
+        .swagger-login-fields {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto auto;
+            gap: 0.5rem;
+        }
+
+        .swagger-login input {
+            width: 100%;
+            min-width: 0;
+            background: var(--bg-base);
+            border: 1px solid var(--border-color);
+            color: #ffffff;
+            border-radius: 6px;
+            padding: 0.6rem 0.75rem;
+            font: inherit;
+        }
+
+        .swagger-login input:focus {
+            border-color: var(--primary);
+            outline: none;
+        }
+
+        .swagger-login button {
+            border: 1px solid var(--primary);
+            border-radius: 6px;
+            padding: 0.6rem 0.85rem;
+            font: inherit;
+            font-size: 0.85rem;
+            font-weight: 700;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+        .swagger-login-submit {
+            background: var(--primary);
+            color: #ffffff;
+        }
+
+        .swagger-login-submit:hover {
+            background: var(--primary-hover);
+        }
+
+        .swagger-login-clear {
+            background: transparent;
+            color: var(--primary);
+        }
+
+        .swagger-login-clear:hover {
+            background: rgba(59, 130, 246, 0.1);
+        }
+
+        .swagger-login-status {
+            min-height: 1rem;
+            margin-top: 0.65rem;
+            color: var(--text-muted);
+            font-size: 0.78rem;
+        }
+
+        .swagger-login-status.error {
+            color: #f87171;
+        }
+
+        .swagger-login-status.success {
+            color: #34d399;
+        }
+
+        .swagger-login-mfa {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            gap: 0.5rem;
+            margin-top: 0.65rem;
+        }
+
+        .swagger-login-mfa[hidden] {
+            display: none;
+        }
+
+        .swagger-login-expiry {
+            min-height: 1rem;
+            margin-top: 0.35rem;
+            color: var(--text-muted);
+            font-size: 0.72rem;
         }
 
         .status-dot {
@@ -313,30 +423,77 @@
         .swagger-ui .expand-operation svg {
             fill: var(--text-muted) !important;
         }
+
+        @media (max-width: 960px) {
+            .header-main {
+                flex-direction: column;
+            }
+
+            .swagger-login {
+                width: 100%;
+            }
+        }
+
+        @media (max-width: 640px) {
+            .header {
+                padding: 1.5rem 0;
+            }
+
+            .header-content {
+                padding: 0 1rem;
+            }
+
+            .swagger-container {
+                padding: 1rem;
+            }
+
+            .swagger-login-fields {
+                grid-template-columns: 1fr;
+            }
+        }
     </style>
 </head>
 <body>
 
     <header class="header">
         <div class="header-content">
-            <div class="header-title-row">
-                <!-- Professional SVG Shield Icon -->
-                <svg class="logo-icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-                </svg>
-                <h1 class="header-title">Auth Server API</h1>
-            </div>
-            <p class="header-subtitle">Next-Generation Authentication & Authorization API</p>
+            <div class="header-main">
+                <div class="header-copy">
+                    <div class="header-title-row">
+                        <!-- Professional SVG Shield Icon -->
+                        <svg class="logo-icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                        </svg>
+                        <h1 class="header-title">Auth Server API</h1>
+                    </div>
+                    <p class="header-subtitle">Next-Generation Authentication & Authorization API</p>
 
-            <div class="badges">
-                <div class="badge live">
-                    <span class="status-dot"></span>
-                    <span>Operational</span>
+                    <div class="badges">
+                        <div class="badge live">
+                            <span class="status-dot"></span>
+                            <span>Operational</span>
+                        </div>
+                        <div class="badge">v1.0.0</div>
+                        <div class="badge">Go / Gin</div>
+                        <div class="badge">PostgreSQL + Redis</div>
+                        <div class="badge">OAuth 2.0</div>
+                    </div>
                 </div>
-                <div class="badge">v1.0.0</div>
-                <div class="badge">Go / Gin</div>
-                <div class="badge">PostgreSQL + Redis</div>
-                <div class="badge">OAuth 2.0</div>
+                <form id="swagger-login-form" class="swagger-login" autocomplete="on">
+                    <div class="swagger-login-title">Swagger Login</div>
+                    <div class="swagger-login-fields">
+                        <input id="swagger-login-email" type="email" name="email" placeholder="Email" aria-label="Email" autocomplete="username" required>
+                        <input id="swagger-login-password" type="password" name="password" placeholder="Password" aria-label="Password" autocomplete="current-password" required>
+                        <button id="swagger-login-submit" class="swagger-login-submit" type="submit">Login</button>
+                        <button id="swagger-login-clear" class="swagger-login-clear" type="button">Clear</button>
+                    </div>
+                    <div id="swagger-login-mfa" class="swagger-login-mfa" hidden>
+                        <input id="swagger-login-mfa-code" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="MFA code" aria-label="MFA code" autocomplete="one-time-code">
+                        <button id="swagger-login-mfa-submit" class="swagger-login-submit" type="button">Verify</button>
+                    </div>
+                    <output id="swagger-login-status" class="swagger-login-status" aria-live="polite"></output>
+                    <div id="swagger-login-expiry" class="swagger-login-expiry" aria-hidden="true"></div>
+                </form>
             </div>
         </div>
     </header>
@@ -345,9 +502,211 @@
         <div id="swagger-ui"></div>
     </main>
 
-    <script src="https://unpkg.com/swagger-ui-dist@5.11.0/swagger-ui-bundle.js"></script>
-    <script src="https://unpkg.com/swagger-ui-dist@5.11.0/swagger-ui-standalone-preset.js"></script>
+    <script src="https://unpkg.com/swagger-ui-dist@5.11.0/swagger-ui-bundle.js"
+            integrity="sha384-qn5tagrAjZi8cSmvZ+k3zk4+eDEEUcP9myuR2J6V+/H6rne++v6ChO7EeHAEzqxQ"
+            crossorigin="anonymous"></script>
+    <script src="https://unpkg.com/swagger-ui-dist@5.11.0/swagger-ui-standalone-preset.js"
+            integrity="sha384-SiLF+uYBf9lVQW98s/XUYP14enXJN31bn0zu3BS1WFqr5hvnMF+w132WkE/v0uJw"
+            crossorigin="anonymous"></script>
     <script>
+        // Held in memory only; never persisted to storage so an XSS payload
+        // cannot read a token at rest. Re-login is required after a reload.
+        let swaggerAccessToken = null;
+        // Short-lived token returned by the password step when MFA is enabled;
+        // it is exchanged for an access token at /api/auth/login/mfa.
+        let swaggerMfaToken = null;
+        let swaggerExpiryTimer = null;
+
+        function setSwaggerLoginStatus(message, type) {
+            const status = document.getElementById("swagger-login-status");
+            status.textContent = message;
+            status.classList.remove("error", "success");
+            if (type) {
+                status.classList.add(type);
+            }
+        }
+
+        // Reads the `exp` claim (seconds since epoch) from a JWT without
+        // trusting it for anything security-sensitive; it only drives the
+        // expiry countdown shown to the user.
+        function getTokenExpiryMs(accessToken) {
+            try {
+                let base64 = accessToken.split(".")[1].replaceAll("-", "+").replaceAll("_", "/");
+                // JWT payloads are unpadded base64url; pad so atob() works everywhere.
+                while (base64.length % 4 !== 0) {
+                    base64 += "=";
+                }
+                const claims = JSON.parse(atob(base64));
+                return typeof claims.exp === "number" ? claims.exp * 1000 : null;
+            } catch {
+                // Malformed token: skip the expiry display rather than fail login.
+                return null;
+            }
+        }
+
+        function formatRemaining(ms) {
+            const totalSeconds = Math.max(0, Math.round(ms / 1000));
+            const minutes = Math.floor(totalSeconds / 60);
+            const seconds = totalSeconds % 60;
+            return minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`;
+        }
+
+        // The countdown ticks every second, so it lives in its own non-live
+        // element to avoid spamming screen readers; the aria-live status is
+        // reserved for one-off state changes (authorized, errors, expiry).
+        function setExpiryText(message) {
+            document.getElementById("swagger-login-expiry").textContent = message;
+        }
+
+        function stopExpiryCountdown() {
+            if (swaggerExpiryTimer !== null) {
+                clearInterval(swaggerExpiryTimer);
+                swaggerExpiryTimer = null;
+            }
+            setExpiryText("");
+        }
+
+        function startExpiryCountdown(expiryMs) {
+            stopExpiryCountdown();
+            if (expiryMs === null) {
+                return;
+            }
+            const render = () => {
+                const remaining = expiryMs - Date.now();
+                if (remaining <= 0) {
+                    stopExpiryCountdown();
+                    swaggerAccessToken = null;
+                    if (globalThis.ui && globalThis.ui.authActions) {
+                        globalThis.ui.authActions.logout(["BearerAuth"]);
+                    }
+                    setSwaggerLoginStatus("Session expired — log in again", "error");
+                    return;
+                }
+                setExpiryText(`Expires in ${formatRemaining(remaining)}`);
+            };
+            render();
+            swaggerExpiryTimer = setInterval(render, 1000);
+        }
+
+        function authorizeSwagger(accessToken) {
+            globalThis.ui.preauthorizeApiKey("BearerAuth", `Bearer ${accessToken}`);
+            swaggerAccessToken = accessToken;
+            setSwaggerLoginStatus("Authorized", "success");
+            startExpiryCountdown(getTokenExpiryMs(accessToken));
+        }
+
+        function showMfaStep() {
+            document.getElementById("swagger-login-mfa").hidden = false;
+            document.getElementById("swagger-login-mfa-code").focus();
+            setSwaggerLoginStatus("Enter the code from your authenticator app", "");
+        }
+
+        function hideMfaStep() {
+            document.getElementById("swagger-login-mfa").hidden = true;
+            document.getElementById("swagger-login-mfa-code").value = "";
+        }
+
+        function clearSwaggerAuth() {
+            stopExpiryCountdown();
+            swaggerAccessToken = null;
+            swaggerMfaToken = null;
+            hideMfaStep();
+            if (globalThis.ui && globalThis.ui.authActions) {
+                globalThis.ui.authActions.logout(["BearerAuth"]);
+            }
+            setSwaggerLoginStatus("Authorization cleared", "");
+        }
+
+        async function handleSwaggerLogin(event) {
+            event.preventDefault();
+
+            const form = event.currentTarget;
+            const submitButton = document.getElementById("swagger-login-submit");
+            const email = document.getElementById("swagger-login-email").value.trim();
+            const passwordInput = document.getElementById("swagger-login-password");
+
+            submitButton.disabled = true;
+            setSwaggerLoginStatus("Signing in...", "");
+
+            try {
+                const response = await fetch("/api/auth/login", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ email, password: passwordInput.value })
+                });
+                const payload = await response.json().catch(() => ({}));
+                const data = (payload && payload.data) || {};
+
+                if (!response.ok) {
+                    throw new Error((payload.error && payload.error.message) || payload.message || "Login failed");
+                }
+
+                // MFA-enabled account: the password step succeeded but an
+                // authenticator code is still required. Reveal the code step
+                // and exchange the MFA token at /api/auth/login/mfa.
+                if (data.mfaRequired) {
+                    swaggerMfaToken = data.mfaToken;
+                    form.reset();
+                    showMfaStep();
+                    return;
+                }
+
+                if (!data.accessToken) {
+                    throw new Error("Login response did not include an access token");
+                }
+
+                authorizeSwagger(data.accessToken);
+                form.reset();
+            } catch (error) {
+                setSwaggerLoginStatus(error.message || "Login failed", "error");
+            } finally {
+                submitButton.disabled = false;
+            }
+        }
+
+        async function handleSwaggerMfa() {
+            const codeInput = document.getElementById("swagger-login-mfa-code");
+            const mfaSubmit = document.getElementById("swagger-login-mfa-submit");
+            const code = codeInput.value.trim();
+
+            if (!swaggerMfaToken) {
+                setSwaggerLoginStatus("Start by entering your email and password", "error");
+                return;
+            }
+            if (!/^\d{6}$/.test(code)) {
+                setSwaggerLoginStatus("Enter the 6-digit MFA code", "error");
+                return;
+            }
+
+            mfaSubmit.disabled = true;
+            setSwaggerLoginStatus("Verifying code...", "");
+
+            try {
+                const response = await fetch("/api/auth/login/mfa", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ mfaToken: swaggerMfaToken, code })
+                });
+                const payload = await response.json().catch(() => ({}));
+                const data = (payload && payload.data) || {};
+
+                if (!response.ok) {
+                    throw new Error((payload.error && payload.error.message) || payload.message || "MFA verification failed");
+                }
+                if (!data.accessToken) {
+                    throw new Error("MFA response did not include an access token");
+                }
+
+                swaggerMfaToken = null;
+                hideMfaStep();
+                authorizeSwagger(data.accessToken);
+            } catch (error) {
+                setSwaggerLoginStatus(error.message || "MFA verification failed", "error");
+            } finally {
+                mfaSubmit.disabled = false;
+            }
+        }
+
         window.onload = function () {
             window.ui = SwaggerUIBundle({
                 url: "./swagger.json",
@@ -367,6 +726,16 @@
                 filter: true,
                 showRequestHeaders: true,
                 supportedSubmitMethods: ['get', 'post', 'put', 'delete', 'patch']
+            });
+
+            document.getElementById("swagger-login-form").addEventListener("submit", handleSwaggerLogin);
+            document.getElementById("swagger-login-clear").addEventListener("click", clearSwaggerAuth);
+            document.getElementById("swagger-login-mfa-submit").addEventListener("click", handleSwaggerMfa);
+            document.getElementById("swagger-login-mfa-code").addEventListener("keydown", function (event) {
+                if (event.key === "Enter") {
+                    event.preventDefault();
+                    handleSwaggerMfa();
+                }
             });
         };
     </script>

@@ -37,11 +37,27 @@ const docTemplate = `{
                     "admin"
                 ],
                 "summary": "List all users",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "Page number",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 10,
+                        "description": "Items per page",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response"
+                            "$ref": "#/definitions/utils.Response"
                         }
                     }
                 }
@@ -71,7 +87,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response"
+                            "$ref": "#/definitions/utils.Response"
                         }
                     }
                 }
@@ -101,7 +117,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response"
+                            "$ref": "#/definitions/utils.Response"
                         }
                     }
                 }
@@ -131,7 +147,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response"
+                            "$ref": "#/definitions/utils.Response"
                         }
                     }
                 }
@@ -149,25 +165,11 @@ const docTemplate = `{
                     "auth"
                 ],
                 "summary": "Get audit logs",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "description": "Page number (default: 1)",
-                        "name": "page",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "Items per page (default: 20, max: 100)",
-                        "name": "limit",
-                        "in": "query"
-                    }
-                ],
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response"
+                            "$ref": "#/definitions/utils.Response"
                         }
                     }
                 }
@@ -192,7 +194,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_dto.ForgotPasswordRequest"
+                            "$ref": "#/definitions/dto.ForgotPasswordRequest"
                         }
                     }
                 ],
@@ -200,7 +202,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response"
+                            "$ref": "#/definitions/utils.Response"
                         }
                     }
                 }
@@ -261,7 +263,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_dto.LoginRequest"
+                            "$ref": "#/definitions/dto.LoginRequest"
                         }
                     }
                 ],
@@ -269,13 +271,13 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response"
+                            "$ref": "#/definitions/utils.Response"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response"
+                            "$ref": "#/definitions/utils.Response"
                         }
                     }
                 }
@@ -300,7 +302,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_dto.MFALoginRequest"
+                            "$ref": "#/definitions/dto.MFALoginRequest"
                         }
                     }
                 ],
@@ -308,7 +310,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response"
+                            "$ref": "#/definitions/utils.Response"
                         }
                     }
                 }
@@ -337,7 +339,7 @@ const docTemplate = `{
                         "name": "request",
                         "in": "body",
                         "schema": {
-                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_dto.LogoutRequest"
+                            "$ref": "#/definitions/dto.LogoutRequest"
                         }
                     }
                 ],
@@ -345,7 +347,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response"
+                            "$ref": "#/definitions/utils.Response"
                         }
                     }
                 }
@@ -369,7 +371,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response"
+                            "$ref": "#/definitions/utils.Response"
                         }
                     }
                 }
@@ -393,13 +395,13 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response"
+                            "$ref": "#/definitions/utils.Response"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response"
+                            "$ref": "#/definitions/utils.Response"
                         }
                     }
                 }
@@ -419,7 +421,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response"
+                            "$ref": "#/definitions/utils.Response"
                         }
                     }
                 }
@@ -449,7 +451,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_dto.MFADisableRequest"
+                            "$ref": "#/definitions/dto.MFADisableRequest"
                         }
                     }
                 ],
@@ -457,31 +459,31 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response"
+                            "$ref": "#/definitions/utils.Response"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response"
+                            "$ref": "#/definitions/utils.Response"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response"
+                            "$ref": "#/definitions/utils.Response"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response"
+                            "$ref": "#/definitions/utils.Response"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response"
+                            "$ref": "#/definitions/utils.Response"
                         }
                     }
                 }
@@ -505,7 +507,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response"
+                            "$ref": "#/definitions/utils.Response"
                         }
                     }
                 }
@@ -535,7 +537,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_dto.MFAVerifyRequest"
+                            "$ref": "#/definitions/dto.MFAVerifyRequest"
                         }
                     }
                 ],
@@ -543,7 +545,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response"
+                            "$ref": "#/definitions/utils.Response"
                         }
                     }
                 }
@@ -568,13 +570,13 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/internal_handler.ListOAuthClientsResponse"
+                            "$ref": "#/definitions/handler.ListOAuthClientsResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response"
+                            "$ref": "#/definitions/utils.Response"
                         }
                     }
                 }
@@ -603,7 +605,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_handler.CreateOAuthClientRequest"
+                            "$ref": "#/definitions/handler.CreateOAuthClientRequest"
                         }
                     }
                 ],
@@ -611,19 +613,19 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/internal_handler.CreateOAuthClientResponse"
+                            "$ref": "#/definitions/handler.CreateOAuthClientResponse"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response"
+                            "$ref": "#/definitions/utils.Response"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response"
+                            "$ref": "#/definitions/utils.Response"
                         }
                     }
                 }
@@ -657,25 +659,25 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response"
+                            "$ref": "#/definitions/utils.Response"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response"
+                            "$ref": "#/definitions/utils.Response"
                         }
                     },
                     "403": {
                         "description": "Forbidden",
                         "schema": {
-                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response"
+                            "$ref": "#/definitions/utils.Response"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response"
+                            "$ref": "#/definitions/utils.Response"
                         }
                     }
                 }
@@ -715,7 +717,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response"
+                            "$ref": "#/definitions/utils.Response"
                         }
                     }
                 }
@@ -757,7 +759,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_handler.ProviderConfigRequest"
+                            "$ref": "#/definitions/handler.ProviderConfigRequest"
                         }
                     }
                 ],
@@ -765,7 +767,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response"
+                            "$ref": "#/definitions/utils.Response"
                         }
                     }
                 }
@@ -803,7 +805,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response"
+                            "$ref": "#/definitions/utils.Response"
                         }
                     }
                 }
@@ -828,7 +830,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_dto.ChangePasswordRequest"
+                            "$ref": "#/definitions/dto.ChangePasswordRequest"
                         }
                     }
                 ],
@@ -836,7 +838,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response"
+                            "$ref": "#/definitions/utils.Response"
                         }
                     }
                 }
@@ -861,7 +863,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_dto.UpdateProfileRequest"
+                            "$ref": "#/definitions/dto.UpdateProfileRequest"
                         }
                     }
                 ],
@@ -869,7 +871,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response"
+                            "$ref": "#/definitions/utils.Response"
                         }
                     }
                 }
@@ -894,7 +896,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_dto.RefreshTokenRequest"
+                            "$ref": "#/definitions/dto.RefreshTokenRequest"
                         }
                     }
                 ],
@@ -902,13 +904,13 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response"
+                            "$ref": "#/definitions/utils.Response"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response"
+                            "$ref": "#/definitions/utils.Response"
                         }
                     }
                 }
@@ -933,7 +935,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_dto.RegisterRequest"
+                            "$ref": "#/definitions/dto.RegisterRequest"
                         }
                     }
                 ],
@@ -941,13 +943,13 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response"
+                            "$ref": "#/definitions/utils.Response"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response"
+                            "$ref": "#/definitions/utils.Response"
                         }
                     }
                 }
@@ -972,7 +974,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_dto.ResendVerificationRequest"
+                            "$ref": "#/definitions/dto.ResendVerificationRequest"
                         }
                     }
                 ],
@@ -980,7 +982,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response"
+                            "$ref": "#/definitions/utils.Response"
                         }
                     }
                 }
@@ -1005,7 +1007,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_dto.ResetPasswordRequest"
+                            "$ref": "#/definitions/dto.ResetPasswordRequest"
                         }
                     }
                 ],
@@ -1013,7 +1015,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response"
+                            "$ref": "#/definitions/utils.Response"
                         }
                     }
                 }
@@ -1037,7 +1039,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response"
+                            "$ref": "#/definitions/utils.Response"
                         }
                     }
                 }
@@ -1070,7 +1072,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response"
+                            "$ref": "#/definitions/utils.Response"
                         }
                     }
                 }
@@ -1101,7 +1103,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.Response"
+                            "$ref": "#/definitions/utils.Response"
                         }
                     }
                 }
@@ -1152,13 +1154,13 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "PKCE code challenge (base64url-encoded SHA256 hash)",
+                        "description": "Code Challenge",
                         "name": "code_challenge",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "PKCE code challenge method (S256 or plain)",
+                        "description": "Code Challenge Method",
                         "name": "code_challenge_method",
                         "in": "query"
                     }
@@ -1170,13 +1172,13 @@ const docTemplate = `{
                     "400": {
                         "description": "Invalid request",
                         "schema": {
-                            "$ref": "#/definitions/internal_handler.ErrorResponse"
+                            "$ref": "#/definitions/handler.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized - user must be logged in",
                         "schema": {
-                            "$ref": "#/definitions/internal_handler.ErrorResponse"
+                            "$ref": "#/definitions/handler.ErrorResponse"
                         }
                     }
                 }
@@ -1242,13 +1244,13 @@ const docTemplate = `{
                     "400": {
                         "description": "Invalid request",
                         "schema": {
-                            "$ref": "#/definitions/internal_handler.ErrorResponse"
+                            "$ref": "#/definitions/handler.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/internal_handler.ErrorResponse"
+                            "$ref": "#/definitions/handler.ErrorResponse"
                         }
                     }
                 }
@@ -1256,7 +1258,7 @@ const docTemplate = `{
         },
         "/oauth/token": {
             "post": {
-                "description": "Exchanges authorization code for access token. Public clients must provide code_verifier for PKCE validation.",
+                "description": "Exchanges authorization code for access token",
                 "consumes": [
                     "application/x-www-form-urlencoded"
                 ],
@@ -1302,31 +1304,25 @@ const docTemplate = `{
                         "name": "client_secret",
                         "in": "formData",
                         "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "PKCE code verifier (required for public clients)",
-                        "name": "code_verifier",
-                        "in": "formData"
                     }
                 ],
                 "responses": {
                     "200": {
                         "description": "Access token response",
                         "schema": {
-                            "$ref": "#/definitions/internal_handler.TokenResponse"
+                            "$ref": "#/definitions/handler.TokenResponse"
                         }
                     },
                     "400": {
                         "description": "Invalid request",
                         "schema": {
-                            "$ref": "#/definitions/internal_handler.ErrorResponse"
+                            "$ref": "#/definitions/handler.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Invalid client credentials",
                         "schema": {
-                            "$ref": "#/definitions/internal_handler.ErrorResponse"
+                            "$ref": "#/definitions/handler.ErrorResponse"
                         }
                     }
                 }
@@ -1358,19 +1354,19 @@ const docTemplate = `{
                     "200": {
                         "description": "User profile information",
                         "schema": {
-                            "$ref": "#/definitions/internal_handler.UserInfoResponse"
+                            "$ref": "#/definitions/handler.UserInfoResponse"
                         }
                     },
                     "401": {
                         "description": "Invalid or expired token",
                         "schema": {
-                            "$ref": "#/definitions/internal_handler.ErrorResponse"
+                            "$ref": "#/definitions/handler.ErrorResponse"
                         }
                     },
                     "404": {
                         "description": "User not found",
                         "schema": {
-                            "$ref": "#/definitions/internal_handler.ErrorResponse"
+                            "$ref": "#/definitions/handler.ErrorResponse"
                         }
                     }
                 }
@@ -1378,7 +1374,7 @@ const docTemplate = `{
         }
     },
     "definitions": {
-        "github_com_roshankumar0036singh_auth-server_internal_dto.ChangePasswordRequest": {
+        "dto.ChangePasswordRequest": {
             "type": "object",
             "required": [
                 "currentPassword",
@@ -1394,7 +1390,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_roshankumar0036singh_auth-server_internal_dto.ForgotPasswordRequest": {
+        "dto.ForgotPasswordRequest": {
             "type": "object",
             "required": [
                 "email"
@@ -1405,7 +1401,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_roshankumar0036singh_auth-server_internal_dto.LoginRequest": {
+        "dto.LoginRequest": {
             "type": "object",
             "required": [
                 "email",
@@ -1420,7 +1416,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_roshankumar0036singh_auth-server_internal_dto.LogoutRequest": {
+        "dto.LogoutRequest": {
             "type": "object",
             "properties": {
                 "refreshToken": {
@@ -1428,7 +1424,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_roshankumar0036singh_auth-server_internal_dto.MFADisableRequest": {
+        "dto.MFADisableRequest": {
             "type": "object",
             "required": [
                 "code",
@@ -1444,7 +1440,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_roshankumar0036singh_auth-server_internal_dto.MFALoginRequest": {
+        "dto.MFALoginRequest": {
             "type": "object",
             "required": [
                 "code",
@@ -1459,7 +1455,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_roshankumar0036singh_auth-server_internal_dto.MFAVerifyRequest": {
+        "dto.MFAVerifyRequest": {
             "type": "object",
             "required": [
                 "code"
@@ -1470,7 +1466,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_roshankumar0036singh_auth-server_internal_dto.RefreshTokenRequest": {
+        "dto.RefreshTokenRequest": {
             "type": "object",
             "required": [
                 "refreshToken"
@@ -1481,7 +1477,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_roshankumar0036singh_auth-server_internal_dto.RegisterRequest": {
+        "dto.RegisterRequest": {
             "type": "object",
             "required": [
                 "email",
@@ -1505,7 +1501,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_roshankumar0036singh_auth-server_internal_dto.ResendVerificationRequest": {
+        "dto.ResendVerificationRequest": {
             "type": "object",
             "required": [
                 "email"
@@ -1516,7 +1512,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_roshankumar0036singh_auth-server_internal_dto.ResetPasswordRequest": {
+        "dto.ResetPasswordRequest": {
             "type": "object",
             "required": [
                 "password",
@@ -1532,7 +1528,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_roshankumar0036singh_auth-server_internal_dto.UpdateProfileRequest": {
+        "dto.UpdateProfileRequest": {
             "type": "object",
             "properties": {
                 "firstName": {
@@ -1549,7 +1545,177 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_roshankumar0036singh_auth-server_internal_models.OAuthClient": {
+        "handler.CreateOAuthClientRequest": {
+            "type": "object",
+            "required": [
+                "name",
+                "redirect_uris",
+                "scopes"
+            ],
+            "properties": {
+                "is_public": {
+                    "type": "boolean"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "redirect_uris": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "scopes": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "handler.CreateOAuthClientResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/handler.OAuthClientData"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "success": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "handler.ErrorResponse": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "error": {
+                    "type": "string"
+                },
+                "message": {
+                    "type": "string"
+                }
+            }
+        },
+        "handler.ListOAuthClientsResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.OAuthClient"
+                    }
+                },
+                "success": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "handler.OAuthClientData": {
+            "type": "object",
+            "properties": {
+                "client_id": {
+                    "type": "string"
+                },
+                "client_secret": {
+                    "description": "Only in creation response",
+                    "type": "string"
+                },
+                "created_at": {},
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "redirect_uris": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "scopes": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "handler.ProviderConfigRequest": {
+            "type": "object",
+            "required": [
+                "provider_client_id",
+                "provider_client_secret"
+            ],
+            "properties": {
+                "provider_client_id": {
+                    "type": "string"
+                },
+                "provider_client_secret": {
+                    "type": "string"
+                }
+            }
+        },
+        "handler.TokenResponse": {
+            "type": "object",
+            "properties": {
+                "access_token": {
+                    "type": "string"
+                },
+                "expires_in": {
+                    "type": "integer"
+                },
+                "refresh_token": {
+                    "type": "string"
+                },
+                "scope": {
+                    "type": "string"
+                },
+                "token_type": {
+                    "type": "string"
+                }
+            }
+        },
+        "handler.UserInfoResponse": {
+            "type": "object",
+            "properties": {
+                "email": {
+                    "type": "string"
+                },
+                "email_verified": {
+                    "type": "boolean"
+                },
+                "family_name": {
+                    "type": "string"
+                },
+                "given_name": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "picture": {
+                    "type": "string"
+                },
+                "scopes": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "sub": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.OAuthClient": {
             "type": "object",
             "properties": {
                 "client_id": {
@@ -1590,7 +1756,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_roshankumar0036singh_auth-server_internal_utils.ErrorDetail": {
+        "utils.ErrorDetail": {
             "type": "object",
             "properties": {
                 "code": {
@@ -1601,188 +1767,18 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_roshankumar0036singh_auth-server_internal_utils.Response": {
+        "utils.Response": {
             "type": "object",
             "properties": {
                 "data": {},
                 "error": {
-                    "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_utils.ErrorDetail"
+                    "$ref": "#/definitions/utils.ErrorDetail"
                 },
                 "message": {
                     "type": "string"
                 },
                 "success": {
                     "type": "boolean"
-                }
-            }
-        },
-        "internal_handler.CreateOAuthClientRequest": {
-            "type": "object",
-            "required": [
-                "name",
-                "redirect_uris",
-                "scopes"
-            ],
-            "properties": {
-                "is_public": {
-                    "type": "boolean"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "redirect_uris": {
-                    "type": "array",
-                    "minItems": 1,
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "scopes": {
-                    "type": "array",
-                    "minItems": 1,
-                    "items": {
-                        "type": "string"
-                    }
-                }
-            }
-        },
-        "internal_handler.CreateOAuthClientResponse": {
-            "type": "object",
-            "properties": {
-                "data": {
-                    "$ref": "#/definitions/internal_handler.OAuthClientData"
-                },
-                "message": {
-                    "type": "string"
-                },
-                "success": {
-                    "type": "boolean"
-                }
-            }
-        },
-        "internal_handler.ErrorResponse": {
-            "type": "object",
-            "properties": {
-                "code": {
-                    "type": "string"
-                },
-                "error": {
-                    "type": "string"
-                },
-                "message": {
-                    "type": "string"
-                }
-            }
-        },
-        "internal_handler.ListOAuthClientsResponse": {
-            "type": "object",
-            "properties": {
-                "data": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/github_com_roshankumar0036singh_auth-server_internal_models.OAuthClient"
-                    }
-                },
-                "success": {
-                    "type": "boolean"
-                }
-            }
-        },
-        "internal_handler.OAuthClientData": {
-            "type": "object",
-            "properties": {
-                "client_id": {
-                    "type": "string"
-                },
-                "client_secret": {
-                    "description": "Only in creation response",
-                    "type": "string"
-                },
-                "created_at": {},
-                "id": {
-                    "type": "string"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "redirect_uris": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "scopes": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                }
-            }
-        },
-        "internal_handler.ProviderConfigRequest": {
-            "type": "object",
-            "required": [
-                "provider_client_id",
-                "provider_client_secret"
-            ],
-            "properties": {
-                "provider_client_id": {
-                    "type": "string"
-                },
-                "provider_client_secret": {
-                    "type": "string"
-                }
-            }
-        },
-        "internal_handler.TokenResponse": {
-            "type": "object",
-            "properties": {
-                "access_token": {
-                    "type": "string"
-                },
-                "expires_in": {
-                    "type": "integer"
-                },
-                "refresh_token": {
-                    "type": "string"
-                },
-                "scope": {
-                    "type": "string"
-                },
-                "token_type": {
-                    "type": "string"
-                }
-            }
-        },
-        "internal_handler.UserInfoResponse": {
-            "type": "object",
-            "properties": {
-                "email": {
-                    "type": "string"
-                },
-                "email_verified": {
-                    "type": "boolean"
-                },
-                "family_name": {
-                    "type": "string"
-                },
-                "given_name": {
-                    "type": "string"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "picture": {
-                    "type": "string"
-                },
-                "scopes": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "sub": {
-                    "type": "string"
                 }
             }
         }
