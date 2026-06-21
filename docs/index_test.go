@@ -2,15 +2,15 @@ package docs
 
 import (
 	"os"
-	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestSwaggerIndexProvidesNativeLogin(t *testing.T) {
 	content, err := os.ReadFile("index.html")
-	if err != nil {
-		t.Fatalf("read swagger index: %v", err)
-	}
+	require.NoError(t, err, "read swagger index")
 
 	html := string(content)
 	requiredSnippets := []string{
@@ -22,8 +22,6 @@ func TestSwaggerIndexProvidesNativeLogin(t *testing.T) {
 	}
 
 	for _, snippet := range requiredSnippets {
-		if !strings.Contains(html, snippet) {
-			t.Fatalf("expected swagger index to contain %q", snippet)
-		}
+		assert.Contains(t, html, snippet)
 	}
 }

@@ -469,7 +469,7 @@
                         <button id="swagger-login-submit" class="swagger-login-submit" type="submit">Login</button>
                         <button id="swagger-login-clear" class="swagger-login-clear" type="button">Clear</button>
                     </div>
-                    <div id="swagger-login-status" class="swagger-login-status" role="status" aria-live="polite"></div>
+                    <output id="swagger-login-status" class="swagger-login-status" aria-live="polite"></output>
                 </form>
             </div>
         </div>
@@ -496,15 +496,15 @@
         }
 
         function authorizeSwagger(accessToken) {
-            window.ui.preauthorizeApiKey("BearerAuth", `Bearer ${accessToken}`);
+            globalThis.ui.preauthorizeApiKey("BearerAuth", `Bearer ${accessToken}`);
             swaggerAccessToken = accessToken;
             setSwaggerLoginStatus("Authorized", "success");
         }
 
         function clearSwaggerAuth() {
             swaggerAccessToken = null;
-            if (window.ui && window.ui.authActions) {
-                window.ui.authActions.logout(["BearerAuth"]);
+            if (globalThis.ui && globalThis.ui.authActions) {
+                globalThis.ui.authActions.logout(["BearerAuth"]);
             }
             setSwaggerLoginStatus("Authorization cleared", "");
         }
