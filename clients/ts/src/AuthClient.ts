@@ -52,7 +52,7 @@ export class AuthClient {
       }, interval);
     }
 
-    this.ready = this.loadSession().catch((e) => {
+    this.ready = Promise.resolve().then(() => this.loadSession()).catch((e) => {
       this.log("Failed to load session", e);
     });
   }

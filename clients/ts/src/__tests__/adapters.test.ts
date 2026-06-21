@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { useAuth as useVueAuth, createAuth } from '../vue';
+import { describe, it, expect, vi } from 'vitest';
+import { useAuth as useVueAuth } from '../vue';
 import { createAuthStore } from '../svelte';
 import { AuthClient } from '../AuthClient';
 import * as vue from 'vue';
@@ -28,8 +28,8 @@ vi.mock('../AuthClient', () => {
       getAccessToken = vi.fn(() => 'token');
       getRefreshToken = vi.fn(() => 'refresh');
       isAuthenticated = vi.fn(() => true);
-      _simulateSession = (session: any) => this.sessionCallback && this.sessionCallback(session);
-      _simulateError = (error: any) => this.errorCallback && this.errorCallback(error);
+      _simulateSession = (session: any) => this.sessionCallback?.(session);
+      _simulateError = (error: any) => this.errorCallback?.(error);
     }
   };
 });

@@ -1,4 +1,4 @@
-import { ApiResponse, User, UsersResponse } from './types';
+import { ApiResponse, UsersResponse } from './types';
 
 export interface AdminClientConfig {
   serverUrl: string;
