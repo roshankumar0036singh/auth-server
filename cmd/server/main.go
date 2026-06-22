@@ -57,6 +57,7 @@ func main() {
 
 	// Auto-migrate database models
 	err := config.AutoMigrate(db, &models.User{},
+		&models.UserOAuthAccount{},
 		&models.RefreshToken{},
 		&models.VerificationToken{},
 		&models.PasswordResetToken{},

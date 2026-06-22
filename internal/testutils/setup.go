@@ -113,6 +113,7 @@ func SetupIntegrationTest(t *testing.T) (*service.AuthService, *gorm.DB, *minire
 
 	// 3. Repositories
 	userRepo := repository.NewUserRepository(db)
+	oauthAccountRepo := repository.NewUserOAuthAccountRepository(db)
 	tokenRepo := repository.NewTokenRepository(db)
 	verificationRepo := repository.NewVerificationRepository(db)
 	passwordResetRepo := repository.NewPasswordResetRepository(db)
@@ -132,6 +133,7 @@ func SetupIntegrationTest(t *testing.T) (*service.AuthService, *gorm.DB, *minire
 
 	authService := service.NewAuthService(
 		userRepo,
+		oauthAccountRepo,
 		tokenRepo,
 		verificationRepo,
 		passwordResetRepo,

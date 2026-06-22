@@ -39,6 +39,7 @@ const (
 
 type AuthService struct {
 	userRepo          *repository.UserRepository
+	oauthAccountRepo  *repository.UserOAuthAccountRepository
 	tokenRepo         *repository.TokenRepository
 	verificationRepo  *repository.VerificationRepository
 	passwordResetRepo *repository.PasswordResetRepository
@@ -52,6 +53,7 @@ type AuthService struct {
 
 func NewAuthService(
 	userRepo *repository.UserRepository,
+	oauthAccountRepo *repository.UserOAuthAccountRepository,
 	tokenRepo *repository.TokenRepository,
 	verificationRepo *repository.VerificationRepository,
 	passwordResetRepo *repository.PasswordResetRepository,
@@ -64,6 +66,7 @@ func NewAuthService(
 ) *AuthService {
 	return &AuthService{
 		userRepo:          userRepo,
+		oauthAccountRepo:  oauthAccountRepo,
 		tokenRepo:         tokenRepo,
 		verificationRepo:  verificationRepo,
 		passwordResetRepo: passwordResetRepo,
@@ -631,44 +634,39 @@ func (s *AuthService) ProcessPostLogin(ctx context.Context, user *models.User, i
 
 // LoginWithOAuth handles login or registration via OAuth provider
 func (s *AuthService) LoginWithOAuth(email, oauthID, firstName, lastName, provider, ipAddress, userAgent string) (*dto.LoginResponse, error) {
-	user, err := s.userRepo.FindByEmail(email)
-	if err != nil {
-		// User does not exist, create new one
-		password := s.tokenService.GenerateRandomString(32)
+	account, err := s.oauthAccountRepo.FindByProvider(
+		provider,
+		oauthID,
+	)
 
-		hashedPassword, err := s.hashPassword(password)
+	var user *models.User
+
+	if err == nil {
+		user, err = s.userRepo.FindByID(account.UserID)
 		if err != nil {
 			return nil, err
 		}
-		user = &models.User{
-			Email:         email,
-			PasswordHash:  hashedPassword,
-			FirstName:     firstName,
-			LastName:      lastName,
-			OAuthProvider: provider,
-			OAuthID:       oauthID,
-			IsActive:      true,
-			EmailVerified: true, // Trusted from OAuth
-		}
-
-		if err := s.userRepo.Create(user); err != nil {
-			return nil, errors.New("failed to create user")
-		}
-
-		s.auditService.LogEvent(&user.ID, "USER_REGISTERED_OAUTH", "USER", user.ID, "", "", map[string]interface{}{"provider": provider})
 	} else {
-		// User exists, link account if not generic local
-		// For now simple logic: if email matches, we log them in and update OAuth info if missing
-		updates := make(map[string]interface{})
-		if user.OAuthID == "" {
-			updates["oauth_provider"] = provider
-			updates["oauth_id"] = oauthID
-			// Also mark email as verified if not already
-			if !user.EmailVerified {
-				updates["email_verified"] = true
-			}
-			s.userRepo.Update(user.ID, updates)
-			s.auditService.LogEvent(&user.ID, "ACCOUNT_LINKED_OAUTH", "USER", user.ID, "", "", map[string]interface{}{"provider": provider})
+		user, err = s.userRepo.FindByEmail(email)
+	}
+	if err != nil {
+		user, err = s.createOAuthUser(
+			email,
+			firstName,
+			lastName,
+			provider,
+			oauthID,
+		)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		if err := s.linkOAuthAccountIfNeeded(
+			user,
+			provider,
+			oauthID,
+		); err != nil {
+			return nil, err
 		}
 	}
 
@@ -681,6 +679,126 @@ func (s *AuthService) LoginWithOAuth(email, oauthID, firstName, lastName, provid
 
 	return response, nil
 
+}
+func (s *AuthService) createOAuthUser(
+	email,
+	firstName,
+	lastName,
+	provider,
+	oauthID string,
+) (*models.User, error) {
+
+	password := s.tokenService.GenerateRandomString(32)
+
+	hashedPassword, err := s.hashPassword(password)
+	if err != nil {
+		return nil, err
+	}
+
+	user := &models.User{
+		Email:         email,
+		PasswordHash:  hashedPassword,
+		FirstName:     firstName,
+		LastName:      lastName,
+		IsActive:      true,
+		EmailVerified: true,
+	}
+
+	err = s.userRepo.RunInTx(func(
+		userRepo *repository.UserRepository,
+		tokenRepo *repository.TokenRepository,
+		oauthRepo *repository.UserOAuthAccountRepository,
+	) error {
+		if err := userRepo.Create(user); err != nil {
+			return errors.New("failed to create user")
+		}
+
+		oauthAccount := &models.UserOAuthAccount{
+			UserID:         user.ID,
+			Provider:       provider,
+			ProviderUserID: oauthID,
+			LinkedAt:       time.Now(),
+		}
+
+		return oauthRepo.Create(oauthAccount)
+	},
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	s.auditService.LogEvent(
+		&user.ID,
+		"USER_REGISTERED_OAUTH",
+		"USER",
+		user.ID,
+		"",
+		"",
+		map[string]interface{}{
+			"provider": provider,
+		},
+	)
+
+	return user, nil
+}
+
+func (s *AuthService) linkOAuthAccountIfNeeded(
+	user *models.User,
+	provider,
+	oauthID string,
+) error {
+
+	existingAccount, accountErr := s.oauthAccountRepo.FindByProvider(
+		provider,
+		oauthID,
+	)
+
+	if accountErr == nil {
+		if existingAccount.UserID != user.ID {
+			return errors.New(
+				"oauth account already linked to another user",
+			)
+		}
+
+		return nil
+	}
+
+	oauthAccount := &models.UserOAuthAccount{
+		UserID:         user.ID,
+		Provider:       provider,
+		ProviderUserID: oauthID,
+		LinkedAt:       time.Now(),
+	}
+
+	if err := s.oauthAccountRepo.Create(oauthAccount); err != nil {
+		return err
+	}
+
+	if !user.EmailVerified {
+		if err := s.userRepo.Update(
+			user.ID,
+			map[string]interface{}{
+				"email_verified": true,
+			},
+		); err != nil {
+			return err
+		}
+	}
+
+	s.auditService.LogEvent(
+		&user.ID,
+		"ACCOUNT_LINKED_OAUTH",
+		"USER",
+		user.ID,
+		"",
+		"",
+		map[string]interface{}{
+			"provider": provider,
+		},
+	)
+
+	return nil
 }
 
 func (s *AuthService) handleFailedLogin(user *models.User, email string, ctx context.Context) {
@@ -968,7 +1086,11 @@ func (s *AuthService) LockUser(userID, adminID, ipAddress, userAgent string) err
 
 	var lockedUntil time.Time
 
-	err := s.userRepo.RunInTx(func(userRepo *repository.UserRepository, tokenRepo *repository.TokenRepository) error {
+	err := s.userRepo.RunInTx(func(
+		userRepo *repository.UserRepository,
+		tokenRepo *repository.TokenRepository,
+		_ *repository.UserOAuthAccountRepository,
+	) error {
 		if err := validateLockUser(userRepo, userID); err != nil {
 			return err
 		}
@@ -1015,7 +1137,11 @@ func (s *AuthService) LockUser(userID, adminID, ipAddress, userAgent string) err
 // Previously revoked refresh tokens remain revoked and are not restored.
 // Users must log in again after the account is unlocked.
 func (s *AuthService) UnlockUser(userID, adminID, ipAddress, userAgent string) error {
-	err := s.userRepo.RunInTx(func(userRepo *repository.UserRepository, tokenRepo *repository.TokenRepository) error {
+	err := s.userRepo.RunInTx(func(
+		userRepo *repository.UserRepository,
+		tokenRepo *repository.TokenRepository,
+		_ *repository.UserOAuthAccountRepository,
+	) error {
 		user, err := userRepo.FindByID(userID)
 		if err != nil {
 			return err
@@ -1084,4 +1210,37 @@ func (s *AuthService) CreateLoginResponse(
 		RefreshToken: refreshTokenString,
 		User:         user.ToPublic(),
 	}, nil
+}
+func (s *AuthService) LinkOAuthProvider(
+	userID, provider, providerUserID string,
+) error {
+
+	account := &models.UserOAuthAccount{
+		UserID:         userID,
+		Provider:       provider,
+		ProviderUserID: providerUserID,
+		LinkedAt:       time.Now(),
+	}
+
+	return s.oauthAccountRepo.Create(account)
+}
+
+func (s *AuthService) UnlinkOAuthProvider(
+	userID, provider string,
+) error {
+
+	accounts, err := s.oauthAccountRepo.FindByUserID(userID)
+	if err != nil {
+		return err
+	}
+
+	// Prevent removing the last login method
+	if len(accounts) == 1 {
+		return errors.New("cannot unlink the last login method")
+	}
+
+	return s.oauthAccountRepo.Delete(
+		userID,
+		provider,
+	)
 }
