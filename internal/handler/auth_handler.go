@@ -987,51 +987,29 @@ func (h *AuthHandler) LoginMFA(c *gin.Context) {
 // LinkProvider links an OAuth provider to the current user
 func (h *AuthHandler) LinkProvider(c *gin.Context) {
 
-	userID, exists := c.Get("userID")
+	_, exists := c.Get("userID")
 	if !exists {
-		c.JSON(http.StatusUnauthorized,
-			utils.UnauthorizedResponse("Unauthorized"))
+		c.JSON(
+			http.StatusUnauthorized,
+			utils.UnauthorizedResponse("Unauthorized"),
+		)
 		return
 	}
 
 	provider := c.Param("provider")
-	providerUserID := c.Query("providerUserID")
-
-	if providerUserID == "" {
-		c.JSON(
-			http.StatusBadRequest,
-			utils.ErrorResponse(
-				"providerUserID is required",
-				nil,
-			),
-		)
-		return
-	}
-
-	err := h.authService.LinkOAuthProvider(
-		userID.(string),
-		provider,
-		providerUserID,
-	)
-
-	if err != nil {
-		c.JSON(
-			http.StatusInternalServerError,
-			utils.ErrorResponse(
-				"Failed to link provider",
-				err,
-			),
-		)
-		return
-	}
 
 	c.JSON(
-		http.StatusOK,
-		utils.SuccessResponse(
-			"Provider linked successfully",
+		http.StatusBadRequest,
+		utils.ErrorResponse(
+			fmt.Sprintf(
+				"linking %s accounts requires provider token verification and is not yet supported",
+				provider,
+			),
 			nil,
 		),
 	)
+
+	return
 }
 
 // UnlinkProvider removes an OAuth provider from the current user

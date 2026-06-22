@@ -753,12 +753,14 @@ func (s *AuthService) linkOAuthAccountIfNeeded(
 	}
 
 	if !user.EmailVerified {
-		s.userRepo.Update(
+		if err := s.userRepo.Update(
 			user.ID,
 			map[string]interface{}{
 				"email_verified": true,
 			},
-		)
+		); err != nil {
+			return err
+		}
 	}
 
 	s.auditService.LogEvent(
@@ -1182,6 +1184,21 @@ func (s *AuthService) LinkOAuthProvider(
 func (s *AuthService) UnlinkOAuthProvider(
 	userID, provider string,
 ) error {
+
+	accounts, err := s.oauthAccountRepo.FindByUserID(userID)
+	if err != nil {
+		return err
+	}
+
+	user, err := s.userRepo.FindByID(userID)
+	if err != nil {
+		return err
+	}
+
+	// Prevent removing the last login method
+	if len(accounts) == 1 && user.PasswordHash == "" {
+		return errors.New("cannot unlink the last login method")
+	}
 
 	return s.oauthAccountRepo.Delete(
 		userID,
