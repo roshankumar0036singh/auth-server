@@ -472,7 +472,6 @@ func (s *AuthService) Register(req *dto.RegisterRequest) (*models.User, error) {
 		PasswordHash:  string(hashedPassword),
 		FirstName:     req.FirstName,
 		LastName:      req.LastName,
-		OAuthProvider: "local",
 		IsActive:      true, // Can allow login but restrict features, or set false
 		EmailVerified: false,
 	}
@@ -645,8 +644,6 @@ func (s *AuthService) LoginWithOAuth(email, oauthID, firstName, lastName, provid
 			PasswordHash:  hashedPassword,
 			FirstName:     firstName,
 			LastName:      lastName,
-			OAuthProvider: provider,
-			OAuthID:       oauthID,
 			IsActive:      true,
 			EmailVerified: true, // Trusted from OAuth
 		}
@@ -659,17 +656,28 @@ func (s *AuthService) LoginWithOAuth(email, oauthID, firstName, lastName, provid
 	} else {
 		// User exists, link account if not generic local
 		// For now simple logic: if email matches, we log them in and update OAuth info if missing
-		updates := make(map[string]interface{})
-		if user.OAuthID == "" {
-			updates["oauth_provider"] = provider
-			updates["oauth_id"] = oauthID
-			// Also mark email as verified if not already
-			if !user.EmailVerified {
-				updates["email_verified"] = true
+		if !user.EmailVerified {
+			if err := s.userRepo.Update(
+				user.ID,
+				map[string]interface{}{
+					"email_verified": true,
+				},
+			); err != nil {
+				return nil, err
 			}
-			s.userRepo.Update(user.ID, updates)
-			s.auditService.LogEvent(&user.ID, "ACCOUNT_LINKED_OAUTH", "USER", user.ID, "", "", map[string]interface{}{"provider": provider})
 		}
+
+		s.auditService.LogEvent(
+			&user.ID,
+			"ACCOUNT_LINKED_OAUTH",
+			"USER",
+			user.ID,
+			"",
+			"",
+			map[string]interface{}{
+				"provider": provider,
+			},
+		)
 	}
 
 	response, err := s.CreateLoginResponse(user, ipAddress, userAgent)

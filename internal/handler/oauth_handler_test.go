@@ -5,12 +5,12 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
-        "testing"
+	"testing"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-        "golang.org/x/crypto/bcrypt"
+	"github.com/lib/pq"
 	"github.com/roshankumar0036singh/auth-server/internal/config"
 	"github.com/roshankumar0036singh/auth-server/internal/handler"
 	"github.com/roshankumar0036singh/auth-server/internal/models"
@@ -20,7 +20,7 @@ import (
 	"github.com/roshankumar0036singh/auth-server/internal/utils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-        "github.com/lib/pq"
+	"golang.org/x/crypto/bcrypt"
 )
 
 func setupOAuthUserInfoRouter(t *testing.T) (*gin.Engine, *repository.UserRepository, *repository.OAuthTokenRepository) {
@@ -238,7 +238,6 @@ func TestOAuthHandler_UserInfoKeepsEmailVerifiedWhenEmailIsEmpty(t *testing.T) {
 		FirstName:           "Email",
 		LastName:            "Verified",
 		EmailVerified:       true,
-		OAuthProvider:       "local",
 		FailedLoginAttempts: 0,
 	}
 	require.NoError(t, userRepo.Create(user))
@@ -387,7 +386,7 @@ func TestToken_PublicClient_MissingVerifier_Rejected(t *testing.T) {
 		ClientID:     clientID,
 		ClientSecret: "unused",
 		RedirectURIs: pq.StringArray{"http://localhost/cb"},
-                Scopes:       pq.StringArray{"read:profile"},
+		Scopes:       pq.StringArray{"read:profile"},
 		IsActive:     true,
 		IsPublic:     true,
 	})
@@ -401,7 +400,7 @@ func TestToken_PublicClient_MissingVerifier_Rejected(t *testing.T) {
 		Code:                code,
 		ClientID:            clientID,
 		UserID:              uuid.NewString(),
-		RedirectURI:        "http://localhost/cb",
+		RedirectURI:         "http://localhost/cb",
 		Scopes:              pq.StringArray{"read:profile"},
 		ExpiresAt:           time.Now().Add(10 * time.Minute),
 		CodeChallenge:       &challenge,
@@ -432,7 +431,7 @@ func TestToken_ConfidentialClient_MissingSecret_Rejected(t *testing.T) {
 		ClientID:     clientID,
 		ClientSecret: string(hashedSecret),
 		RedirectURIs: pq.StringArray{"http://localhost/cb"},
-                Scopes:       pq.StringArray{"read:profile"},
+		Scopes:       pq.StringArray{"read:profile"},
 		IsActive:     true,
 		IsPublic:     false,
 	})
