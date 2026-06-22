@@ -99,8 +99,14 @@ func HealthCheckDatabase() map[string]interface{} {
         }
     }
 
-    sqlDB, _ := DB.DB()
-    stats := sqlDB.Stats()
+    sqlDB, err := DB.DB()
+if err != nil {
+    return map[string]interface{}{
+        "error": fmt.Sprintf("failed to access database pool: %v", err),
+    }
+}
+
+stats := sqlDB.Stats()
 
     // Check connectivity
     if err := sqlDB.Ping(); err != nil {
