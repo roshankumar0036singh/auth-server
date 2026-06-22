@@ -22,7 +22,7 @@ func (r *UserOAuthAccountRepository) Create(account *models.UserOAuthAccount) er
 }
 
 func (r *UserOAuthAccountRepository) FindByProvider(
-    provider, providerUserID string,
+	provider, providerUserID string,
 ) (*models.UserOAuthAccount, error) {
 
 	var account models.UserOAuthAccount
@@ -59,14 +59,20 @@ func (r *UserOAuthAccountRepository) FindByUserID(
 }
 
 func (r *UserOAuthAccountRepository) Delete(
-    userID, provider string,
+	userID, provider string,
 ) error {
 
-	return r.db.
+	result := r.db.
 		Where(
 			"user_id = ? AND provider = ?",
 			userID,
 			provider,
 		).
-		Delete(&models.UserOAuthAccount{}).Error
+		Delete(&models.UserOAuthAccount{})
+
+	if result.RowsAffected == 0 {
+		return errors.New("oauth account not found")
+	}
+
+	return result.Error
 }

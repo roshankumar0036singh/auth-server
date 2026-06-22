@@ -711,6 +711,7 @@ func (s *AuthService) createOAuthUser(
 			UserID:         user.ID,
 			Provider:       provider,
 			ProviderUserID: oauthID,
+			LinkedAt:       time.Now(),
 		}
 
 		return oauthRepo.Create(oauthAccount)
@@ -742,12 +743,18 @@ func (s *AuthService) linkOAuthAccountIfNeeded(
 	oauthID string,
 ) error {
 
-	_, accountErr := s.oauthAccountRepo.FindByProvider(
+	existingAccount, accountErr := s.oauthAccountRepo.FindByProvider(
 		provider,
 		oauthID,
 	)
 
 	if accountErr == nil {
+		if existingAccount.UserID != user.ID {
+			return errors.New(
+				"oauth account already linked to another user",
+			)
+		}
+
 		return nil
 	}
 
@@ -755,6 +762,7 @@ func (s *AuthService) linkOAuthAccountIfNeeded(
 		UserID:         user.ID,
 		Provider:       provider,
 		ProviderUserID: oauthID,
+		LinkedAt:       time.Now(),
 	}
 
 	if err := s.oauthAccountRepo.Create(oauthAccount); err != nil {
@@ -1193,6 +1201,7 @@ func (s *AuthService) LinkOAuthProvider(
 		UserID:         userID,
 		Provider:       provider,
 		ProviderUserID: providerUserID,
+		LinkedAt:       time.Now(),
 	}
 
 	return s.oauthAccountRepo.Create(account)
@@ -1207,13 +1216,8 @@ func (s *AuthService) UnlinkOAuthProvider(
 		return err
 	}
 
-	user, err := s.userRepo.FindByID(userID)
-	if err != nil {
-		return err
-	}
-
 	// Prevent removing the last login method
-	if len(accounts) == 1 && user.PasswordHash == "" {
+	if len(accounts) == 1 {
 		return errors.New("cannot unlink the last login method")
 	}
 
