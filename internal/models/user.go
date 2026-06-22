@@ -14,28 +14,26 @@ type PaginatedUsers struct {
 }
 
 type User struct {
-	ID                  string         `gorm:"type:uuid;primary_key" json:"id"`
-	Email               string         `gorm:"uniqueIndex;not null;size:255" json:"email"`
-	PasswordHash        string         `gorm:"not null;size:255" json:"-"` // Never expose in JSON
-	FirstName           string         `gorm:"size:100" json:"firstName,omitempty"`
-	LastName            string         `gorm:"size:100" json:"lastName,omitempty"`
-	Phone               string         `gorm:"size:20" json:"phone,omitempty"`
-	PhoneVerified       bool           `gorm:"default:false" json:"phoneVerified"`
-	EmailVerified       bool           `gorm:"default:false" json:"emailVerified"`
-	IsActive            bool           `gorm:"default:true" json:"isActive"`
-	ProfileImage        string         `json:"profileImage,omitempty"`
-	OAuthProvider       string         `gorm:"size:50" json:"oauthProvider,omitempty"` // 'google', 'github', 'local'
-	OAuthID             string         `gorm:"size:255" json:"-"`
-	MFAEnabled          bool           `gorm:"default:false" json:"mfaEnabled"`
+	ID                  string               `gorm:"type:uuid;primary_key" json:"id"`
+	Email               string               `gorm:"uniqueIndex;not null;size:255" json:"email"`
+	PasswordHash        string               `gorm:"not null;size:255" json:"-"` // Never expose in JSON
+	FirstName           string               `gorm:"size:100" json:"firstName,omitempty"`
+	LastName            string               `gorm:"size:100" json:"lastName,omitempty"`
+	Phone               string               `gorm:"size:20" json:"phone,omitempty"`
+	PhoneVerified       bool                 `gorm:"default:false" json:"phoneVerified"`
+	EmailVerified       bool                 `gorm:"default:false" json:"emailVerified"`
+	IsActive            bool                 `gorm:"default:true" json:"isActive"`
+	ProfileImage        string               `json:"profileImage,omitempty"`
+	MFAEnabled          bool                 `gorm:"default:false" json:"mfaEnabled"`
 	MFASecret           string               `gorm:"size:255" json:"-"`
 	Passkeys            []WebAuthnCredential `gorm:"foreignKey:UserID" json:"-"`
 	Role                string               `gorm:"default:'user';size:50" json:"role"` // 'user', 'admin'
-	FailedLoginAttempts int            `gorm:"default:0" json:"-"`
-	LockedUntil         *time.Time     `json:"lockedUntil,omitempty"`
-	CreatedAt           time.Time      `json:"createdAt"`
-	UpdatedAt           time.Time      `json:"updatedAt"`
-	DeletedAt           gorm.DeletedAt `gorm:"index" json:"-"`
-	LastLoginAt         *time.Time     `json:"lastLoginAt,omitempty"`
+	FailedLoginAttempts int                  `gorm:"default:0" json:"-"`
+	LockedUntil         *time.Time           `json:"lockedUntil,omitempty"`
+	CreatedAt           time.Time            `json:"createdAt"`
+	UpdatedAt           time.Time            `json:"updatedAt"`
+	DeletedAt           gorm.DeletedAt       `gorm:"index" json:"-"`
+	LastLoginAt         *time.Time           `json:"lastLoginAt,omitempty"`
 }
 
 // BeforeCreate hook to generate UUID if not provided
@@ -44,9 +42,7 @@ func (u *User) BeforeCreate(tx *gorm.DB) error {
 		u.ID = uuid.New().String()
 	}
 	// Set default OAuth provider if not set
-	if u.OAuthProvider == "" {
-		u.OAuthProvider = "local"
-	}
+
 	// Set default Role if not set
 	if u.Role == "" {
 		u.Role = "user"
