@@ -644,85 +644,23 @@ func (s *AuthService) LoginWithOAuth(email, oauthID, firstName, lastName, provid
 		user, err = s.userRepo.FindByEmail(email)
 	}
 	if err != nil {
-		// User does not exist, create new one
-		password := s.tokenService.GenerateRandomString(32)
-
-		hashedPassword, err := s.hashPassword(password)
-		if err != nil {
-			return nil, err
-		}
-		user = &models.User{
-			Email:         email,
-			PasswordHash:  hashedPassword,
-			FirstName:     firstName,
-			LastName:      lastName,
-			IsActive:      true,
-			EmailVerified: true, // Trusted from OAuth
-		}
-
-		if err := s.userRepo.Create(user); err != nil {
-			return nil, errors.New("failed to create user")
-		}
-		if user.OAuthProvider != "" && user.OAuthID != "" {
-
-			oldAccount := &models.UserOAuthAccount{
-				UserID:         user.ID,
-				Provider:       user.OAuthProvider,
-				ProviderUserID: user.OAuthID,
-			}
-
-			_ = s.oauthAccountRepo.Create(oldAccount)
-		}
-		oauthAccount := &models.UserOAuthAccount{
-			UserID:         user.ID,
-			Provider:       provider,
-			ProviderUserID: oauthID,
-		}
-
-		if err := s.oauthAccountRepo.Create(oauthAccount); err != nil {
-			return nil, err
-		}
-
-		s.auditService.LogEvent(&user.ID, "USER_REGISTERED_OAUTH", "USER", user.ID, "", "", map[string]interface{}{"provider": provider})
-	} else {
-
-		_, accountErr := s.oauthAccountRepo.FindByProvider(
+		user, err = s.createOAuthUser(
+			email,
+			firstName,
+			lastName,
 			provider,
 			oauthID,
 		)
-
-		if accountErr != nil {
-
-			oauthAccount := &models.UserOAuthAccount{
-				UserID:         user.ID,
-				Provider:       provider,
-				ProviderUserID: oauthID,
-			}
-
-			if err := s.oauthAccountRepo.Create(oauthAccount); err != nil {
-				return nil, err
-			}
-
-			if !user.EmailVerified {
-				s.userRepo.Update(
-					user.ID,
-					map[string]interface{}{
-						"email_verified": true,
-					},
-				)
-			}
-
-			s.auditService.LogEvent(
-				&user.ID,
-				"ACCOUNT_LINKED_OAUTH",
-				"USER",
-				user.ID,
-				"",
-				"",
-				map[string]interface{}{
-					"provider": provider,
-				},
-			)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		if err := s.linkOAuthAccountIfNeeded(
+			user,
+			provider,
+			oauthID,
+		); err != nil {
+			return nil, err
 		}
 	}
 
@@ -735,6 +673,107 @@ func (s *AuthService) LoginWithOAuth(email, oauthID, firstName, lastName, provid
 
 	return response, nil
 
+}
+func (s *AuthService) createOAuthUser(
+	email,
+	firstName,
+	lastName,
+	provider,
+	oauthID string,
+) (*models.User, error) {
+
+	password := s.tokenService.GenerateRandomString(32)
+
+	hashedPassword, err := s.hashPassword(password)
+	if err != nil {
+		return nil, err
+	}
+
+	user := &models.User{
+		Email:         email,
+		PasswordHash:  hashedPassword,
+		FirstName:     firstName,
+		LastName:      lastName,
+		IsActive:      true,
+		EmailVerified: true,
+	}
+
+	if err := s.userRepo.Create(user); err != nil {
+		return nil, errors.New("failed to create user")
+	}
+
+	oauthAccount := &models.UserOAuthAccount{
+		UserID:         user.ID,
+		Provider:       provider,
+		ProviderUserID: oauthID,
+	}
+
+	if err := s.oauthAccountRepo.Create(oauthAccount); err != nil {
+		return nil, err
+	}
+
+	s.auditService.LogEvent(
+		&user.ID,
+		"USER_REGISTERED_OAUTH",
+		"USER",
+		user.ID,
+		"",
+		"",
+		map[string]interface{}{
+			"provider": provider,
+		},
+	)
+
+	return user, nil
+}
+
+func (s *AuthService) linkOAuthAccountIfNeeded(
+	user *models.User,
+	provider,
+	oauthID string,
+) error {
+
+	_, accountErr := s.oauthAccountRepo.FindByProvider(
+		provider,
+		oauthID,
+	)
+
+	if accountErr == nil {
+		return nil
+	}
+
+	oauthAccount := &models.UserOAuthAccount{
+		UserID:         user.ID,
+		Provider:       provider,
+		ProviderUserID: oauthID,
+	}
+
+	if err := s.oauthAccountRepo.Create(oauthAccount); err != nil {
+		return err
+	}
+
+	if !user.EmailVerified {
+		s.userRepo.Update(
+			user.ID,
+			map[string]interface{}{
+				"email_verified": true,
+			},
+		)
+	}
+
+	s.auditService.LogEvent(
+		&user.ID,
+		"ACCOUNT_LINKED_OAUTH",
+		"USER",
+		user.ID,
+		"",
+		"",
+		map[string]interface{}{
+			"provider": provider,
+		},
+	)
+
+	return nil
 }
 
 func (s *AuthService) handleFailedLogin(user *models.User, email string, ctx context.Context) {
@@ -1128,9 +1167,7 @@ func (s *AuthService) createLoginResponse(
 	}, nil
 }
 func (s *AuthService) LinkOAuthProvider(
-	userID string,
-	provider string,
-	providerUserID string,
+	userID, provider, providerUserID string,
 ) error {
 
 	account := &models.UserOAuthAccount{
@@ -1143,8 +1180,7 @@ func (s *AuthService) LinkOAuthProvider(
 }
 
 func (s *AuthService) UnlinkOAuthProvider(
-	userID string,
-	provider string,
+	userID, provider string,
 ) error {
 
 	return s.oauthAccountRepo.Delete(

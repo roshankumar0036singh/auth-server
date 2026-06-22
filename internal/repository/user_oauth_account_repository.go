@@ -22,8 +22,7 @@ func (r *UserOAuthAccountRepository) Create(account *models.UserOAuthAccount) er
 }
 
 func (r *UserOAuthAccountRepository) FindByProvider(
-	provider string,
-	providerUserID string,
+    provider, providerUserID string,
 ) (*models.UserOAuthAccount, error) {
 
 	var account models.UserOAuthAccount
@@ -60,8 +59,7 @@ func (r *UserOAuthAccountRepository) FindByUserID(
 }
 
 func (r *UserOAuthAccountRepository) Delete(
-	userID string,
-	provider string,
+    userID, provider string,
 ) error {
 
 	return r.db.
