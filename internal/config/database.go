@@ -26,7 +26,7 @@ func InitDatabase(dbConfig DBConfig) error {
 
     // Connect to database using GORM
     db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{
-        Logger: logger.Default.LogMode(logger.Info),
+        Logger: logger.Default.LogMode(logLevel),
     })
     if err != nil {
         return fmt.Errorf("failed to connect to database: %w", err)
