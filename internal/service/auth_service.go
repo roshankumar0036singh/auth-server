@@ -698,17 +698,26 @@ func (s *AuthService) createOAuthUser(
 		EmailVerified: true,
 	}
 
-	if err := s.userRepo.Create(user); err != nil {
-		return nil, errors.New("failed to create user")
-	}
+	err = s.userRepo.RunInTx(func(
+		userRepo *repository.UserRepository,
+		tokenRepo *repository.TokenRepository,
+		oauthRepo *repository.UserOAuthAccountRepository,
+	) error {
+		if err := userRepo.Create(user); err != nil {
+			return errors.New("failed to create user")
+		}
 
-	oauthAccount := &models.UserOAuthAccount{
-		UserID:         user.ID,
-		Provider:       provider,
-		ProviderUserID: oauthID,
-	}
+		oauthAccount := &models.UserOAuthAccount{
+			UserID:         user.ID,
+			Provider:       provider,
+			ProviderUserID: oauthID,
+		}
 
-	if err := s.oauthAccountRepo.Create(oauthAccount); err != nil {
+		return oauthRepo.Create(oauthAccount)
+	},
+	)
+
+	if err != nil {
 		return nil, err
 	}
 
@@ -1051,7 +1060,11 @@ func (s *AuthService) LockUser(userID, adminID, ipAddress, userAgent string) err
 
 	var lockedUntil time.Time
 
-	err := s.userRepo.RunInTx(func(userRepo *repository.UserRepository, tokenRepo *repository.TokenRepository) error {
+	err := s.userRepo.RunInTx(func(
+		userRepo *repository.UserRepository,
+		tokenRepo *repository.TokenRepository,
+		_ *repository.UserOAuthAccountRepository,
+	) error {
 		if err := validateLockUser(userRepo, userID); err != nil {
 			return err
 		}
@@ -1098,7 +1111,11 @@ func (s *AuthService) LockUser(userID, adminID, ipAddress, userAgent string) err
 // Previously revoked refresh tokens remain revoked and are not restored.
 // Users must log in again after the account is unlocked.
 func (s *AuthService) UnlockUser(userID, adminID, ipAddress, userAgent string) error {
-	err := s.userRepo.RunInTx(func(userRepo *repository.UserRepository, tokenRepo *repository.TokenRepository) error {
+	err := s.userRepo.RunInTx(func(
+		userRepo *repository.UserRepository,
+		tokenRepo *repository.TokenRepository,
+		_ *repository.UserOAuthAccountRepository,
+	) error {
 		user, err := userRepo.FindByID(userID)
 		if err != nil {
 			return err
