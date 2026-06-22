@@ -1,7 +1,9 @@
 package main
 
 import (
+	"fmt"
 	"log"
+	"os"
 
 	"github.com/lib/pq"
 	"github.com/roshankumar0036singh/auth-server/internal/config"
@@ -60,8 +62,8 @@ func main() {
 	log.Println(" - Local Development Client")
 	log.Println(" - Client ID: dev-client")
 	log.Println("")
+	log.Println("OAuth client secret configured via SEED_CLIENT_SECRET")
 	log.Println("Credentials are intentionally not printed to logs.")
-	log.Println("Refer to cmd/seed/main.go for development seed values.")
 	log.Println("=====================================")
 }
 
@@ -158,8 +160,13 @@ func seedOAuthClient(db *gorm.DB, admin *models.User) error {
 		return nil
 	}
 
+	clientSecret := os.Getenv("SEED_CLIENT_SECRET")
+	if clientSecret == "" {
+		return fmt.Errorf("SEED_CLIENT_SECRET environment variable is required")
+	}
+
 	hashedSecret, err := bcrypt.GenerateFromPassword(
-		[]byte("dev-client-secret"),
+		[]byte(clientSecret),
 		bcrypt.DefaultCost,
 	)
 
