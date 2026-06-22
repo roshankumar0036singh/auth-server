@@ -10,7 +10,10 @@ import (
 	"gorm.io/gorm/logger"
 )
 
-var DB *gorm.DB
+var (
+    DB              *gorm.DB
+    maxOpenConnsCfg int
+)
 
 // InitDatabase initializes database with proper connection pool configuration
 func InitDatabase(dbConfig DBConfig) error {
@@ -46,6 +49,7 @@ log.Printf("✓ MaxIdleConns set to: %d", dbConfig.MaxIdleConns)
 
 // Set max open connections
 sqlDB.SetMaxOpenConns(dbConfig.MaxOpenConns)
+maxOpenConnsCfg = dbConfig.MaxOpenConns
 log.Printf("✓ MaxOpenConns set to: %d", dbConfig.MaxOpenConns)
 
 // Set connection max lifetime
@@ -116,15 +120,22 @@ stats := sqlDB.Stats()
         }
     }
 
-    // Check if connections are exhausted
-    if stats.OpenConnections >= 95 { // 95% of 100
+  // Check if connection pool is near capacity (95% usage)
+if maxOpenConnsCfg > 0 {
+    threshold := int(float64(maxOpenConnsCfg) * 0.95)
+
+    if stats.OpenConnections >= threshold {
         return map[string]interface{}{
             "healthy": false,
-            "message": fmt.Sprintf("connection pool near capacity: %d connections", 
-                stats.OpenConnections),
+            "message": fmt.Sprintf(
+                "connection pool near capacity: %d/%d connections",
+                stats.OpenConnections,
+                maxOpenConnsCfg,
+            ),
             "stats": GetDBStats(),
         }
     }
+}
 
     return map[string]interface{}{
         "healthy": true,
