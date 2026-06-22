@@ -37,52 +37,38 @@ func InitDatabase(dbConfig DBConfig) error {
     if err != nil {
         return fmt.Errorf("failed to get database instance: %w", err)
     }
-
-// ============================================
-	// Connection Pool Configuration
-	// ============================================
 	
-	// Set max idle connections
-	sqlDB.SetMaxIdleConns(cfg.Database.PoolMin)
-	log.Printf("✓ MaxIdleConns set to: %d", cfg.Database.PoolMin)
+// Connection Pool Configuration
 
-	// Set max open connections
-	sqlDB.SetMaxOpenConns(cfg.Database.PoolMax)
-	log.Printf("✓ MaxOpenConns set to: %d", cfg.Database.PoolMax)
+// Set max idle connections
+sqlDB.SetMaxIdleConns(dbConfig.MaxIdleConns)
+log.Printf("✓ MaxIdleConns set to: %d", dbConfig.MaxIdleConns)
 
-	// Set connection max lifetime
-	sqlDB.SetConnMaxLifetime(cfg.Database.ConnMaxLifetime)
-	log.Printf("✓ ConnMaxLifetime set to: %v", cfg.Database.ConnMaxLifetime)
+// Set max open connections
+sqlDB.SetMaxOpenConns(dbConfig.MaxOpenConns)
+log.Printf("✓ MaxOpenConns set to: %d", dbConfig.MaxOpenConns)
 
-	// Set connection max idle time
-	sqlDB.SetConnMaxIdleTime(cfg.Database.ConnMaxIdleTime)
-	log.Printf("✓ ConnMaxIdleTime set to: %v", cfg.Database.ConnMaxIdleTime)
+// Set connection max lifetime
+sqlDB.SetConnMaxLifetime(dbConfig.ConnMaxLifetime)
+log.Printf("✓ ConnMaxLifetime set to: %v", dbConfig.ConnMaxLifetime)
 
-	// Verify connection
-	if err := sqlDB.Ping(); err != nil {
-		log.Fatal("Failed to ping database:", err)
-	}
+// Set connection max idle time
+sqlDB.SetConnMaxIdleTime(dbConfig.ConnMaxIdleTime)
+log.Printf("✓ ConnMaxIdleTime set to: %v", dbConfig.ConnMaxIdleTime)
 
-	log.Println("✓ Database connection pool configured successfully")
-
-    sqlDB.SetMaxIdleConns(dbConfig.MaxIdleConns)
-    log.Printf("✓ MaxIdleConns set to: %d", dbConfig.MaxIdleConns)
-
-    sqlDB.SetConnMaxLifetime(dbConfig.ConnMaxLifetime)
-    log.Printf("✓ ConnMaxLifetime set to: %v", dbConfig.ConnMaxLifetime)
-
-    sqlDB.SetConnMaxIdleTime(dbConfig.ConnMaxIdleTime)
-    log.Printf("✓ ConnMaxIdleTime set to: %v", dbConfig.ConnMaxIdleTime)
-
-    // Verify the connection
-    if err := sqlDB.Ping(); err != nil {
-        return fmt.Errorf("failed to ping database: %w", err)
-    }
-
-    DB = db
-    log.Println("✓ Database connected successfully with optimized connection pooling")
-    return nil
+// Verify connection
+if err := sqlDB.Ping(); err != nil {
+    return fmt.Errorf("failed to ping database: %w", err)
 }
+
+log.Println("✓ Database connection pool configured successfully")
+
+DB = db
+log.Println("✓ Database connected successfully with optimized connection pooling")
+return nil
+
+
+   
 
 // GetDBStats returns current database connection pool statistics
 func GetDBStats() map[string]interface{} {
