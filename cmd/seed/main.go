@@ -14,6 +14,11 @@ import (
 func main() {
 	cfg := config.LoadConfig()
 
+	// Prevent accidental execution against production databases.
+	if cfg.App.Env != "development" && cfg.App.Env != "local" {
+		log.Fatal("database seeding is only allowed in development or local environments")
+	}
+
 	db := config.InitDatabase(cfg)
 
 	err := config.AutoMigrate(
@@ -47,18 +52,16 @@ func main() {
 	log.Println("=====================================")
 	log.Println("Seed completed successfully")
 	log.Println("")
-	log.Println("Admin User")
-	log.Println("Email: admin@example.com")
-	log.Println("Password: Admin123!")
+	log.Println("Seeded Users")
+	log.Println(" - admin@example.com")
+	log.Println(" - demo@example.com")
 	log.Println("")
-	log.Println("Demo User")
-	log.Println("Email: demo@example.com")
-	log.Println("Password: Demo123!")
+	log.Println("Seeded OAuth Client")
+	log.Println(" - Local Development Client")
+	log.Println(" - Client ID: dev-client")
 	log.Println("")
-	log.Println("OAuth Client")
-	log.Println("Name: Local Development Client")
-	log.Println("Client ID: dev-client")
-	log.Println("Client Secret: dev-client-secret")
+	log.Println("Credentials are intentionally not printed to logs.")
+	log.Println("Refer to cmd/seed/main.go for development seed values.")
 	log.Println("=====================================")
 }
 
