@@ -142,9 +142,14 @@ func (s *AuthService) ForgotPassword(email string) error {
 	s.passwordResetRepo.DeleteByUserID(user.ID)
 
 	// Create new reset token
+	randomToken, err := s.tokenService.GenerateRandomString(32)
+	if err != nil {
+		return err
+	}
+
 	token := &models.PasswordResetToken{
 		UserID:    user.ID,
-		Token:     s.tokenService.GenerateRandomString(32),
+		Token:     randomToken,
 		ExpiresAt: time.Now().Add(1 * time.Hour),
 	}
 
@@ -495,9 +500,14 @@ func (s *AuthService) Register(req *dto.RegisterRequest) (*models.User, error) {
 
 func (s *AuthService) sendVerificationEmail(user *models.User) error {
 	// Generate verification token
+	randomToken, err := s.tokenService.GenerateRandomString(32)
+	if err != nil {
+		return err
+	}
+
 	token := &models.VerificationToken{
 		UserID:    user.ID,
-		Token:     s.tokenService.GenerateRandomString(32),
+		Token:     randomToken,
 		ExpiresAt: time.Now().Add(24 * time.Hour),
 	}
 
@@ -634,7 +644,10 @@ func (s *AuthService) LoginWithOAuth(email, oauthID, firstName, lastName, provid
 	user, err := s.userRepo.FindByEmail(email)
 	if err != nil {
 		// User does not exist, create new one
-		password := s.tokenService.GenerateRandomString(32)
+		password, err := s.tokenService.GenerateRandomString(32)
+		if err != nil {
+			return nil, err
+		}
 
 		hashedPassword, err := s.hashPassword(password)
 		if err != nil {
