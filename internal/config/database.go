@@ -1,6 +1,7 @@
 package config
 
 import (
+	"database/sql"
 	"fmt"
 	"log"
 
@@ -9,42 +10,136 @@ import (
 	"gorm.io/gorm/logger"
 )
 
-func InitDatabase(cfg *Config) *gorm.DB {
-	var logLevel logger.LogLevel
-	if cfg.App.Env == "production" {
-		logLevel = logger.Silent
-	} else {
-		logLevel = logger.Info
-	}
+var (
+    DB              *gorm.DB
+    maxOpenConnsCfg int
+)
 
-	db, err := gorm.Open(postgres.Open(cfg.Database.URL), &gorm.Config{
-		Logger: logger.Default.LogMode(logLevel),
-	})
+// InitDatabase initializes database with proper connection pool configuration
+func InitDatabase(dbConfig DBConfig) error {
+    // Build DSN (Data Source Name)
+    dsn := fmt.Sprintf(
+        "%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=True&loc=Local",
+        dbConfig.User,
+        dbConfig.Password,
+        dbConfig.Host,
+        dbConfig.Port,
+        dbConfig.Database,
+    )
 
-	if err != nil {
-		log.Fatal("Failed to connect to database:", err)
-	}
+    // Connect to database using GORM
+    db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{
+        Logger: logger.Default.LogMode(logger.Info),
+    })
+    if err != nil {
+        return fmt.Errorf("failed to connect to database: %w", err)
+    }
 
-	sqlDB, err := db.DB()
-	if err != nil {
-		log.Fatal("Failed to get database instance:", err)
-	}
+    // Get the underlying *sql.DB instance
+    sqlDB, err := db.DB()
+    if err != nil {
+        return fmt.Errorf("failed to get database instance: %w", err)
+    }
+	
+// Connection Pool Configuration
 
-	// Set connection pool settings
-	sqlDB.SetMaxIdleConns(cfg.Database.PoolMin)
-	sqlDB.SetMaxOpenConns(cfg.Database.PoolMax)
-	sqlDB.SetConnMaxLifetime(cfg.Database.ConnMaxLifetime)
-	sqlDB.SetConnMaxIdleTime(cfg.Database.ConnMaxIdleTime)
+// Set max idle connections
+sqlDB.SetMaxIdleConns(dbConfig.MaxIdleConns)
+log.Printf("✓ MaxIdleConns set to: %d", dbConfig.MaxIdleConns)
 
-	log.Println("Database connected successfully")
+// Set max open connections
+sqlDB.SetMaxOpenConns(dbConfig.MaxOpenConns)
+maxOpenConnsCfg = dbConfig.MaxOpenConns
+log.Printf("✓ MaxOpenConns set to: %d", dbConfig.MaxOpenConns)
 
-	return db
+// Set connection max lifetime
+sqlDB.SetConnMaxLifetime(dbConfig.ConnMaxLifetime)
+log.Printf("✓ ConnMaxLifetime set to: %v", dbConfig.ConnMaxLifetime)
+
+// Set connection max idle time
+sqlDB.SetConnMaxIdleTime(dbConfig.ConnMaxIdleTime)
+log.Printf("✓ ConnMaxIdleTime set to: %v", dbConfig.ConnMaxIdleTime)
+
+// Verify connection
+if err := sqlDB.Ping(); err != nil {
+    return fmt.Errorf("failed to ping database: %w", err)
 }
 
-func AutoMigrate(db *gorm.DB, models ...interface{}) error {
-	if err := db.AutoMigrate(models...); err != nil {
-		return fmt.Errorf("failed to migrate database: %w", err)
-	}
-	log.Println("Database migration completed successfully")
-	return nil
+log.Println("✓ Database connection pool configured successfully")
+
+DB = db
+log.Println("✓ Database connected successfully with optimized connection pooling")
+return nil
+
+
+   
+
+// GetDBStats returns current database connection pool statistics
+func GetDBStats() map[string]interface{} {
+    if DB == nil {
+        return map[string]interface{}{"error": "database not initialized"}
+    }
+
+    sqlDB, _ := DB.DB()
+    stats := sqlDB.Stats()
+
+    return map[string]interface{}{
+        "open_connections": stats.OpenConnections,
+        "in_use":           stats.InUse,
+        "idle":             stats.Idle,
+        "wait_count":       stats.WaitCount,
+        "wait_duration":    stats.WaitDuration.String(),
+        "max_idle_closed":  stats.MaxIdleClosed,
+        "max_lifetime_closed": stats.MaxLifetimeClosed,
+    }
+}
+
+// HealthCheckDatabase checks if database connection pool is healthy
+func HealthCheckDatabase() map[string]interface{} {
+    if DB == nil {
+        return map[string]interface{}{
+            "healthy": false,
+            "message": "database not initialized",
+        }
+    }
+
+    sqlDB, err := DB.DB()
+if err != nil {
+    return map[string]interface{}{
+        "error": fmt.Sprintf("failed to access database pool: %v", err),
+    }
+}
+
+stats := sqlDB.Stats()
+
+    // Check connectivity
+    if err := sqlDB.Ping(); err != nil {
+        return map[string]interface{}{
+            "healthy": false,
+            "message": fmt.Sprintf("database unreachable: %v", err),
+        }
+    }
+
+  // Check if connection pool is near capacity (95% usage)
+if maxOpenConnsCfg > 0 {
+    threshold := int(float64(maxOpenConnsCfg) * 0.95)
+
+    if stats.OpenConnections >= threshold {
+        return map[string]interface{}{
+            "healthy": false,
+            "message": fmt.Sprintf(
+                "connection pool near capacity: %d/%d connections",
+                stats.OpenConnections,
+                maxOpenConnsCfg,
+            ),
+            "stats": GetDBStats(),
+        }
+    }
+}
+
+    return map[string]interface{}{
+        "healthy": true,
+        "message": "database connection pool healthy",
+        "stats":   GetDBStats(),
+    }
 }
