@@ -1,17 +1,21 @@
-package repository_test
+package repository
 
 import (
 	"testing"
 
+	"github.com/glebarez/sqlite"
 	"github.com/roshankumar0036singh/auth-server/internal/models"
-	"github.com/roshankumar0036singh/auth-server/internal/repository"
-	"github.com/roshankumar0036singh/auth-server/internal/testutils"
 	"github.com/stretchr/testify/assert"
+	"gorm.io/gorm"
 )
 
 func TestOAuthProviderConfigRepository(t *testing.T) {
-	_, db, _ := testutils.SetupIntegrationTest(t)
-	db.Exec(`CREATE TABLE oauth_provider_configs (
+	// Setup an isolated in-memory DB directly without involving testutils
+	db, err := gorm.Open(sqlite.Open("file::memory:?mode=memory&cache=private"), &gorm.Config{})
+	assert.NoError(t, err)
+
+	// Create table schema locally
+	err = db.Exec(`CREATE TABLE oauth_provider_configs (
 		id text PRIMARY KEY,
 		client_id text NOT NULL,
 		provider text NOT NULL,
@@ -19,8 +23,10 @@ func TestOAuthProviderConfigRepository(t *testing.T) {
 		provider_client_secret text NOT NULL,
 		created_at datetime,
 		updated_at datetime
-	)`)
-	repo := repository.NewOAuthProviderConfigRepository(db)
+	)`).Error
+	assert.NoError(t, err)
+
+	repo := NewOAuthProviderConfigRepository(db)
 
 	config := &models.OAuthProviderConfig{
 		ClientID:             "client1",

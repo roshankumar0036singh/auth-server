@@ -1,6 +1,8 @@
 package repository
 
+
 import (
+	"time"
 	"github.com/roshankumar0036singh/auth-server/internal/models"
 	"gorm.io/gorm"
 )
@@ -45,5 +47,6 @@ func (r *AuthorizationCodeRepository) MarkAsUsed(code string) (bool, error) {
 
 // DeleteExpired deletes all expired authorization codes
 func (r *AuthorizationCodeRepository) DeleteExpired() error {
-	return r.db.Where("expires_at < NOW()").Delete(&models.AuthorizationCode{}).Error
+	// return r.db.Where("expires_at < NOW()").Delete(&models.AuthorizationCode{}).Error
+	return r.db.Where("expires_at < ?", time.Now()).Delete(&models.AuthorizationCode{}).Error
 }

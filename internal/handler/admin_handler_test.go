@@ -48,6 +48,7 @@ func newRouter(svc handler.AdminAuthService) *gin.Engine {
 	})
 
 	h := handler.NewAdminHandler(svc)
+	r.GET("/api/admin/users", h.GetUsers)
 	r.POST("/api/admin/users/:id/lock", h.LockUser)
 	r.POST("/api/admin/users/:id/unlock", h.UnlockUser)
 	r.DELETE("/api/admin/users/:id", h.DeleteUser)
@@ -129,4 +130,34 @@ func TestAdminHandler_UnlockUser_Errors(t *testing.T) {
 			assert.Equal(t, tt.wantStatus, w.Code)
 		})
 	}
+}
+
+func TestAdminHandler_GetUsers(t *testing.T) {
+	r := newRouter(&mockAdminSvc{})
+	w := doRequest(r, http.MethodGet, "/api/admin/users")
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	
+	var body map[string]interface{}
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&body))
+	assert.Equal(t, "List of users", body["message"])
+}
+
+func TestAdminHandler_DeleteUser_Success(t *testing.T) {
+	r := newRouter(&mockAdminSvc{deleteErr: nil})
+	w := doRequest(r, http.MethodDelete, "/api/admin/users/"+testUserID)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	
+	var body map[string]interface{}
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&body))
+	assert.Equal(t, "User deleted successfully", body["message"])
+}
+
+func TestAdminHandler_DeleteUser_Error(t *testing.T) {
+	r := newRouter(&mockAdminSvc{deleteErr: assert.AnError})
+	w := doRequest(r, http.MethodDelete, "/api/admin/users/"+testUserID)
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+	
 }

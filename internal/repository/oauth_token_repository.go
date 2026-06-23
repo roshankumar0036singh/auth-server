@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"time"
 	"github.com/roshankumar0036singh/auth-server/internal/models"
 	"gorm.io/gorm"
 )
@@ -37,7 +38,8 @@ func (r *OAuthTokenRepository) FindByUserAndClient(userID, clientID string) ([]m
 
 // DeleteExpired deletes all expired tokens
 func (r *OAuthTokenRepository) DeleteExpired() error {
-	return r.db.Where("expires_at < NOW()").Delete(&models.OAuthAccessToken{}).Error
+	//return r.db.Where("expires_at < NOW()").Delete(&models.OAuthAccessToken{}).Error
+	return r.db.Where("expires_at < ?", time.Now()).Delete(&models.OAuthAccessToken{}).Error
 }
 
 // RevokeByClient revokes all tokens for a specific client
