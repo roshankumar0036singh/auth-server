@@ -42,12 +42,12 @@ func main() {
 
 	log.Println("Starting database seed...")
 
-	admin, err := seedUsers(db)
+	admin, err := seedUsers(db, cfg.Security.BcryptRounds)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	if err := seedOAuthClient(db, admin); err != nil {
+	if err := seedOAuthClient(db, admin, cfg.Security.BcryptRounds); err != nil {
 		log.Fatal(err)
 	}
 
@@ -69,7 +69,7 @@ func main() {
 
 // Seed development users and OAuth clients.
 // Safe to run multiple times.
-func seedUsers(db *gorm.DB) (*models.User, error) {
+func seedUsers(db *gorm.DB, bcryptCost int) (*models.User, error) {
 	userRepo := repository.NewUserRepository(db)
 
 	admin, err := createUserIfNotExists(
@@ -79,6 +79,7 @@ func seedUsers(db *gorm.DB) (*models.User, error) {
 		"Admin",
 		"User",
 		"admin",
+		bcryptCost,
 	)
 
 	if err != nil {
@@ -92,6 +93,7 @@ func seedUsers(db *gorm.DB) (*models.User, error) {
 		"Demo",
 		"User",
 		"user",
+		bcryptCost,
 	)
 
 	if err != nil {
@@ -108,6 +110,7 @@ func createUserIfNotExists(
 	firstName string,
 	lastName string,
 	role string,
+	bcryptCost int,
 ) (*models.User, error) {
 
 	existing, err := userRepo.FindByEmail(email)
@@ -123,7 +126,7 @@ func createUserIfNotExists(
 
 	hashedPassword, err := bcrypt.GenerateFromPassword(
 		[]byte(password),
-		bcrypt.DefaultCost,
+		bcryptCost,
 	)
 
 	if err != nil {
@@ -150,7 +153,11 @@ func createUserIfNotExists(
 	return user, nil
 }
 
-func seedOAuthClient(db *gorm.DB, admin *models.User) error {
+func seedOAuthClient(
+	db *gorm.DB,
+	admin *models.User,
+	bcryptCost int,
+) error {
 	clientRepo := repository.NewOAuthClientRepository(db)
 
 	existingClient, err := clientRepo.FindByClientID("dev-client")
@@ -167,7 +174,7 @@ func seedOAuthClient(db *gorm.DB, admin *models.User) error {
 
 	hashedSecret, err := bcrypt.GenerateFromPassword(
 		[]byte(clientSecret),
-		bcrypt.DefaultCost,
+		bcryptCost,
 	)
 
 	if err != nil {
