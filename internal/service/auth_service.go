@@ -219,6 +219,9 @@ func (s *AuthService) UpdateProfile(userID string, req *dto.UpdateProfileRequest
 	if req.Phone != "" {
 		updates["phone"] = req.Phone
 	}
+	if req.ProfileImage != "" {
+		updates["profile_image"] = req.ProfileImage
+	}
 
 	if len(updates) == 0 {
 		return s.userRepo.FindByID(userID)

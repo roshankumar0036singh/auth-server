@@ -75,7 +75,17 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, redisClient *redis.Client, cfg
 	webAuthnHandler := handler.NewWebAuthnHandler(webAuthnService, authService)
 
 	// Initialize handlers
-	authHandler := handler.NewAuthHandler(authService, oauthService, oauthProviderService)
+	storageService := service.NewStorageService(
+		cfg.Storage.Bucket,
+		cfg.Storage.Region,
+	)
+
+	authHandler := handler.NewAuthHandler(
+		authService,
+		oauthService,
+		oauthProviderService,
+		storageService,
+	)
 	adminHandler := handler.NewAdminHandler(authService)
 	oauthClientHandler := handler.NewOAuthClientHandler(oauthProviderService)
 	oauthHandler := handler.NewOAuthHandler(oauthProviderService, userRepo)
@@ -168,6 +178,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, redisClient *redis.Client, cfg
 			{
 				protected.GET("/me", authHandler.GetMe)
 				protected.PUT("/profile", authHandler.UpdateProfile)
+				protected.POST("/profile/upload-url", authHandler.GenerateProfileUploadURL)
 				protected.POST("/logout", authHandler.Logout)
 				protected.POST("/logout-all", authHandler.LogoutAll)
 				protected.GET("/sessions", authHandler.GetSessions)
