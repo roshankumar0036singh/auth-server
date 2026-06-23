@@ -44,7 +44,7 @@ func SetCSRFTokenHandler(c *gin.Context) {
 		"/",
 		"",    // domain — empty means current host
 		true,  // secure — HTTPS only
-		false, // HttpOnly false so JS can read and send it in the header
+		false, // HttpOnly=false intentional: JS must read token to send in X-CSRF-Token header -- NOSONAR
 	)
 
 	c.JSON(http.StatusOK, utils.SuccessResponse("CSRF token issued", gin.H{
@@ -101,5 +101,5 @@ func RotateCSRFToken(c *gin.Context) {
 	if err != nil {
 		return
 	}
-	c.SetCookie(csrfCookieName, token, csrfCookieMaxAge, "/", "", true, false)
+	c.SetCookie(csrfCookieName, token, csrfCookieMaxAge, "/", "", true, false) // HttpOnly=false intentional: JS must read token to send in X-CSRF-Token header -- NOSONAR
 }
