@@ -25,13 +25,20 @@ type AuthHandler struct {
 	authService          *service.AuthService
 	oauthService         *service.OAuthService
 	oauthProviderService *service.OAuthProviderService
+	storageService       *service.StorageService
 }
 
-func NewAuthHandler(authService *service.AuthService, oauthService *service.OAuthService, oauthProviderService *service.OAuthProviderService) *AuthHandler {
+func NewAuthHandler(
+	authService *service.AuthService,
+	oauthService *service.OAuthService,
+	oauthProviderService *service.OAuthProviderService,
+	storageService *service.StorageService,
+) *AuthHandler {
 	return &AuthHandler{
 		authService:          authService,
 		oauthService:         oauthService,
 		oauthProviderService: oauthProviderService,
+		storageService:       storageService,
 	}
 }
 
@@ -188,6 +195,41 @@ func (h *AuthHandler) UpdateProfile(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, utils.SuccessResponse("Profile updated successfully", user.ToPublic()))
+}
+func (h *AuthHandler) GenerateProfileUploadURL(c *gin.Context) {
+	userID, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, utils.UnauthorizedResponse("Unauthorized"))
+		return
+	}
+
+	var req dto.UploadURLRequest
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, utils.ValidationErrorResponse(err.Error()))
+		return
+	}
+
+	uploadURL, fileURL, err := h.storageService.GenerateUploadURL(
+		userID.(string),
+		req.FileName,
+	)
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError,
+			utils.ErrorResponse("Failed to generate upload URL", err))
+		return
+	}
+
+	c.JSON(http.StatusOK,
+		utils.SuccessResponse(
+			"Upload URL generated",
+			dto.UploadURLResponse{
+				UploadURL: uploadURL,
+				FileURL:   fileURL,
+			},
+		),
+	)
 }
 
 // ChangePassword handles password change

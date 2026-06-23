@@ -9,6 +9,13 @@ import (
 	"github.com/joho/godotenv"
 )
 
+type StorageConfig struct {
+	Bucket          string
+	Region          string
+	AccessKeyID     string
+	SecretAccessKey string
+}
+
 type Config struct {
 	App      AppConfig
 	Database DatabaseConfig
@@ -18,6 +25,7 @@ type Config struct {
 	Email    EmailConfig
 	Security SecurityConfig
 	WebAuthn WebAuthnConfig
+	Storage  StorageConfig
 }
 
 type AppConfig struct {
@@ -195,6 +203,12 @@ func LoadConfig() *Config {
 			RPID:          getEnv("WEBAUTHN_RP_ID", "localhost"),
 			RPOrigins:     []string{appURL}, // Assuming APP_URL is the primary origin
 		},
+		Storage: StorageConfig{
+		Bucket:          getEnv("AWS_S3_BUCKET", ""),
+		Region:          getEnv("AWS_REGION", ""),
+		AccessKeyID:     getEnv("AWS_ACCESS_KEY_ID", ""),
+		SecretAccessKey: getEnv("AWS_SECRET_ACCESS_KEY", ""),
+	},
 	}
 }
 
