@@ -48,6 +48,7 @@ type AuthService struct {
 	auditService      *AuditService
 	mfaService        *MFAService
 	config            *config.Config
+	backupCodeRepo    *repository.BackupCodeRepository
 }
 
 func NewAuthService(
@@ -61,6 +62,7 @@ func NewAuthService(
 	auditService *AuditService,
 	mfaService *MFAService,
 	cfg *config.Config,
+	backupCodeRepo *repository.BackupCodeRepository,
 ) *AuthService {
 	return &AuthService{
 		userRepo:          userRepo,
@@ -73,6 +75,7 @@ func NewAuthService(
 		auditService:      auditService,
 		mfaService:        mfaService,
 		config:            cfg,
+		backupCodeRepo: backupCodeRepo,
 	}
 }
 func (s *AuthService) getRefreshTokenExpiry() time.Duration {
@@ -346,6 +349,27 @@ func (s *AuthService) VerifyEnableMFA(userID, code string) error {
 	if !s.mfaService.ValidateMFA(user.MFASecret, code) {
 		return ErrInvalidMFACode
 	}
+	for i := 0; i < 10; i++ {
+	code := s.tokenService.GenerateRandomString(8)
+
+	hash, err := bcrypt.GenerateFromPassword(
+		[]byte(code),
+		bcrypt.DefaultCost,
+	)
+	if err != nil {
+		return err
+	}
+
+	backup := &models.BackupCode{
+		UserID:   userID,
+		CodeHash: string(hash),
+		Used:     false,
+	}
+
+	if err := s.backupCodeRepo.Create(backup); err != nil {
+		return err
+	}
+}
 
 	// Enable MFA
 	if err := s.userRepo.Update(userID, map[string]interface{}{
@@ -425,13 +449,33 @@ func (s *AuthService) VerifyLoginMFA(mfaToken, code, ipAddress, userAgent string
 		return nil, errors.New("MFA not enabled for this user")
 	}
 
-	if !s.mfaService.ValidateMFA(user.MFASecret, code) {
-		s.cacheService.IncrementMFAAttempts(ctx, userID)
-		if err := s.auditService.LogEvent(&user.ID, "MFA_LOGIN_FAILED", "USER", user.ID, ipAddress, userAgent, nil); err != nil {
-			log.Printf("failed to write MFA_LOGIN_FAILED audit log for user %s: %v", user.ID, err)
+	valid := s.mfaService.ValidateMFA(user.MFASecret, code)
+
+if !valid {
+	codes, err := s.backupCodeRepo.FindByUserID(userID)
+
+	if err == nil {
+		for _, bc := range codes {
+			if bcrypt.CompareHashAndPassword(
+				[]byte(bc.CodeHash),
+				[]byte(code),
+			) == nil {
+
+				valid = true
+				_ = s.backupCodeRepo.MarkUsed(bc.ID)
+				break
+			}
 		}
-		return nil, ErrInvalidMFACode
 	}
+}
+
+if !valid {
+	s.cacheService.IncrementMFAAttempts(ctx, userID)
+	if err := s.auditService.LogEvent(&user.ID, "MFA_LOGIN_FAILED", "USER", user.ID, ipAddress, userAgent, nil); err != nil {
+		log.Printf("failed to write MFA_LOGIN_FAILED audit log for user %s: %v", user.ID, err)
+	}
+	return nil, ErrInvalidMFACode
+}
 
 	s.cacheService.ResetMFAAttempts(ctx, userID)
 
