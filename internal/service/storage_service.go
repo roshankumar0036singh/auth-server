@@ -35,9 +35,8 @@ func NewStorageService(bucket, region string) *StorageService {
 }
 
 func (s *StorageService) GenerateUploadURL(
-	userID string,
-	fileName string,
-) (string, string, error) {
+	userID, fileName string,
+) (string, string, error){
 
 	objectKey := fmt.Sprintf(
 		"users/%s/%s",
