@@ -143,6 +143,7 @@ func LoadConfig() *Config {
 	if encKey == "" || encKey == "0123456789abcdef0123456789abcdef" {
 		log.Fatal("ENCRYPTION_KEY must be set to a unique secret")
 	}
+	
 
 	return &Config{
 		App: AppConfig{
@@ -204,11 +205,11 @@ func LoadConfig() *Config {
 			RPOrigins:     []string{appURL}, // Assuming APP_URL is the primary origin
 		},
 		Storage: StorageConfig{
-		Bucket:          getEnv("AWS_S3_BUCKET", ""),
-		Region:          getEnv("AWS_REGION", ""),
-		AccessKeyID:     getEnv("AWS_ACCESS_KEY_ID", ""),
-		SecretAccessKey: getEnv("AWS_SECRET_ACCESS_KEY", ""),
-	},
+			Bucket:          getEnv("AWS_S3_BUCKET", ""),
+			Region:          getEnv("AWS_REGION", ""),
+			AccessKeyID:     getEnv("AWS_ACCESS_KEY_ID", ""),
+			SecretAccessKey: getEnv("AWS_SECRET_ACCESS_KEY", ""),
+		},
 	}
 }
 

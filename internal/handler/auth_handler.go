@@ -196,10 +196,27 @@ func (h *AuthHandler) UpdateProfile(c *gin.Context) {
 
 	c.JSON(http.StatusOK, utils.SuccessResponse("Profile updated successfully", user.ToPublic()))
 }
+
+// GenerateProfileUploadURL handles profile picture uploads
+// @Summary Generate profile upload URL
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param request body dto.UploadURLRequest true "Upload request"
+// @Success 200 {object} utils.Response
+// @Router /api/auth/profile/upload-url [post]
+
 func (h *AuthHandler) GenerateProfileUploadURL(c *gin.Context) {
 	userID, exists := c.Get("userID")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, utils.UnauthorizedResponse("Unauthorized"))
+		return
+	}
+
+	userIDStr, ok := userID.(string)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, utils.UnauthorizedResponse("Invalid user"))
 		return
 	}
 
@@ -211,7 +228,7 @@ func (h *AuthHandler) GenerateProfileUploadURL(c *gin.Context) {
 	}
 
 	uploadURL, fileURL, err := h.storageService.GenerateUploadURL(
-		userID.(string),
+		userIDStr,
 		req.FileName,
 	)
 

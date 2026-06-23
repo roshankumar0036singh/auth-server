@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
@@ -36,7 +37,19 @@ func NewStorageService(bucket, region string) *StorageService {
 
 func (s *StorageService) GenerateUploadURL(
 	userID, fileName string,
-) (string, string, error){
+) (string, string, error) {
+
+	fileName = strings.TrimSpace(fileName)
+
+	if fileName == "" {
+		return "", "", fmt.Errorf("file name is required")
+	}
+
+	if strings.Contains(fileName, "/") ||
+		strings.Contains(fileName, "\\") ||
+		strings.Contains(fileName, "..") {
+		return "", "", fmt.Errorf("invalid file name")
+	}
 
 	objectKey := fmt.Sprintf(
 		"users/%s/%s",
