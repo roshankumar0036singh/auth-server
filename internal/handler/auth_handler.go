@@ -904,6 +904,7 @@ func (h *AuthHandler) VerifyMFA(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, utils.ErrorResponse("MFA verification failed", err))
 		return
 	}
+	
 
 	c.JSON(http.StatusOK, utils.SuccessResponse("MFA enabled successfully", nil))
 }

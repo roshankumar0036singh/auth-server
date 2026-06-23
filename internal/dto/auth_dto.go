@@ -85,6 +85,7 @@ type SessionResponse struct {
 type MFAEnableResponse struct {
 	Secret    string `json:"secret"`
 	QRCodeURL string `json:"qrCodeUrl"`
+	BackupCodes []string `json:"backupCodes,omitempty"`
 }
 
 // MFAVerifyRequest represents the request to verify/enable MFA
@@ -106,6 +107,7 @@ type MFADisableRequest struct {
 type MFALoginRequest struct {
 	MFAToken string `json:"mfaToken" binding:"required"`
 	Code     string `json:"code" binding:"required,len=6"`
+	BackupCode string `json:"backupCode,omitempty"`
 }
 
 // LoginResponse represents the login response (updated for MFA)
