@@ -83,6 +83,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, redisClient *redis.Client, cfg
 	// Apply global middleware
 	router.Use(middleware.CORSMiddleware(cfg))
 	router.Use(middleware.SecurityMiddleware())
+	router.Use(middleware.CSRFMiddleware())
 
 	// Swagger Documentation (Custom UI)
 	router.Static("/swagger", "./docs")
@@ -144,6 +145,8 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, redisClient *redis.Client, cfg
 			// Public endpoints
 			auth.POST("/register", authHandler.Register)
 			auth.GET("/login", authHandler.ShowLogin)
+			// CSRF token endpoint — for cookie-based auth clients
+			auth.GET("/csrf-token", middleware.SetCSRFTokenHandler)
 			auth.POST("/login", authHandler.Login)
 			auth.POST("/login/mfa", authHandler.LoginMFA)
 			auth.POST("/refresh", authHandler.RefreshToken)
