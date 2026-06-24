@@ -47,6 +47,7 @@ type AuthService struct {
 	emailService      EmailSender
 	auditService      *AuditService
 	mfaService        *MFAService
+	deviceRepo        *repository.DeviceRepository
 	config            *config.Config
 }
 
@@ -60,6 +61,7 @@ func NewAuthService(
 	emailService EmailSender,
 	auditService *AuditService,
 	mfaService *MFAService,
+	deviceRepo *repository.DeviceRepository,
 	cfg *config.Config,
 ) *AuthService {
 	return &AuthService{
@@ -72,6 +74,7 @@ func NewAuthService(
 		emailService:      emailService,
 		auditService:      auditService,
 		mfaService:        mfaService,
+		deviceRepo:        deviceRepo,
 		config:            cfg,
 	}
 }
@@ -296,6 +299,28 @@ func (s *AuthService) DeleteAccount(userID string) error {
 	}
 	// Audit Log
 	s.auditService.LogEvent(&userID, "ACCOUNT_DELETED", "USER", userID, "", "", nil)
+	return nil
+}
+
+// LockAccount locks the user account indefinitely using a valid lock token
+func (s *AuthService) LockAccount(tokenString string) error {
+	userID, err := s.tokenService.ValidateLockToken(tokenString)
+	if err != nil {
+		return errors.New("invalid or expired lock token")
+	}
+
+	// Lock the account (100 years)
+	lockedUntil := time.Now().Add(100 * 365 * 24 * time.Hour)
+	if err := s.userRepo.LockUser(userID, lockedUntil); err != nil {
+		return errors.New("failed to lock account")
+	}
+
+	// Revoke all existing sessions for security
+	s.tokenRepo.RevokeAllUserTokens(userID)
+
+	// Audit Log
+	s.auditService.LogEvent(&userID, "ACCOUNT_LOCKED_BY_USER", "USER", userID, "", "", map[string]interface{}{"reason": "unrecognized_device_alert"})
+
 	return nil
 }
 
@@ -616,6 +641,9 @@ func (s *AuthService) ProcessPostLogin(ctx context.Context, user *models.User, i
 		log.Printf("Failed to update last login for user %s: %v", user.ID, err)
 	}
 
+	// Check device fingerprint
+	s.handleDeviceFingerprint(user, ipAddress, userAgent)
+
 	response, err := s.CreateLoginResponse(user, ipAddress, userAgent)
 	if err != nil {
 		return nil, err
@@ -627,6 +655,44 @@ func (s *AuthService) ProcessPostLogin(ctx context.Context, user *models.User, i
 	s.auditService.LogEvent(&user.ID, "USER_LOGIN_SUCCESS", "USER", user.ID, ipAddress, userAgent, nil)
 
 	return response, nil
+}
+
+func (s *AuthService) handleDeviceFingerprint(user *models.User, ipAddress, userAgent string) {
+	fingerprintHash := utils.GenerateDeviceFingerprint(userAgent, ipAddress)
+	device, err := s.deviceRepo.FindByFingerprint(user.ID, fingerprintHash)
+	if err != nil {
+		log.Printf("Error checking device fingerprint: %v", err)
+	}
+
+	if device == nil {
+		// Unrecognized device
+		newDevice := &models.DeviceFingerprint{
+			UserID:          user.ID,
+			FingerprintHash: fingerprintHash,
+			UserAgent:       userAgent,
+			IPAddress:       ipAddress,
+			LastSeenAt:      time.Now(),
+		}
+		if err := s.deviceRepo.Create(newDevice); err != nil {
+			log.Printf("Failed to save device fingerprint: %v", err)
+		}
+
+		// Generate lock token and send alert email asynchronously
+		go func(u *models.User, ip, agent string) {
+			lockToken, err := s.tokenService.GenerateLockToken(u.ID)
+			if err != nil {
+				log.Printf("Failed to generate lock token for unrecognized login alert: %v", err)
+				return
+			}
+			err = s.emailService.SendUnrecognizedLoginAlert(u.Email, ip, agent, lockToken, s.config.App.URL)
+			if err != nil {
+				log.Printf("Failed to send unrecognized login alert to %s: %v", u.Email, err)
+			}
+		}(user, ipAddress, userAgent)
+	} else {
+		// Update last seen
+		s.deviceRepo.UpdateLastSeen(device.ID, time.Now())
+	}
 }
 
 // LoginWithOAuth handles login or registration via OAuth provider

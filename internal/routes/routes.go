@@ -29,6 +29,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, redisClient *redis.Client, cfg
 	oauthTokenRepo := repository.NewOAuthTokenRepository(db)
 	userConsentRepo := repository.NewUserConsentRepository(db)
 	oauthProviderConfigRepo := repository.NewOAuthProviderConfigRepository(db)
+	deviceRepo := repository.NewDeviceRepository(db)
 
 	// Initialize services
 	tokenService := service.NewTokenService(cfg)
@@ -53,6 +54,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, redisClient *redis.Client, cfg
 		emailService,
 		auditService,
 		mfaService,
+		deviceRepo,
 		cfg,
 	)
 
@@ -151,6 +153,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, redisClient *redis.Client, cfg
 			auth.POST("/resend-verification", authHandler.ResendVerification)
 			auth.POST("/forgot-password", authHandler.ForgotPassword)
 			auth.POST("/reset-password", authHandler.ResetPassword)
+			auth.GET("/lock-account", authHandler.LockAccount)
 
 			// WebAuthn Login
 			auth.POST("/webauthn/login/begin", webAuthnHandler.BeginLogin)

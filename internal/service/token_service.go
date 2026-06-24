@@ -158,6 +158,44 @@ func (s *TokenService) ValidateMFAToken(tokenString string) (string, error) {
 	return claims.UserID, nil
 }
 
+const lockAccountPurpose = "lock_account"
+
+// GenerateLockToken issues a short-lived token to quickly lock an account
+func (s *TokenService) GenerateLockToken(userID string) (string, error) {
+	claims := &JWTClaims{
+		UserID:  userID,
+		Purpose: lockAccountPurpose,
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * time.Hour)), // Valid for 24 hours
+			IssuedAt:  jwt.NewNumericDate(time.Now()),
+			Issuer:    issuerAuthServer,
+			ID:        uuid.New().String(),
+		},
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	return token.SignedString([]byte(s.cfg.JWT.AccessSecret))
+}
+
+// ValidateLockToken validates the lock token and returns the user ID
+func (s *TokenService) ValidateLockToken(tokenString string) (string, error) {
+	token, err := jwt.ParseWithClaims(tokenString, &JWTClaims{}, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, errors.New(errInvalidSignMethod)
+		}
+		return []byte(s.cfg.JWT.AccessSecret), nil
+	})
+	if err != nil {
+		return "", err
+	}
+
+	claims, ok := token.Claims.(*JWTClaims)
+	if !ok || !token.Valid || claims.Purpose != lockAccountPurpose {
+		return "", errors.New("invalid lock token")
+	}
+	return claims.UserID, nil
+}
+
 // ValidateRefreshToken validates and parses a refresh token
 func (s *TokenService) ValidateRefreshToken(tokenString string) (*JWTClaims, error) {
 	token, err := jwt.ParseWithClaims(tokenString, &JWTClaims{}, func(token *jwt.Token) (interface{}, error) {

@@ -35,6 +35,14 @@ func (m *MockEmailSender) SendPasswordResetEmail(email, token, appURL string) er
 	return nil
 }
 
+func (m *MockEmailSender) SendUnrecognizedLoginAlert(email, ip, userAgent, lockToken, appURL string) error {
+	if m.LastEmail == nil {
+		m.LastEmail = make(map[string]string)
+	}
+	m.LastEmail["unrecognized_login"] = email
+	return nil
+}
+
 func SetupIntegrationTest(t *testing.T) (*service.AuthService, *gorm.DB, *miniredis.Miniredis) {
 	// 1. In-memory SQLite
 	db, err := gorm.Open(sqlite.Open("file::memory:?mode=memory&cache=private"), &gorm.Config{})
@@ -48,6 +56,7 @@ func SetupIntegrationTest(t *testing.T) (*service.AuthService, *gorm.DB, *minire
 		&models.PasswordResetToken{},
 		&models.AuditLog{},
 		&models.OAuthAccessToken{},
+		&models.DeviceFingerprint{},
 	)
         assert.NoError(t, err)
         assert.NoError(t, db.Exec("DELETE FROM oauth_access_tokens").Error)
@@ -117,6 +126,7 @@ func SetupIntegrationTest(t *testing.T) (*service.AuthService, *gorm.DB, *minire
 	verificationRepo := repository.NewVerificationRepository(db)
 	passwordResetRepo := repository.NewPasswordResetRepository(db)
 	auditRepo := repository.NewAuditRepository(db)
+	deviceRepo := repository.NewDeviceRepository(db)
 
 	// 4. Services
 	cfg := &config.Config{
@@ -140,6 +150,7 @@ func SetupIntegrationTest(t *testing.T) (*service.AuthService, *gorm.DB, *minire
 		emailService,
 		auditService,
 		mfaService,
+		deviceRepo,
 		cfg,
 	)
 
