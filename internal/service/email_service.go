@@ -10,6 +10,8 @@ import (
 	"github.com/roshankumar0036singh/auth-server/internal/config"
 )
 
+const appName = "Auth Server"
+
 type EmailSender interface {
 	SendVerificationEmail(email, token, appURL string) error
 	SendPasswordResetEmail(email, token, appURL string) error
@@ -80,7 +82,7 @@ func (s *EmailService) SendVerificationEmail(email, token, appURL string) error 
 		AppName   string
 	}{
 		VerifyURL: verifyURL,
-		AppName:   "Auth Server",
+		AppName:   appName,
 	}
 
 	return s.SendEmail([]string{email}, "Verify your email", "verify_email.html", data)
@@ -96,7 +98,7 @@ func (s *EmailService) SendPasswordResetEmail(email, token, appURL string) error
 		AppName  string
 	}{
 		ResetURL: resetURL,
-		AppName:  "Auth Server",
+		AppName:  appName,
 	}
 
 	return s.SendEmail([]string{email}, "Reset your password", "reset_password.html", data)
@@ -115,7 +117,7 @@ func (s *EmailService) SendUnrecognizedLoginAlert(email, ip, userAgent, lockToke
 		IPAddress: ip,
 		UserAgent: userAgent,
 		LockURL:   lockURL,
-		AppName:   "Auth Server",
+		AppName:   appName,
 	}
 
 	return s.SendEmail([]string{email}, "Security Alert: Unrecognized Login", "unrecognized_login.html", data)

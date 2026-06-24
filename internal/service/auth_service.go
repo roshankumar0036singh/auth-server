@@ -642,6 +642,22 @@ func (s *AuthService) ProcessPostLogin(ctx context.Context, user *models.User, i
 	}
 
 	// Check device fingerprint
+	s.handleDeviceFingerprint(user, ipAddress, userAgent)
+
+	response, err := s.CreateLoginResponse(user, ipAddress, userAgent)
+	if err != nil {
+		return nil, err
+	}
+
+	metrics.LoginSuccessTotal.Inc()
+
+	// Audit Log
+	s.auditService.LogEvent(&user.ID, "USER_LOGIN_SUCCESS", "USER", user.ID, ipAddress, userAgent, nil)
+
+	return response, nil
+}
+
+func (s *AuthService) handleDeviceFingerprint(user *models.User, ipAddress, userAgent string) {
 	fingerprintHash := utils.GenerateDeviceFingerprint(userAgent, ipAddress)
 	device, err := s.deviceRepo.FindByFingerprint(user.ID, fingerprintHash)
 	if err != nil {
@@ -677,18 +693,6 @@ func (s *AuthService) ProcessPostLogin(ctx context.Context, user *models.User, i
 		// Update last seen
 		s.deviceRepo.UpdateLastSeen(device.ID, time.Now())
 	}
-
-	response, err := s.CreateLoginResponse(user, ipAddress, userAgent)
-	if err != nil {
-		return nil, err
-	}
-
-	metrics.LoginSuccessTotal.Inc()
-
-	// Audit Log
-	s.auditService.LogEvent(&user.ID, "USER_LOGIN_SUCCESS", "USER", user.ID, ipAddress, userAgent, nil)
-
-	return response, nil
 }
 
 // LoginWithOAuth handles login or registration via OAuth provider
