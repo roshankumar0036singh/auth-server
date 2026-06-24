@@ -12,9 +12,9 @@ services:
       - PORT=8080
       - DATABASE_URL=host=postgres user=postgres password=postgres dbname=auth_db port=5432 sslmode=disable
       - REDIS_URL=redis://auth-redis:6379
-      - JWT_SECRET=${JWT_SECRET:-change-me-to-a-secure-jwt-secret-at-least-32-bytes}
-      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET:-change-me-to-a-secure-refresh-secret-at-least-32-bytes}
-      - ENCRYPTION_KEY=${ENCRYPTION_KEY:-change-me-to-a-secure-encryption-key-at-least-32-bytes}
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
     depends_on:
       - postgres
       - redis
