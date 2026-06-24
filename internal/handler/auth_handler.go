@@ -160,6 +160,29 @@ func (h *AuthHandler) ResetPassword(c *gin.Context) {
 	c.JSON(http.StatusOK, utils.SuccessResponse("Password has been reset successfully. You can now login with your new password.", nil))
 }
 
+// LockAccount handles account locking via email link
+// @Summary Lock account
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param token query string true "Lock token"
+// @Success 200 {object} utils.Response
+// @Router /api/auth/lock-account [get]
+func (h *AuthHandler) LockAccount(c *gin.Context) {
+	token := c.Query("token")
+	if token == "" {
+		c.JSON(http.StatusBadRequest, utils.ValidationErrorResponse("Token is required"))
+		return
+	}
+
+	if err := h.authService.LockAccount(token); err != nil {
+		c.JSON(http.StatusBadRequest, utils.ErrorResponse("Failed to lock account", err))
+		return
+	}
+
+	c.JSON(http.StatusOK, utils.SuccessResponse("Your account has been locked to prevent unauthorized access. Please reset your password to regain access.", nil))
+}
+
 // UpdateProfile handles profile updates
 // @Summary Update user profile
 // @Tags auth

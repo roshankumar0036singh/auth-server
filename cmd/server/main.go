@@ -52,7 +52,7 @@ func main() {
 	}
 	// Backfill existing tokens using their own ID as the family ID
 	if err := db.Exec("UPDATE refresh_tokens SET family_id = id WHERE family_id IS NULL").Error; err != nil {
-		log.Fatal("Failed to backfill family_id for existing refresh tokens:", err)
+		log.Printf("Warning: Failed to backfill family_id for existing refresh tokens (expected on fresh DB): %v", err)
 	}
 
 	// Auto-migrate database models
@@ -61,6 +61,7 @@ func main() {
 		&models.VerificationToken{},
 		&models.PasswordResetToken{},
 		&models.AuditLog{},
+		&models.DeviceFingerprint{},
 		// OAuth 2.0 Provider models
 		&models.OAuthClient{},
 		&models.AuthorizationCode{},

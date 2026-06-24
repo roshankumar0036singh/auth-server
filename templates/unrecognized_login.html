@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Security Alert: Unrecognized Login</title>
+</head>
+<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+    <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+        <h2>Security Alert: New Login Detected</h2>
+        <p>Hello,</p>
+        <p>We noticed a login to your {{.AppName}} account from an unrecognized device or location.</p>
+        
+        <div style="background-color: #f4f4f4; padding: 15px; border-radius: 5px; margin: 20px 0;">
+            <p><strong>IP Address:</strong> {{.IPAddress}}</p>
+            <p><strong>Device/Browser:</strong> {{.UserAgent}}</p>
+        </div>
+
+        <p>If this was you, no further action is needed.</p>
+        
+        <p><strong>If you do not recognize this activity, please lock your account immediately to prevent unauthorized access:</strong></p>
+        
+        <div style="text-align: center; margin: 30px 0;">
+            <a href="{{.LockURL}}" style="background-color: #dc3545; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; font-weight: bold;">Lock My Account</a>
+        </div>
+        
+        <p>After locking, you will need to reset your password to regain access.</p>
+        <br>
+        <p>Best regards,</p>
+        <p>The {{.AppName}} Security Team</p>
+    </div>
+</body>
+</html>

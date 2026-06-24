@@ -12,6 +12,7 @@ services:
       - PORT=8080
       - DATABASE_URL=host=postgres user=postgres password=postgres dbname=auth_db port=5432 sslmode=disable
       - REDIS_URL=redis://auth-redis:6379
+      - SMTP_HOST=auth-mailpit
       - JWT_ACCESS_SECRET=${JWT_ACCESS_SECRET:-secret}
       - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET:-refresh}
     depends_on:
@@ -45,6 +46,16 @@ services:
       - "6379:6379"
     volumes:
       - redis_data:/data
+    networks:
+      - auth-network
+
+  mailpit:
+    image: axllent/mailpit
+    container_name: auth-mailpit
+    restart: unless-stopped
+    ports:
+      - "8025:8025"
+      - "1025:1025"
     networks:
       - auth-network
 

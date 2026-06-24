@@ -13,6 +13,7 @@ import (
 type EmailSender interface {
 	SendVerificationEmail(email, token, appURL string) error
 	SendPasswordResetEmail(email, token, appURL string) error
+	SendUnrecognizedLoginAlert(email, ip, userAgent, lockToken, appURL string) error
 }
 
 type EmailService struct {
@@ -55,7 +56,10 @@ func (s *EmailService) SendEmail(to []string, subject string, templateName strin
 	message += "\r\n" + body.String()
 
 	// Authenticate
-	auth := smtp.PlainAuth("", s.config.SMTPUser, s.config.SMTPPassword, s.config.SMTPHost)
+	var auth smtp.Auth
+	if s.config.SMTPUser != "" && s.config.SMTPPassword != "" {
+		auth = smtp.PlainAuth("", s.config.SMTPUser, s.config.SMTPPassword, s.config.SMTPHost)
+	}
 
 	// Send email
 	addr := fmt.Sprintf("%s:%d", s.config.SMTPHost, s.config.SMTPPort)
@@ -96,4 +100,23 @@ func (s *EmailService) SendPasswordResetEmail(email, token, appURL string) error
 	}
 
 	return s.SendEmail([]string{email}, "Reset your password", "reset_password.html", data)
+}
+
+// SendUnrecognizedLoginAlert sends an alert for an unfamiliar device login
+func (s *EmailService) SendUnrecognizedLoginAlert(email, ip, userAgent, lockToken, appURL string) error {
+	lockURL := fmt.Sprintf("%s/api/auth/lock-account?token=%s", appURL, lockToken)
+
+	data := struct {
+		IPAddress string
+		UserAgent string
+		LockURL   string
+		AppName   string
+	}{
+		IPAddress: ip,
+		UserAgent: userAgent,
+		LockURL:   lockURL,
+		AppName:   "Auth Server",
+	}
+
+	return s.SendEmail([]string{email}, "Security Alert: Unrecognized Login", "unrecognized_login.html", data)
 }
