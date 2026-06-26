@@ -1,9 +1,13 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"log"
 
+	"github.com/golang-migrate/migrate/v4"
+	"github.com/golang-migrate/migrate/v4/database/postgres"
+	_ "github.com/golang-migrate/migrate/v4/source/file"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
@@ -30,7 +34,6 @@ func InitDatabase(cfg *Config) *gorm.DB {
 		log.Fatal("Failed to get database instance:", err)
 	}
 
-	// Set connection pool settings
 	sqlDB.SetMaxIdleConns(cfg.Database.PoolMin)
 	sqlDB.SetMaxOpenConns(cfg.Database.PoolMax)
 	sqlDB.SetConnMaxLifetime(cfg.Database.ConnMaxLifetime)
@@ -41,10 +44,36 @@ func InitDatabase(cfg *Config) *gorm.DB {
 	return db
 }
 
-func AutoMigrate(db *gorm.DB, models ...interface{}) error {
-	if err := db.AutoMigrate(models...); err != nil {
-		return fmt.Errorf("failed to migrate database: %w", err)
+func RunMigrations(db *gorm.DB) error {
+	log.Println("🔄 Checking versioned database migrations...")
+
+	sqlDB, err := db.DB()
+	if err != nil {
+		return fmt.Errorf("failed to extract sql instance: %w", err)
 	}
-	log.Println("Database migration completed successfully")
+
+	driver, err := postgres.WithInstance(sqlDB, &postgres.Config{})
+	if err != nil {
+		return fmt.Errorf("failed to initialize migration driver: %w", err)
+	}
+
+	m, err := migrate.NewWithDatabaseInstance(
+		"file://migrations",
+		"postgres",
+		driver,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to build migration engine wrapper: %w", err)
+	}
+
+	if err := m.Up(); err != nil {
+		if errors.Is(err, migrate.ErrNoChange) {
+			log.Println("✅ Database schema is already fully up to date.")
+			return nil
+		}
+		return fmt.Errorf("critical failure executing migrations: %w", err)
+	}
+
+	log.Println("🎉 Versioned database migrations executed successfully!")
 	return nil
 }
