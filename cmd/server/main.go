@@ -17,7 +17,11 @@ import (
 	"github.com/roshankumar0036singh/auth-server/internal/middleware"
 	"github.com/roshankumar0036singh/auth-server/internal/models"
 	"github.com/roshankumar0036singh/auth-server/internal/routes"
+	"github.com/roshankumar0036singh/auth-server/internal/telemetry" // Matches our tracking package
+	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
+
 	"github.com/roshankumar0036singh/auth-server/internal/repository"
+ main
 )
 
 // @title Auth Server API
@@ -39,6 +43,14 @@ import (
 // @in header
 // @name Authorization
 func main() {
+	ctx := context.Background()
+
+	// 1. Initialize Distributed Tracing SDK
+	tp, err := telemetry.InitTracer(ctx)
+	if err != nil {
+		log.Fatalf("Failed to initialize OpenTelemetry tracing: %v", err)
+	}
+
 	// Load configuration
 	cfg := config.LoadConfig()
 
@@ -56,7 +68,7 @@ func main() {
 	}
 
 	// Auto-migrate database models
-	err := config.AutoMigrate(db, &models.User{},
+	err = config.AutoMigrate(db, &models.User{},
 		&models.RefreshToken{},
 		&models.VerificationToken{},
 		&models.PasswordResetToken{},
@@ -86,6 +98,11 @@ func main() {
 
 	router := gin.Default()
 
+
+	// 2. Attach global tracing middleware to satisfy acceptance criteria
+	// This captures W3C Trace headers arriving from API Gateways/frontend apps
+	router.Use(otelgin.Middleware("auth-server"))
+
 	router.Use(middleware.PrometheusMiddleware())
 
 	// Prometheus metrics endpoint
@@ -113,6 +130,7 @@ func main() {
 			log.Printf("Metrics server error: %v", err)
 		}
 	}()
+ main
 
 	// Load HTML templates for OAuth consent
 	router.LoadHTMLGlob("templates/*")
@@ -168,11 +186,18 @@ func main() {
 	log.Println("🛑 Shutting down server...")
 
 	// Graceful shutdown with 5 second timeout
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
+	// 3. Gracefully flush outstanding traces to Jaeger/Zipkin collector before exiting
+	if err := tp.Shutdown(shutdownCtx); err != nil {
+		log.Printf("Error flushing trace provider: %v", err)
+	} else {
+		log.Println(" Tracing pipeline stopped cleanly")
+	}
+
 	// Shutdown HTTP server
-	if err := srv.Shutdown(ctx); err != nil {
+	if err := srv.Shutdown(shutdownCtx); err != nil {
 		log.Printf("Server forced to shutdown: %v", err)
 	}
 
