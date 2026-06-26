@@ -7,6 +7,9 @@ import (
 	"strconv"
 	"strings"
 
+	"time"
+main
+
 	"github.com/joho/godotenv"
 )
 
@@ -18,6 +21,7 @@ type Config struct {
 	OAuth    OAuthConfig
 	Email    EmailConfig
 	Security SecurityConfig
+	WebAuthn WebAuthnConfig
 }
 
 type AppConfig struct {
@@ -26,10 +30,18 @@ type AppConfig struct {
 	URL  string
 }
 
+type WebAuthnConfig struct {
+	RPDisplayName string
+	RPID          string
+	RPOrigins     []string
+}
+
 type DatabaseConfig struct {
-	URL     string
-	PoolMin int
-	PoolMax int
+	URL             string
+	PoolMin         int
+	PoolMax         int
+	ConnMaxLifetime time.Duration
+	ConnMaxIdleTime time.Duration
 }
 
 type RedisConfig struct {
@@ -38,10 +50,11 @@ type RedisConfig struct {
 }
 
 type JWTConfig struct {
-	AccessSecret  string
-	RefreshSecret string
-	AccessExpiry  string
-	RefreshExpiry string
+	AccessSecret        string
+	RefreshSecret       string
+	AccessExpiry        string
+	RefreshExpiry       string
+	RefreshGracePeriod  string
 }
 
 type OAuthConfig struct {
@@ -68,7 +81,27 @@ type SecurityConfig struct {
 	AccountLockMaxAttempts int
 	AccountLockDuration    int // in minutes
 	EncryptionKey          string
+
 	AllowedOrigins         []string // Added to store validated, deduplicated origins
+
+
+	LoginRateLimitMax    int
+	LoginRateLimitWindow int
+
+	RegisterRateLimitMax    int
+	RegisterRateLimitWindow int
+
+	ForgotRateLimitMax    int
+	ForgotRateLimitWindow int
+}
+
+func mustAtoi(key string, defaultValue int) int {
+	v, err := strconv.Atoi(getEnv(key, strconv.Itoa(defaultValue)))
+	if err != nil || v <= 0 {
+		return defaultValue
+	}
+	return v
+
 }
 
 func LoadConfig() *Config {
@@ -87,7 +120,25 @@ func LoadConfig() *Config {
 	accountLockMax, _ := strconv.Atoi(getEnv("ACCOUNT_LOCK_MAX_ATTEMPTS", "5"))
 	accountLockDuration, _ := strconv.Atoi(getEnv("ACCOUNT_LOCK_DURATION", "30")) // Minutes
 
+	loginRateLimitMax := mustAtoi("LOGIN_RATE_LIMIT_MAX", 5)
+	loginRateLimitWindow := mustAtoi("LOGIN_RATE_LIMIT_WINDOW", 900000)
+
+	registerRateLimitMax := mustAtoi("REGISTER_RATE_LIMIT_MAX", 3)
+	registerRateLimitWindow := mustAtoi("REGISTER_RATE_LIMIT_WINDOW", 3600000)
+
+	forgotRateLimitMax := mustAtoi("FORGOT_RATE_LIMIT_MAX", 3)
+	forgotRateLimitWindow := mustAtoi("FORGOT_RATE_LIMIT_WINDOW", 3600000)
+
 	appURL := getEnv("APP_URL", "http://localhost:3000")
+
+	accessSecret := getEnv("JWT_SECRET", "")
+	refreshSecret := getEnv("JWT_REFRESH_SECRET", "")
+	if len(accessSecret) < 32 {
+		log.Fatal("JWT_SECRET must be set and at least 32 bytes long")
+	}
+	if len(refreshSecret) < 32 {
+		log.Fatal("JWT_REFRESH_SECRET must be set and at least 32 bytes long")
+	}
 
 	encKey := getEnv("ENCRYPTION_KEY", "")
 	if encKey == "" || encKey == "0123456789abcdef0123456789abcdef" {
@@ -137,19 +188,28 @@ func LoadConfig() *Config {
 			URL:  appURL,
 		},
 		Database: DatabaseConfig{
-			URL:     getEnv("DATABASE_URL", ""),
-			PoolMin: poolMin,
-			PoolMax: poolMax,
+			URL:             getEnv("DATABASE_URL", ""),
+			PoolMin:         poolMin,
+			PoolMax:         poolMax,
+			ConnMaxLifetime: getEnvAsDuration("DB_CONN_MAX_LIFETIME", 1*time.Hour),
+			ConnMaxIdleTime: getEnvAsDuration("DB_CONN_MAX_IDLE_TIME", 10*time.Minute),
 		},
 		Redis: RedisConfig{
 			URL: getEnv("REDIS_URL", ""),
 			TTL: redisTTL,
 		},
 		JWT: JWTConfig{
+
 			AccessSecret:  getEnv("JWT_SECRET", ""),
 			RefreshSecret: getEnv("JWT_REFRESH_SECRET", ""),
 			AccessExpiry:  getEnv("JWT_ACCESS_EXPIRY", "15m"),
 			RefreshExpiry: getEnv("JWT_REFRESH_EXPIRY", "168h"),
+
+			AccessSecret:       getEnv("JWT_SECRET", ""),
+			RefreshSecret:      getEnv("JWT_REFRESH_SECRET", ""),
+			AccessExpiry:       getEnv("JWT_ACCESS_EXPIRY", "15m"),
+			RefreshExpiry:      getEnv("JWT_REFRESH_EXPIRY", "168h"),
+			RefreshGracePeriod: getEnv("JWT_REFRESH_GRACE_PERIOD", "10s"),
 		},
 		OAuth: OAuthConfig{
 			Google: GoogleOAuthConfig{
@@ -171,7 +231,22 @@ func LoadConfig() *Config {
 			AccountLockMaxAttempts: accountLockMax,
 			AccountLockDuration:    accountLockDuration,
 			EncryptionKey:          encKey,
+
 			AllowedOrigins:         originList, // Pass the processed slice cleanly here
+
+			LoginRateLimitMax:    loginRateLimitMax,
+			LoginRateLimitWindow: loginRateLimitWindow,
+
+			RegisterRateLimitMax:    registerRateLimitMax,
+			RegisterRateLimitWindow: registerRateLimitWindow,
+
+			ForgotRateLimitMax:    forgotRateLimitMax,
+			ForgotRateLimitWindow: forgotRateLimitWindow,
+		},
+		WebAuthn: WebAuthnConfig{
+			RPDisplayName: getEnv("WEBAUTHN_RP_DISPLAY_NAME", "Auth Server"),
+			RPID:          getEnv("WEBAUTHN_RP_ID", "localhost"),
+			RPOrigins:     []string{appURL}, // Assuming APP_URL is the primary origin
 		},
 	}
 }

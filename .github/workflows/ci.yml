@@ -25,6 +25,8 @@ jobs:
       uses: actions/setup-go@v5
       with:
         go-version: '1.23' # Use stable
+        cache: true
+        cache-dependency-path: go.sum
 
     - name: Install dependencies
       run: go mod download

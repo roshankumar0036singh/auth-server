@@ -11,11 +11,17 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/roshankumar0036singh/auth-server/internal/config"
+	"github.com/roshankumar0036singh/auth-server/internal/metrics"
+	"github.com/roshankumar0036singh/auth-server/internal/middleware"
 	"github.com/roshankumar0036singh/auth-server/internal/models"
 	"github.com/roshankumar0036singh/auth-server/internal/routes"
 	"github.com/roshankumar0036singh/auth-server/internal/telemetry" // Matches our tracking package
 	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
+
+	"github.com/roshankumar0036singh/auth-server/internal/repository"
+ main
 )
 
 // @title Auth Server API
@@ -51,6 +57,16 @@ func main() {
 	// Initialize database
 	db := config.InitDatabase(cfg)
 
+	// Pre-migration backfill for refresh_tokens.family_id
+	// Add column as nullable first to allow backfill
+	if err := db.Exec("ALTER TABLE refresh_tokens ADD COLUMN IF NOT EXISTS family_id uuid").Error; err != nil {
+		log.Printf("Warning: Could not add family_id column (may already exist): %v", err)
+	}
+	// Backfill existing tokens using their own ID as the family ID
+	if err := db.Exec("UPDATE refresh_tokens SET family_id = id WHERE family_id IS NULL").Error; err != nil {
+		log.Fatal("Failed to backfill family_id for existing refresh tokens:", err)
+	}
+
 	// Auto-migrate database models
 	err = config.AutoMigrate(db, &models.User{},
 		&models.RefreshToken{},
@@ -72,14 +88,49 @@ func main() {
 
 	// Setup Gin
 	if cfg.App.Env == "production" {
+
 		gin.SetMode(gin.ReleaseMode)
 	}
 
+	tokenRepo := repository.NewTokenRepository(db)
+
+	metrics.Register(tokenRepo)
+
 	router := gin.Default()
+
 
 	// 2. Attach global tracing middleware to satisfy acceptance criteria
 	// This captures W3C Trace headers arriving from API Gateways/frontend apps
 	router.Use(otelgin.Middleware("auth-server"))
+
+	router.Use(middleware.PrometheusMiddleware())
+
+	// Prometheus metrics endpoint
+
+	metricsAddr := os.Getenv("METRICS_ADDR")
+	if metricsAddr == "" {
+		metricsAddr = "127.0.0.1:9090"
+	}
+
+	metricsServer := &http.Server{
+		Addr:              metricsAddr,
+		Handler:           promhttp.Handler(),
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       10 * time.Second,
+		WriteTimeout:      10 * time.Second,
+		IdleTimeout:       60 * time.Second,
+	}
+
+	go func() {
+
+		log.Printf("📊 Prometheus metrics exposed on http://%s/metrics", metricsAddr)
+
+		if err := metricsServer.ListenAndServe(); err != nil &&
+			err != http.ErrServerClosed {
+			log.Printf("Metrics server error: %v", err)
+		}
+	}()
+ main
 
 	// Load HTML templates for OAuth consent
 	router.LoadHTMLGlob("templates/*")
@@ -101,6 +152,28 @@ func main() {
 
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatal("Failed to start server:", err)
+		}
+	}()
+
+	// Start self-pinger to keep the server active
+	go func() {
+		pingURL := os.Getenv("PING_URL")
+		if pingURL == "" {
+			pingURL = fmt.Sprintf("http://localhost:%d/health", cfg.App.Port)
+		}
+
+		// Ping every 10 minutes (Heroku/Render typically sleep after 15-30m)
+		ticker := time.NewTicker(10 * time.Minute)
+		defer ticker.Stop()
+
+		for range ticker.C {
+			resp, err := http.Get(pingURL)
+			if err != nil {
+				log.Printf("Self-ping failed: %v", err)
+			} else {
+				resp.Body.Close()
+				log.Printf("Self-ping successful: %d", resp.StatusCode)
+			}
 		}
 	}()
 
@@ -126,6 +199,13 @@ func main() {
 	// Shutdown HTTP server
 	if err := srv.Shutdown(shutdownCtx); err != nil {
 		log.Printf("Server forced to shutdown: %v", err)
+	}
+
+	// Shutdown metrics server
+	metricsCtx, metricsCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer metricsCancel()
+	if err := metricsServer.Shutdown(metricsCtx); err != nil {
+		log.Printf("Metrics server forced to shutdown: %v", err)
 	}
 
 	// Close database connection

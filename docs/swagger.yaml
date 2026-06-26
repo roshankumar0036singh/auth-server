@@ -33,15 +33,26 @@ definitions:
       refreshToken:
         type: string
     type: object
+  dto.MFADisableRequest:
+    properties:
+      code:
+        type: string
+      password:
+        description: Password re-authenticates the user for this sensitive operation
+        type: string
+    required:
+    - code
+    - password
+    type: object
   dto.MFALoginRequest:
     properties:
       code:
         type: string
-      email:
+      mfaToken:
         type: string
     required:
     - code
-    - email
+    - mfaToken
     type: object
   dto.MFAVerifyRequest:
     properties:
@@ -104,6 +115,146 @@ definitions:
         maxLength: 20
         type: string
     type: object
+  handler.CreateOAuthClientRequest:
+    properties:
+      is_public:
+        type: boolean
+      name:
+        type: string
+      redirect_uris:
+        items:
+          type: string
+        minItems: 1
+        type: array
+      scopes:
+        items:
+          type: string
+        minItems: 1
+        type: array
+    required:
+    - name
+    - redirect_uris
+    - scopes
+    type: object
+  handler.CreateOAuthClientResponse:
+    properties:
+      data:
+        $ref: '#/definitions/handler.OAuthClientData'
+      message:
+        type: string
+      success:
+        type: boolean
+    type: object
+  handler.ErrorResponse:
+    properties:
+      code:
+        type: string
+      error:
+        type: string
+      message:
+        type: string
+    type: object
+  handler.ListOAuthClientsResponse:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/models.OAuthClient'
+        type: array
+      success:
+        type: boolean
+    type: object
+  handler.OAuthClientData:
+    properties:
+      client_id:
+        type: string
+      client_secret:
+        description: Only in creation response
+        type: string
+      created_at: {}
+      id:
+        type: string
+      name:
+        type: string
+      redirect_uris:
+        items:
+          type: string
+        type: array
+      scopes:
+        items:
+          type: string
+        type: array
+    type: object
+  handler.ProviderConfigRequest:
+    properties:
+      provider_client_id:
+        type: string
+      provider_client_secret:
+        type: string
+    required:
+    - provider_client_id
+    - provider_client_secret
+    type: object
+  handler.TokenResponse:
+    properties:
+      access_token:
+        type: string
+      expires_in:
+        type: integer
+      refresh_token:
+        type: string
+      scope:
+        type: string
+      token_type:
+        type: string
+    type: object
+  handler.UserInfoResponse:
+    properties:
+      email:
+        type: string
+      email_verified:
+        type: boolean
+      family_name:
+        type: string
+      given_name:
+        type: string
+      name:
+        type: string
+      picture:
+        type: string
+      scopes:
+        items:
+          type: string
+        type: array
+      sub:
+        type: string
+    type: object
+  models.OAuthClient:
+    properties:
+      client_id:
+        type: string
+      created_at:
+        type: string
+      id:
+        type: string
+      is_active:
+        type: boolean
+      is_public:
+        type: boolean
+      name:
+        type: string
+      owner_id:
+        type: string
+      redirect_uris:
+        items:
+          type: string
+        type: array
+      scopes:
+        items:
+          type: string
+        type: array
+      updated_at:
+        type: string
+    type: object
   utils.ErrorDetail:
     properties:
       code:
@@ -136,6 +287,17 @@ info:
 paths:
   /api/admin/users:
     get:
+      parameters:
+      - default: 1
+        description: Page number
+        in: query
+        name: page
+        type: integer
+      - default: 10
+        description: Items per page
+        in: query
+        name: limit
+        type: integer
       produces:
       - application/json
       responses:
@@ -374,6 +536,45 @@ paths:
       summary: Get current user
       tags:
       - auth
+  /api/auth/mfa/disable:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Current password and TOTP verification code
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.MFADisableRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: Disable MFA
+      tags:
+      - auth
   /api/auth/mfa/enable:
     post:
       produces:
@@ -411,6 +612,170 @@ paths:
       summary: Verify and enable MFA
       tags:
       - auth
+  /api/auth/oauth/clients:
+    get:
+      description: List all OAuth clients registered by the authenticated user
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.ListOAuthClientsResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: List My OAuth Clients
+      tags:
+      - OAuth Client
+    post:
+      consumes:
+      - application/json
+      description: Create a new OAuth client for third-party apps
+      parameters:
+      - description: Client details
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handler.CreateOAuthClientRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handler.CreateOAuthClientResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: Create OAuth Client
+      tags:
+      - OAuth Client
+  /api/auth/oauth/clients/{clientId}:
+    delete:
+      description: Delete an OAuth client registered by the user
+      parameters:
+      - description: Client ID (UUID)
+        in: path
+        name: clientId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: Delete OAuth Client
+      tags:
+      - OAuth Client
+  /api/auth/oauth/clients/{clientId}/providers/{provider}:
+    delete:
+      parameters:
+      - description: Client ID
+        in: path
+        name: clientId
+        required: true
+        type: string
+      - description: Provider (google/github)
+        in: path
+        name: provider
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: Delete OAuth Provider Config
+      tags:
+      - oauth-clients
+    get:
+      parameters:
+      - description: Client ID
+        in: path
+        name: clientId
+        required: true
+        type: string
+      - description: Provider (google/github)
+        in: path
+        name: provider
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: Get OAuth Provider Config
+      tags:
+      - oauth-clients
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Client ID
+        in: path
+        name: clientId
+        required: true
+        type: string
+      - description: Provider (google/github)
+        in: path
+        name: provider
+        required: true
+        type: string
+      - description: Config data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handler.ProviderConfigRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: Create/Update OAuth Provider Config
+      tags:
+      - oauth-clients
   /api/auth/password:
     post:
       consumes:
@@ -599,6 +964,185 @@ paths:
       summary: Verify email
       tags:
       - auth
+  /oauth/authorize:
+    get:
+      parameters:
+      - description: Client ID
+        in: query
+        name: client_id
+        required: true
+        type: string
+      - description: Redirect URI
+        in: query
+        name: redirect_uri
+        required: true
+        type: string
+      - description: Response Type (code)
+        in: query
+        name: response_type
+        required: true
+        type: string
+      - description: Scopes
+        in: query
+        name: scope
+        type: string
+      - description: State
+        in: query
+        name: state
+        type: string
+      - description: Code Challenge
+        in: query
+        name: code_challenge
+        type: string
+      - description: Code Challenge Method
+        in: query
+        name: code_challenge_method
+        type: string
+      produces:
+      - text/html
+      responses:
+        "302":
+          description: Redirect" @header Location {string} "Redirect URL with code
+            or error
+        "400":
+          description: Invalid request
+          schema:
+            $ref: '#/definitions/handler.ErrorResponse'
+        "401":
+          description: Unauthorized - user must be logged in
+          schema:
+            $ref: '#/definitions/handler.ErrorResponse'
+      summary: Authorize OAuth client
+      tags:
+      - oauth
+    post:
+      consumes:
+      - application/x-www-form-urlencoded
+      description: User approves or denies the OAuth authorization request
+      parameters:
+      - description: OAuth Client ID
+        in: formData
+        name: client_id
+        required: true
+        type: string
+      - description: Redirect URI
+        in: formData
+        name: redirect_uri
+        required: true
+        type: string
+      - description: Response type (code)
+        in: formData
+        name: response_type
+        required: true
+        type: string
+      - description: Requested scopes (space separated)
+        in: formData
+        name: scope
+        type: string
+      - description: OAuth state parameter
+        in: formData
+        name: state
+        type: string
+      - description: Consent action (approve/deny)
+        in: formData
+        name: action
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "302":
+          description: Redirect" @header Location {string} "Redirect URL with code
+            or error
+        "400":
+          description: Invalid request
+          schema:
+            $ref: '#/definitions/handler.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handler.ErrorResponse'
+      summary: OAuth Authorization Consent
+      tags:
+      - OAuth Provider
+  /oauth/token:
+    post:
+      consumes:
+      - application/x-www-form-urlencoded
+      description: Exchanges authorization code for access token
+      parameters:
+      - description: Grant type (authorization_code)
+        in: formData
+        name: grant_type
+        required: true
+        type: string
+      - description: Authorization code
+        in: formData
+        name: code
+        required: true
+        type: string
+      - description: Redirect URI
+        in: formData
+        name: redirect_uri
+        required: true
+        type: string
+      - description: OAuth Client ID
+        in: formData
+        name: client_id
+        required: true
+        type: string
+      - description: OAuth Client Secret
+        in: formData
+        name: client_secret
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Access token response
+          schema:
+            $ref: '#/definitions/handler.TokenResponse'
+        "400":
+          description: Invalid request
+          schema:
+            $ref: '#/definitions/handler.ErrorResponse'
+        "401":
+          description: Invalid client credentials
+          schema:
+            $ref: '#/definitions/handler.ErrorResponse'
+      summary: OAuth Token Exchange
+      tags:
+      - OAuth Provider
+  /oauth/userinfo:
+    get:
+      consumes:
+      - application/json
+      description: Returns user profile information for the provided access token
+      parameters:
+      - description: Bearer {access_token}
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: User profile information
+          schema:
+            $ref: '#/definitions/handler.UserInfoResponse'
+        "401":
+          description: Invalid or expired token
+          schema:
+            $ref: '#/definitions/handler.ErrorResponse'
+        "404":
+          description: User not found
+          schema:
+            $ref: '#/definitions/handler.ErrorResponse'
+      summary: OAuth User Info
+      tags:
+      - OAuth Provider
 schemes:
 - http
 - https

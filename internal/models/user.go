@@ -3,9 +3,15 @@ package models
 import (
 	"time"
 
+	"github.com/go-webauthn/webauthn/webauthn"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
+
+type PaginatedUsers struct {
+	Total int64  `json:"total"`
+	Users []User `json:"users"`
+}
 
 type User struct {
 	ID                  string         `gorm:"type:uuid;primary_key" json:"id"`
@@ -21,8 +27,9 @@ type User struct {
 	OAuthProvider       string         `gorm:"size:50" json:"oauthProvider,omitempty"` // 'google', 'github', 'local'
 	OAuthID             string         `gorm:"size:255" json:"-"`
 	MFAEnabled          bool           `gorm:"default:false" json:"mfaEnabled"`
-	MFASecret           string         `gorm:"size:255" json:"-"`
-	Role                string         `gorm:"default:'user';size:50" json:"role"` // 'user', 'admin'
+	MFASecret           string               `gorm:"size:255" json:"-"`
+	Passkeys            []WebAuthnCredential `gorm:"foreignKey:UserID" json:"-"`
+	Role                string               `gorm:"default:'user';size:50" json:"role"` // 'user', 'admin'
 	FailedLoginAttempts int            `gorm:"default:0" json:"-"`
 	LockedUntil         *time.Time     `json:"lockedUntil,omitempty"`
 	CreatedAt           time.Time      `json:"createdAt"`
@@ -81,4 +88,34 @@ func (u *User) ToPublic() *PublicUser {
 func (u *User) IsLocked() bool {
 	return u.LockedUntil != nil &&
 		time.Now().Before(*u.LockedUntil)
+}
+
+// WebAuthn interface implementations
+func (u *User) WebAuthnID() []byte {
+	return []byte(u.ID)
+}
+
+func (u *User) WebAuthnName() string {
+	return u.Email
+}
+
+func (u *User) WebAuthnDisplayName() string {
+	if u.FirstName != "" {
+		return u.FirstName + " " + u.LastName
+	}
+	return u.Email
+}
+
+func (u *User) WebAuthnIcon() string {
+	return u.ProfileImage
+}
+
+func (u *User) WebAuthnCredentials() []webauthn.Credential {
+	var creds []webauthn.Credential
+	for _, c := range u.Passkeys {
+		if cred, err := c.ToWebAuthn(); err == nil {
+			creds = append(creds, *cred)
+		}
+	}
+	return creds
 }

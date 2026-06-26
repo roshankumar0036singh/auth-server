@@ -1,20 +1,42 @@
 export interface User {
   id: string;
   email: string;
-  firstName: string;
-  lastName: string;
-  isVerified: boolean;
-  role: string;
-  createdAt: string;
-  updatedAt: string;
+  /** Present when the user has a name on file (server omits when empty). */
+  firstName?: string;
+  /** Present when the user has a name on file (server omits when empty). */
+  lastName?: string;
+  /** Whether the user's email address has been verified. */
+  emailVerified: boolean;
+  /** Whether time-based one-time-password MFA is enabled. */
   mfaEnabled: boolean;
-  profileImage?: string;
+  /** ISO 8601 timestamp of account creation. */
+  createdAt: string;
+  /** ISO 8601 timestamp of the last successful login, when available. */
+  lastLoginAt?: string;
+}
+
+export interface PaginationMetaData {
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
+export interface UsersResponse {
+  users: User[];
+  meta: PaginationMetaData;
 }
 
 export interface Session {
   accessToken: string;
   refreshToken?: string;
   user?: User;
+}
+
+export interface StorageAdapter {
+  getItem(key: string): string | null | Promise<string | null>;
+  setItem(key: string, value: string): void | Promise<void>;
+  removeItem(key: string): void | Promise<void>;
 }
 
 export interface AuthClientConfig {
@@ -31,6 +53,20 @@ export interface AuthClientConfig {
   storage?: 'localStorage' | 'sessionStorage' | 'memory';
   /** Custom storage key. Defaults to `auth_session_<clientId>` */
   storageKey?: string;
+  /** Custom storage adapter for environments like React Native */
+  storageAdapter?: StorageAdapter;
+  /** Max retries for failed network requests (excluding 4xx errors). Default 0. */
+  retries?: number;
+  /** Initial delay in ms before first retry. Doubles on each subsequent retry. Default 1000. */
+  retryDelay?: number;
+  /** Whether to periodically ping the server's /health endpoint to prevent it from spinning down. Default false. */
+  keepAlive?: boolean;
+  /** Interval in ms for the keepAlive ping. Default 5 minutes (300000ms). */
+  keepAliveInterval?: number;
+  /** Callback fired specifically on network errors (e.g., offline) to allow showing offline banners. */
+  onNetworkError?: (error: Error) => void;
+  /** Enables verbose debug logging to the console. Default false. */
+  debug?: boolean;
 }
 
 export interface ApiResponse<T = any> {
@@ -58,6 +94,19 @@ export interface AuditLog {
   ipAddress: string;
   userAgent: string;
   createdAt: string;
+}
+
+export interface AuthEvents {
+  /** Legacy event, fired whenever the session changes (null if logged out) */
+  session: (session: Session | null) => void;
+  /** Fired specifically when a user successfully logs in */
+  login: (session: Session) => void;
+  /** Fired specifically when a user successfully logs out */
+  logout: () => void;
+  /** Fired when the access token is successfully refreshed */
+  'token:refreshed': (session: Session) => void;
+  /** Fired when any API request throws an AuthError */
+  error: (error: Error) => void;
 }
 
 export type AuthStateChangeCallback = (session: Session | null) => void;

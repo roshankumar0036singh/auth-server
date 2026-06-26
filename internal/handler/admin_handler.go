@@ -3,16 +3,20 @@ package handler
 import (
 	"errors"
 	"net/http"
+	"strconv"
+	"math"
 
 	"github.com/gin-gonic/gin"
 	"github.com/roshankumar0036singh/auth-server/internal/service"
 	"github.com/roshankumar0036singh/auth-server/internal/utils"
+	"github.com/roshankumar0036singh/auth-server/internal/models"
 )
 
 type AdminAuthService interface {
 	LockUser(userID, adminID, ipAddress, userAgent string) error
 	UnlockUser(userID, adminID, ipAddress, userAgent string) error
 	DeleteAccount(userID string) error
+	GetUsers(limit, offset int)  (models.PaginatedUsers, error)
 }
 
 type AdminHandler struct {
@@ -23,17 +27,45 @@ func NewAdminHandler(authService AdminAuthService) *AdminHandler {
 	return &AdminHandler{authService: authService}
 }
 
-// GetUsers lists all users (Note: Pagination should be added for production)
+// GetUsers lists all users
 // @Summary List all users
 // @Tags admin
 // @Security BearerAuth
 // @Produce json
+// @Param page query int false "Page number" default(1)
+// @Param limit query int false "Items per page" default(10)
 // @Success 200 {object} utils.Response
 // @Router /api/admin/users [get]
 func (h *AdminHandler) GetUsers(c *gin.Context) {
-	// TODO: Implement GetAllUsers in AuthService/UserRepository with pagination
-	// For now, returning placeholder
-	c.JSON(http.StatusOK, utils.SuccessResponse("List of users", []string{"user1", "user2"}))
+	page, err := strconv.Atoi(c.DefaultQuery("page", "1"))
+	if err != nil || page < 1 {
+		page = 1
+	}
+
+	limit, err := strconv.Atoi(c.DefaultQuery("limit", "10"))
+	if err != nil || limit < 1 {
+		limit = 10
+	}
+
+	if limit > 100 {
+		limit = 100
+	}
+
+	if page > (math.MaxInt/limit)+1 {
+		page = (math.MaxInt / limit) + 1
+	}
+
+	offset := (page - 1) * limit
+
+	users, err := h.authService.GetUsers(limit, offset)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError,
+			utils.ErrorResponse("Failed to fetch users", err))
+		return
+	}
+
+	c.JSON(http.StatusOK,
+		utils.SuccessResponse("List of users", users))
 }
 
 // LockUser locks a user account

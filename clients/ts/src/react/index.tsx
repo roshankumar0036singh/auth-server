@@ -35,6 +35,7 @@ export function AuthProvider({ client, children }: AuthProviderProps) {
 
   useEffect(() => {
     let mounted = true;
+    setIsLoading(true);
 
     const handleSessionChange = async (newSession: Session | null) => {
       if (!mounted) return;
@@ -42,13 +43,11 @@ export function AuthProvider({ client, children }: AuthProviderProps) {
 
       if (!newSession?.accessToken) {
         setUser(null);
-        setIsLoading(false);
         return;
       }
 
       if (newSession.user) {
         setUser(newSession.user);
-        setIsLoading(false);
         return;
       }
 
@@ -57,10 +56,12 @@ export function AuthProvider({ client, children }: AuthProviderProps) {
         if (mounted) setUser(fetchedUser);
       } catch {
         // Don't wipe session — the interceptor handles 401s
-      } finally {
-        if (mounted) setIsLoading(false);
       }
     };
+
+    client.ready.finally(() => {
+      if (mounted) setIsLoading(false);
+    });
 
     const unsubscribe = client.onAuthStateChanged(handleSessionChange);
 
@@ -118,4 +119,40 @@ export function useAuth(): AuthContextValue {
     throw new Error('useAuth must be used within an <AuthProvider>');
   }
   return context;
+}
+
+/**
+ * Convenience hook to access just the current user profile.
+ * Re-renders only when the user profile changes.
+ */
+export function useUser(): User | null {
+  return useAuth().user;
+}
+
+/**
+ * Convenience hook to access session state.
+ */
+export function useSession() {
+  const { session, isAuthenticated, isLoading } = useAuth();
+  return { session, isAuthenticated, isLoading };
+}
+
+interface ProtectedRouteProps {
+  readonly children: React.ReactNode;
+  readonly fallback: React.ReactNode;
+}
+
+/**
+ * A wrapper component that requires the user to be authenticated.
+ * If the user is authenticated, it renders `children`.
+ * If the user is not authenticated, it renders `fallback` (e.g. a login page or redirect).
+ * While loading, it returns `null`.
+ */
+export function ProtectedRoute({ children, fallback }: ProtectedRouteProps) {
+  const { isAuthenticated, isLoading } = useAuth();
+
+  if (isLoading) return null;
+  if (!isAuthenticated) return <>{fallback}</>;
+
+  return <>{children}</>;
 }

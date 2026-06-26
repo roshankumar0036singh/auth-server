@@ -4,19 +4,23 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"testing"
+	"strings"
+        "testing"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+        "golang.org/x/crypto/bcrypt"
 	"github.com/roshankumar0036singh/auth-server/internal/config"
 	"github.com/roshankumar0036singh/auth-server/internal/handler"
 	"github.com/roshankumar0036singh/auth-server/internal/models"
 	"github.com/roshankumar0036singh/auth-server/internal/repository"
 	"github.com/roshankumar0036singh/auth-server/internal/service"
 	"github.com/roshankumar0036singh/auth-server/internal/testutils"
+	"github.com/roshankumar0036singh/auth-server/internal/utils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+        "github.com/lib/pq"
 )
 
 func setupOAuthUserInfoRouter(t *testing.T) (*gin.Engine, *repository.UserRepository, *repository.OAuthTokenRepository) {
@@ -48,7 +52,8 @@ func createOAuthAccessToken(t *testing.T, tokenRepo *repository.OAuthTokenReposi
 	token := "oauth-token-" + uuid.NewString()
 	err := tokenRepo.Create(&models.OAuthAccessToken{
 		ID:        uuid.NewString(),
-		Token:     token,
+		Token:     utils.HashToken(token),
+		RawToken:  token,
 		ClientID:  uuid.NewString(),
 		UserID:    userID,
 		Scopes:    models.StringArray(scopes),
@@ -96,7 +101,7 @@ func TestOAuthAccessTokenScopesSerializeAsJSONInSQLite(t *testing.T) {
 	token := createOAuthAccessToken(t, tokenRepo, uuid.NewString(), []string{"read:profile", "read:email"})
 
 	var storedScopes string
-	require.NoError(t, db.Table("oauth_access_tokens").Select("scopes").Where("token = ?", token).Scan(&storedScopes).Error)
+	require.NoError(t, db.Table("oauth_access_tokens").Select("scopes").Where("token = ?", utils.HashToken(token)).Scan(&storedScopes).Error)
 	assert.JSONEq(t, `["read:profile","read:email"]`, storedScopes)
 }
 
@@ -128,6 +133,41 @@ func TestOAuthHandler_UserInfoReturnsUserFields(t *testing.T) {
 	assert.Equal(t, user.LastName, response["family_name"])
 	assert.Equal(t, user.ProfileImage, response["picture"])
 	assert.ElementsMatch(t, []interface{}{"read:profile", "read:email"}, response["scopes"])
+}
+
+func TestOAuthHandler_UserInfo_BackwardCompatibility_RawToken(t *testing.T) {
+	r, userRepo, tokenRepo := setupOAuthUserInfoRouter(t)
+
+	user := &models.User{
+		Email:         "oauth-legacy@example.com",
+		PasswordHash:  "hash",
+		FirstName:     "Legacy",
+		LastName:      "User",
+		EmailVerified: true,
+	}
+	require.NoError(t, userRepo.Create(user))
+
+	// Directly insert a legacy unhashed token
+	rawToken := "legacy-raw-token-" + uuid.NewString()
+	err := tokenRepo.Create(&models.OAuthAccessToken{
+		ID:        uuid.NewString(),
+		Token:     rawToken, // Not hashed!
+		RawToken:  rawToken,
+		ClientID:  uuid.NewString(),
+		UserID:    user.ID,
+		Scopes:    models.StringArray([]string{"read:profile"}),
+		ExpiresAt: time.Now().Add(time.Hour),
+	})
+	require.NoError(t, err)
+
+	w := performUserInfoRequest(r, rawToken)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var response map[string]interface{}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
+	assert.Equal(t, user.ID, response["sub"])
+	assert.Equal(t, "Legacy User", response["name"])
 }
 
 func TestOAuthHandler_UserInfoOmitsEmailFieldsWithoutEmailScope(t *testing.T) {
@@ -308,3 +348,118 @@ func TestOAuthHandler_UserInfo_ErrorCases(t *testing.T) {
 		})
 	}
 }
+
+func setupTokenRouter(t *testing.T) (*gin.Engine, *repository.OAuthClientRepository, *repository.AuthorizationCodeRepository) {
+	_, db, mr := testutils.SetupIntegrationTest(t)
+	t.Cleanup(func() { mr.Close() })
+
+	clientRepo := repository.NewOAuthClientRepository(db)
+	codeRepo := repository.NewAuthorizationCodeRepository(db)
+	tokenRepo := repository.NewOAuthTokenRepository(db)
+	userRepo := repository.NewUserRepository(db)
+
+	oauthProviderService := service.NewOAuthProviderService(
+		clientRepo,
+		codeRepo,
+		tokenRepo,
+		repository.NewUserConsentRepository(db),
+		repository.NewOAuthProviderConfigRepository(db),
+		service.NewTokenService(&config.Config{
+			JWT: config.JWTConfig{AccessSecret: "secret", RefreshSecret: "refresh"},
+		}),
+		&config.Config{},
+	)
+
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	r.POST("/oauth/token", handler.NewOAuthHandler(oauthProviderService, userRepo).Token)
+	return r, clientRepo, codeRepo
+}
+
+func TestToken_PublicClient_MissingVerifier_Rejected(t *testing.T) {
+	r, clientRepo, codeRepo := setupTokenRouter(t)
+
+	// seed a public client
+	clientID := uuid.NewString()
+	err := clientRepo.Create(&models.OAuthClient{
+		ID:           uuid.NewString(),
+		Name:         "public-app",
+		ClientID:     clientID,
+		ClientSecret: "unused",
+		RedirectURIs: pq.StringArray{"http://localhost/cb"},
+                Scopes:       pq.StringArray{"read:profile"},
+		IsActive:     true,
+		IsPublic:     true,
+	})
+	require.NoError(t, err)
+
+	// seed a valid auth code with a PKCE challenge
+	challenge := "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM"
+	code := uuid.NewString()
+	err = codeRepo.Create(&models.AuthorizationCode{
+		ID:                  uuid.NewString(),
+		Code:                code,
+		ClientID:            clientID,
+		UserID:              uuid.NewString(),
+		RedirectURI:        "http://localhost/cb",
+		Scopes:              pq.StringArray{"read:profile"},
+		ExpiresAt:           time.Now().Add(10 * time.Minute),
+		CodeChallenge:       &challenge,
+		CodeChallengeMethod: stringPtr("S256"),
+	})
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodPost, "/oauth/token",
+		strings.NewReader("grant_type=authorization_code&code="+code+"&client_id="+clientID+"&redirect_uri=http://localhost/cb"))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	var resp map[string]interface{}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+	assert.Equal(t, "invalid_request", resp["error"])
+}
+
+func TestToken_ConfidentialClient_MissingSecret_Rejected(t *testing.T) {
+	r, clientRepo, codeRepo := setupTokenRouter(t)
+
+	clientID := uuid.NewString()
+	hashedSecret, _ := bcrypt.GenerateFromPassword([]byte("supersecret"), bcrypt.DefaultCost)
+	err := clientRepo.Create(&models.OAuthClient{
+		ID:           uuid.NewString(),
+		Name:         "confidential-app",
+		ClientID:     clientID,
+		ClientSecret: string(hashedSecret),
+		RedirectURIs: pq.StringArray{"http://localhost/cb"},
+                Scopes:       pq.StringArray{"read:profile"},
+		IsActive:     true,
+		IsPublic:     false,
+	})
+	require.NoError(t, err)
+
+	code := uuid.NewString()
+	err = codeRepo.Create(&models.AuthorizationCode{
+		ID:          uuid.NewString(),
+		Code:        code,
+		ClientID:    clientID,
+		UserID:      uuid.NewString(),
+		RedirectURI: "http://localhost/cb",
+		Scopes:      pq.StringArray{"read:profile"},
+		ExpiresAt:   time.Now().Add(10 * time.Minute),
+	})
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodPost, "/oauth/token",
+		strings.NewReader("grant_type=authorization_code&code="+code+"&client_id="+clientID+"&redirect_uri=http://localhost/cb"))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+	var resp map[string]interface{}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+	assert.Equal(t, "invalid_client", resp["error"])
+}
+
+func stringPtr(s string) *string { return &s }

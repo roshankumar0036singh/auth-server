@@ -18,6 +18,31 @@ func NewUserRepository(db *gorm.DB) *UserRepository {
 	return &UserRepository{db: db}
 }
 
+// GetUsers get all users by limit and offset [Pagination]
+func (r *UserRepository) GetUsers(limit, offset int) (models.PaginatedUsers, error) {
+	var users []models.User
+	var total int64
+
+	query := r.db.Model(&models.User{}).Where("role = ?", "user")
+
+	if err := query.Count(&total).Error; err != nil {
+		return models.PaginatedUsers{}, err
+	}
+
+	if err := query.
+		Order("created_at DESC").
+		Limit(limit).
+		Offset(offset).
+		Find(&users).Error; err != nil {
+		return models.PaginatedUsers{}, err
+	}
+
+	return models.PaginatedUsers{
+		Users: users,
+		Total: total,
+	}, nil
+}
+
 // FindByID finds a user by ID
 func (r *UserRepository) FindByID(id string) (*models.User, error) {
 	var user models.User
@@ -79,9 +104,9 @@ func (r *UserRepository) EmailExists(email string) (bool, error) {
 }
 
 func (r *UserRepository) RunInTx(fn func(u *UserRepository, t *TokenRepository) error) error {
-    return r.db.Transaction(func(tx *gorm.DB) error {
-        return fn(NewUserRepository(tx), NewTokenRepository(tx))
-    })
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		return fn(NewUserRepository(tx), NewTokenRepository(tx))
+	})
 }
 
 func (r *UserRepository) LockUser(userID string, lockedUntil time.Time) error {
@@ -117,4 +142,21 @@ func (r *UserRepository) UnlockUser(userID string) error {
 	}
 
 	return nil
+}
+
+// LoadPasskeys loads WebAuthn credentials for a user
+func (r *UserRepository) LoadPasskeys(user *models.User) error {
+	return r.db.Model(user).Association("Passkeys").Find(&user.Passkeys)
+}
+
+// CreateWebAuthnCredential creates a new passkey
+func (r *UserRepository) CreateWebAuthnCredential(cred *models.WebAuthnCredential) error {
+	return r.db.Create(cred).Error
+}
+
+// UpdateWebAuthnCredentialData updates the data field of a passkey
+func (r *UserRepository) UpdateWebAuthnCredentialData(credentialID []byte, data models.JSONB) error {
+	return r.db.Model(&models.WebAuthnCredential{}).
+		Where("credential_id = ?", credentialID).
+		Update("data", data).Error
 }

@@ -1,8 +1,11 @@
 package handler
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
+	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -12,20 +15,23 @@ import (
 )
 
 const (
-	userAgentHeader = "User-Agent"
-	msgLoginSuccess = "Login successful"
-	msgLoginFailed  = "Login failed"
+	userAgentHeader     = "User-Agent"
+	msgLoginSuccess     = "Login successful"
+	msgLoginFailed      = "Login failed"
+	msgMFADisableFailed = "Failed to disable MFA"
 )
 
 type AuthHandler struct {
-	authService  *service.AuthService
-	oauthService *service.OAuthService
+	authService          *service.AuthService
+	oauthService         *service.OAuthService
+	oauthProviderService *service.OAuthProviderService
 }
 
-func NewAuthHandler(authService *service.AuthService, oauthService *service.OAuthService) *AuthHandler {
+func NewAuthHandler(authService *service.AuthService, oauthService *service.OAuthService, oauthProviderService *service.OAuthProviderService) *AuthHandler {
 	return &AuthHandler{
-		authService:  authService,
-		oauthService: oauthService,
+		authService:          authService,
+		oauthService:         oauthService,
+		oauthProviderService: oauthProviderService,
 	}
 }
 
@@ -36,7 +42,7 @@ func NewAuthHandler(authService *service.AuthService, oauthService *service.OAut
 // @Produce json
 // @Param request body dto.RegisterRequest true "Registration data"
 // @Success 201 {object} utils.Response
-// @Failure 400 {object} utils.Response
+// @failure 400 {object} utils.Response
 // @Router /api/auth/register [post]
 func (h *AuthHandler) Register(c *gin.Context) {
 	var req dto.RegisterRequest
@@ -244,6 +250,8 @@ func (h *AuthHandler) DeleteAccount(c *gin.Context) {
 // @Tags auth
 // @Accept json
 // @Produce json
+// @Param page query int false "Page number (default: 1)"
+// @Param limit query int false "Items per page (default: 20, max: 100)"
 // @Success 200 {object} utils.Response
 // @Router /api/auth/audit-logs [get]
 func (h *AuthHandler) GetAuditLogs(c *gin.Context) {
@@ -253,7 +261,45 @@ func (h *AuthHandler) GetAuditLogs(c *gin.Context) {
 		return
 	}
 
-	logs, err := h.authService.GetUserAuditLogs(userID.(string))
+	uid, ok := userID.(string)
+	if !ok || uid == "" {
+		c.JSON(http.StatusUnauthorized, utils.UnauthorizedResponse("Unauthorized"))
+		return
+	}
+
+	page := 1   //set to default
+	limit := 20 //set to default
+
+	if pageStr := c.Query("page"); pageStr != "" {
+		p, err := strconv.Atoi(pageStr)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, utils.ValidationErrorResponse("page must be a valid integer"))
+			return
+		}
+		page = p
+	}
+
+	if limitStr := c.Query("limit"); limitStr != "" {
+		l, err := strconv.Atoi(limitStr)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, utils.ValidationErrorResponse("limit must be a valid integer"))
+			return
+		}
+		limit = l
+	}
+
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 {
+		limit = 20
+	}
+
+	if limit > 100 {
+		limit = 100
+	}
+
+	logs, err := h.authService.GetUserAuditLogs(uid, page, limit)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, utils.ErrorResponse("Failed to retrieve audit logs", err))
 		return
@@ -293,6 +339,13 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	loginResp, err := h.authService.Login(&req, ipAddress, userAgent)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, utils.ErrorResponse(msgLoginFailed, err))
+		return
+	}
+
+	// MFA required: return the MFA-pending token without issuing tokens or a
+	// session cookie. The client must complete /api/auth/login/mfa.
+	if loginResp.MFARequired {
+		c.JSON(http.StatusOK, utils.SuccessResponse("MFA required", loginResp))
 		return
 	}
 
@@ -461,7 +514,7 @@ func (h *AuthHandler) GetSessions(c *gin.Context) {
 			UserAgent: session.UserAgent,
 			CreatedAt: session.CreatedAt.Format("2006-01-02 15:04:05"),
 			ExpiresAt: session.ExpiresAt.Format("2006-01-02 15:04:05"),
-			IsCurrent: session.ID == currentID, 
+			IsCurrent: session.ID == currentID,
 		}
 	}
 
@@ -500,12 +553,89 @@ func (h *AuthHandler) RevokeSession(c *gin.Context) {
 	c.JSON(http.StatusOK, utils.SuccessResponse("Session revoked successfully", nil))
 }
 
+// storeOAuthRedirect validates a requested social-login redirect_uri against the
+// client's registered redirect URIs and, when valid, stores it in a short-lived
+// cookie for the callback to consume. An empty redirect_uri is a no-op (the
+// callback falls back to returning JSON, preserving backward compatibility).
+func (h *AuthHandler) storeOAuthRedirect(c *gin.Context, clientID, redirectURI string) error {
+	if redirectURI == "" {
+		return nil
+	}
+	if h.oauthProviderService == nil {
+		return errors.New("redirect_uri is not supported on this server")
+	}
+	if clientID == "" {
+		return errors.New("client_id is required when redirect_uri is provided")
+	}
+	client, err := h.oauthProviderService.GetPublicClient(clientID)
+	if err != nil {
+		return err
+	}
+	if err := h.oauthProviderService.ValidateRedirectURI(client, redirectURI); err != nil {
+		return err
+	}
+	isProd := gin.Mode() == gin.ReleaseMode
+	c.SetCookie("oauth_redirect", redirectURI, 3600, "/", "", isProd, true)
+	return nil
+}
+
+// validateOAuthRedirectURI validates the OAuth redirect URI against the client configuration.
+func (h *AuthHandler) validateOAuthRedirectURI(clientID, redirectURI string) bool {
+	if clientID == "" || h.oauthProviderService == nil {
+		return false
+	}
+	client, err := h.oauthProviderService.GetPublicClient(clientID)
+	if err != nil {
+		return false
+	}
+	return h.oauthProviderService.ValidateRedirectURI(client, redirectURI) == nil
+}
+
+// completeOAuthLogin finishes a social-login callback. When a validated
+// redirect_uri was stored, it redirects the browser back to the app with the
+// tokens as query parameters; otherwise it returns the tokens as JSON.
+func (h *AuthHandler) completeOAuthLogin(c *gin.Context, loginResp *dto.LoginResponse, clientID string) {
+	isProd := gin.Mode() == gin.ReleaseMode
+	redirectURI, err := c.Cookie("oauth_redirect")
+
+	if err != nil || redirectURI == "" {
+		c.JSON(http.StatusOK, utils.SuccessResponse(msgLoginSuccess, loginResp))
+		return
+	}
+
+	c.SetCookie("oauth_redirect", "", -1, "/", "", isProd, true)
+
+	if !h.validateOAuthRedirectURI(clientID, redirectURI) {
+		c.JSON(http.StatusBadRequest, utils.ErrorResponse("Invalid redirect URI", nil))
+		return
+	}
+
+	target, perr := url.Parse(redirectURI)
+	if perr != nil || (target.Scheme != "http" && target.Scheme != "https") {
+		c.JSON(http.StatusBadRequest, utils.ErrorResponse("Invalid redirect URI scheme", nil))
+		return
+	}
+
+	q := target.Query()
+	q.Set("access_token", loginResp.AccessToken)
+	if loginResp.RefreshToken != "" {
+		q.Set("refresh_token", loginResp.RefreshToken)
+	}
+	target.RawQuery = q.Encode()
+	c.Redirect(http.StatusFound, target.String())
+}
+
 // GoogleLogin initiates Google OAuth login
 // @Summary Login with Google
 // @Tags auth
 // @Router /api/auth/google/login [get]
 func (h *AuthHandler) GoogleLogin(c *gin.Context) {
 	clientID := c.Query("client_id")
+
+	if err := h.storeOAuthRedirect(c, clientID, c.Query("redirect_uri")); err != nil {
+		c.JSON(http.StatusBadRequest, utils.ErrorResponse("Invalid redirect_uri", err))
+		return
+	}
 
 	rawState, err := h.oauthService.GenerateState()
 	if err != nil {
@@ -568,13 +698,25 @@ func (h *AuthHandler) GoogleCallback(c *gin.Context) {
 		return
 	}
 
-	email := userInfo["email"].(string)
-	firstName := userInfo["given_name"].(string)
+	email, ok := userInfo["email"].(string)
+	if !ok || email == "" {
+		c.JSON(http.StatusBadRequest, utils.ErrorResponse("Google email not available", errors.New("missing or invalid email")))
+		return
+	}
+	firstName, ok := userInfo["given_name"].(string)
+	if !ok || firstName == "" {
+		c.JSON(http.StatusBadRequest, utils.ErrorResponse("Invalid Google user data", errors.New("missing or invalid given_name")))
+		return
+	}
 	lastName := ""
 	if val, ok := userInfo["family_name"].(string); ok {
 		lastName = val
 	}
-	oauthID := userInfo["id"].(string)
+	oauthID, ok := userInfo["id"].(string)
+	if !ok || oauthID == "" {
+		c.JSON(http.StatusBadRequest, utils.ErrorResponse("Invalid Google user data", errors.New("missing or invalid id")))
+		return
+	}
 
 	// Login or Register
 	ipAddress := c.ClientIP()
@@ -586,11 +728,7 @@ func (h *AuthHandler) GoogleCallback(c *gin.Context) {
 		return
 	}
 
-	// Redirect to frontend with tokens? Or return JSON?
-	// Usually callback redirects to frontend with query params or sets cookies
-	// For this API, let's return JSON if caller can handle it, but standard Browser flow needs redirect.
-	// We'll return JSON for now as per API design, but in real app we'd redirect to frontend app URL
-	c.JSON(http.StatusOK, utils.SuccessResponse(msgLoginSuccess, loginResp))
+	h.completeOAuthLogin(c, loginResp, clientID)
 }
 
 // GitHubLogin initiates GitHub OAuth login
@@ -599,6 +737,11 @@ func (h *AuthHandler) GoogleCallback(c *gin.Context) {
 // @Router /api/auth/github/login [get]
 func (h *AuthHandler) GitHubLogin(c *gin.Context) {
 	clientID := c.Query("client_id")
+
+	if err := h.storeOAuthRedirect(c, clientID, c.Query("redirect_uri")); err != nil {
+		c.JSON(http.StatusBadRequest, utils.ErrorResponse("Invalid redirect_uri", err))
+		return
+	}
 
 	rawState, err := h.oauthService.GenerateState()
 	if err != nil {
@@ -621,6 +764,26 @@ func (h *AuthHandler) GitHubLogin(c *gin.Context) {
 		return
 	}
 	c.Redirect(http.StatusTemporaryRedirect, url)
+}
+
+func getGitHubNames(userInfo map[string]interface{}) (string, string, error) {
+	if name, ok := userInfo["name"].(string); ok && name != "" {
+		parts := strings.SplitN(name, " ", 2)
+
+		lastName := ""
+		if len(parts) > 1 {
+			lastName = parts[1]
+		}
+
+		return parts[0], lastName, nil
+	}
+
+	login, ok := userInfo["login"].(string)
+	if !ok || login == "" {
+		return "", "", errors.New("missing or invalid login")
+	}
+
+	return login, "", nil
 }
 
 // GitHubCallback handles GitHub OAuth callback
@@ -658,22 +821,27 @@ func (h *AuthHandler) GitHubCallback(c *gin.Context) {
 		return
 	}
 
-	email := userInfo["email"].(string)
-
-	// GitHub names are often one string "Name" or just login
-	firstName := ""
-	lastName := ""
-	if name, ok := userInfo["name"].(string); ok && name != "" {
-		parts := strings.SplitN(name, " ", 2)
-		firstName = parts[0]
-		if len(parts) > 1 {
-			lastName = parts[1]
-		}
-	} else {
-		firstName = userInfo["login"].(string)
+	email, ok := userInfo["email"].(string)
+	if !ok || email == "" {
+		c.JSON(http.StatusBadRequest, utils.ErrorResponse("GitHub email not available", errors.New("missing or invalid email")))
+		return
 	}
 
-	oauthID := fmt.Sprintf("%.0f", userInfo["id"].(float64)) // GitHub ID is number
+	// GitHub names are often one string "Name" or just login
+	firstName, lastName, err := getGitHubNames(userInfo)
+	if err != nil {
+		c.JSON(http.StatusBadRequest,
+			utils.ErrorResponse("Invalid GitHub user data", err))
+		return
+	}
+
+	idValue, ok := userInfo["id"].(float64)
+	if !ok {
+		c.JSON(http.StatusBadRequest, utils.ErrorResponse("Invalid GitHub user data", errors.New("missing or invalid id")))
+		return
+	}
+
+	oauthID := fmt.Sprintf("%.0f", idValue) // GitHub ID is number
 
 	ipAddress := c.ClientIP()
 	userAgent := c.GetHeader(userAgentHeader)
@@ -684,7 +852,7 @@ func (h *AuthHandler) GitHubCallback(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, utils.SuccessResponse(msgLoginSuccess, loginResp))
+	h.completeOAuthLogin(c, loginResp, clientID)
 }
 
 // EnableMFA initates MFA setup
@@ -740,6 +908,55 @@ func (h *AuthHandler) VerifyMFA(c *gin.Context) {
 	c.JSON(http.StatusOK, utils.SuccessResponse("MFA enabled successfully", nil))
 }
 
+// DisableMFA re-authenticates the user via password and TOTP code, then disables MFA
+// @Summary Disable MFA
+// @Tags auth
+// @Security BearerAuth
+// @Accept json
+// @Produce json
+// @Param request body dto.MFADisableRequest true "Current password and TOTP verification code"
+// @Success 200 {object} utils.Response
+// @Failure 400 {object} utils.Response
+// @Failure 401 {object} utils.Response
+// @Failure 404 {object} utils.Response
+// @Failure 500 {object} utils.Response
+// @Router /api/auth/mfa/disable [post]
+func (h *AuthHandler) DisableMFA(c *gin.Context) {
+	userIDVal, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, utils.UnauthorizedResponse("Unauthorized"))
+		return
+	}
+
+	userID, ok := userIDVal.(string)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, utils.UnauthorizedResponse("Unauthorized"))
+		return
+	}
+
+	var req dto.MFADisableRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, utils.ValidationErrorResponse(err.Error()))
+		return
+	}
+
+	if err := h.authService.DisableMFA(userID, req.Password, req.Code); err != nil {
+		switch {
+		case errors.Is(err, service.ErrUserNotFound):
+			c.JSON(http.StatusNotFound, utils.ErrorResponse("User not found", err))
+		case errors.Is(err, service.ErrMFANotEnabled):
+			c.JSON(http.StatusConflict, utils.ErrorResponse(msgMFADisableFailed, err))
+		case errors.Is(err, service.ErrIncorrectPassword), errors.Is(err, service.ErrInvalidMFACode):
+			c.JSON(http.StatusUnauthorized, utils.ErrorResponse(msgMFADisableFailed, err))
+		default:
+			utils.InternalServerErrorResponse(c, msgMFADisableFailed)
+		}
+		return
+	}
+
+	c.JSON(http.StatusOK, utils.SuccessResponse("MFA disabled successfully", nil))
+}
+
 // LoginMFA handles login with MFA code
 // @Summary Login with MFA
 // @Tags auth
@@ -758,7 +975,7 @@ func (h *AuthHandler) LoginMFA(c *gin.Context) {
 	ipAddress := c.ClientIP()
 	userAgent := c.GetHeader("User-Agent")
 
-	resp, err := h.authService.VerifyLoginMFA(req.Email, req.Code, ipAddress, userAgent)
+	resp, err := h.authService.VerifyLoginMFA(req.MFAToken, req.Code, ipAddress, userAgent)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, utils.ErrorResponse("MFA login failed", err))
 		return

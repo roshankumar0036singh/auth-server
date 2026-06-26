@@ -44,3 +44,12 @@ func (r *OAuthTokenRepository) DeleteExpired() error {
 func (r *OAuthTokenRepository) RevokeByClient(clientID string) error {
 	return r.db.Where("client_id = ?", clientID).Delete(&models.OAuthAccessToken{}).Error
 }
+
+// RevokeByUserAndClient revokes all access tokens previously issued to a
+// user/client pair. It is used on detection of an authorization-code replay
+// to invalidate tokens that may have been minted from the reused code
+// (RFC 6749 §4.1.2).
+func (r *OAuthTokenRepository) RevokeByUserAndClient(userID, clientID string) error {
+	return r.db.Where("user_id = ? AND client_id = ?", userID, clientID).
+		Delete(&models.OAuthAccessToken{}).Error
+}
