@@ -65,8 +65,11 @@ func TestTokenService_GenerateRandomString(t *testing.T) {
 	cfg := &config.Config{}
 	svc := service.NewTokenService(cfg)
 
-	str := svc.GenerateRandomString(32)
-	// Base64 encoding of 32 bytes result in 4*ceil(32/3) = 44 characters
+	// Test generation
+	str, err := svc.GenerateRandomString(32)
+	assert.NoError(t, err)
+	assert.NotEmpty(t, str)
+	// Base64 encoding of 32 bytes should be longer than 32 characters
 	assert.Greater(t, len(str), 32)
 	assert.Equal(t, 44, len(str))
 }
