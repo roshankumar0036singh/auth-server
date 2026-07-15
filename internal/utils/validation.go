@@ -2,7 +2,6 @@ package utils
 
 import (
 	"errors"
-	"net/mail"
 	"unicode"
 )
 
@@ -46,10 +45,4 @@ func ValidatePassword(password string) error {
 	}
 
 	return nil
-}
-
-// ValidateEmail checks if the email format is valid
-func ValidateEmail(email string) bool {
-	_, err := mail.ParseAddress(email)
-	return err == nil
 }

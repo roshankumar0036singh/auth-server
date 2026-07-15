@@ -5,7 +5,6 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 
@@ -38,78 +37,66 @@ func (s *OAuthService) GenerateState() (string, error) {
 	return base64.URLEncoding.EncodeToString(b), nil
 }
 
-func (s *OAuthService) getGoogleConfig(clientID string) (*oauth2.Config, error) {
-	var oauthClientID, oauthClientSecret string
+func (s *OAuthService) getProviderConfig(clientID, providerName string) (*oauth2.Config, error) {
+	var oauthClientID, oauthClientSecret, callbackURL string
+	var scopes []string
+	var endpoint oauth2.Endpoint
 
 	// 1. Try per-client config from DB first
 	if clientID != "" && s.providerRepo != nil {
-		providerConf, err := s.providerRepo.FindByClientAndProvider(clientID, "google")
+		providerConf, err := s.providerRepo.FindByClientAndProvider(clientID, providerName)
 		if err == nil && providerConf != nil {
 			decryptedSecret, err := utils.Decrypt(providerConf.ProviderClientSecret, s.cfg.Security.EncryptionKey)
 			if err != nil {
-				return nil, fmt.Errorf("failed to decrypt google client secret: %w", err)
+				return nil, fmt.Errorf("failed to decrypt %s client secret: %w", providerName, err)
 			}
 			oauthClientID = providerConf.ProviderClientID
 			oauthClientSecret = decryptedSecret
 		}
 	}
 
-	// 2. Fall back to global .env config
-	if oauthClientID == "" {
-		oauthClientID = s.cfg.OAuth.Google.ClientID
-		oauthClientSecret = s.cfg.OAuth.Google.ClientSecret
+	// 2. Fall back to global .env config and set provider specifics
+	switch providerName {
+	case "google":
+		if oauthClientID == "" {
+			oauthClientID = s.cfg.OAuth.Google.ClientID
+			oauthClientSecret = s.cfg.OAuth.Google.ClientSecret
+		}
+		callbackURL = s.cfg.OAuth.Google.CallbackURL
+		scopes = []string{"https://www.googleapis.com/auth/userinfo.email", "https://www.googleapis.com/auth/userinfo.profile"}
+		endpoint = google.Endpoint
+	case "github":
+		if oauthClientID == "" {
+			oauthClientID = s.cfg.OAuth.GitHub.ClientID
+			oauthClientSecret = s.cfg.OAuth.GitHub.ClientSecret
+		}
+		callbackURL = s.cfg.OAuth.GitHub.CallbackURL
+		scopes = []string{"user:email"}
+		endpoint = github.Endpoint
+	default:
+		return nil, fmt.Errorf("unsupported provider: %s", providerName)
 	}
 
 	// 3. No credentials available at all
 	if oauthClientID == "" {
-		return nil, errors.New("no Google OAuth credentials configured for this client")
+		return nil, fmt.Errorf("no %s OAuth credentials configured for this client", providerName)
 	}
 
-	conf := &oauth2.Config{
+	return &oauth2.Config{
 		ClientID:     oauthClientID,
 		ClientSecret: oauthClientSecret,
-		RedirectURL:  s.cfg.OAuth.Google.CallbackURL,
-		Scopes:       []string{"https://www.googleapis.com/auth/userinfo.email", "https://www.googleapis.com/auth/userinfo.profile"},
-		Endpoint:     google.Endpoint,
-	}
-	return conf, nil
+		RedirectURL:  callbackURL,
+		Scopes:       scopes,
+		Endpoint:     endpoint,
+	}, nil
+}
+
+func (s *OAuthService) getGoogleConfig(clientID string) (*oauth2.Config, error) {
+	return s.getProviderConfig(clientID, "google")
 }
 
 func (s *OAuthService) getGitHubConfig(clientID string) (*oauth2.Config, error) {
-	var oauthClientID, oauthClientSecret string
-
-	// 1. Try per-client config from DB first
-	if clientID != "" && s.providerRepo != nil {
-		providerConf, err := s.providerRepo.FindByClientAndProvider(clientID, "github")
-		if err == nil && providerConf != nil {
-			decryptedSecret, err := utils.Decrypt(providerConf.ProviderClientSecret, s.cfg.Security.EncryptionKey)
-			if err != nil {
-				return nil, fmt.Errorf("failed to decrypt github client secret: %w", err)
-			}
-			oauthClientID = providerConf.ProviderClientID
-			oauthClientSecret = decryptedSecret
-		}
-	}
-
-	// 2. Fall back to global .env config
-	if oauthClientID == "" {
-		oauthClientID = s.cfg.OAuth.GitHub.ClientID
-		oauthClientSecret = s.cfg.OAuth.GitHub.ClientSecret
-	}
-
-	// 3. No credentials available at all
-	if oauthClientID == "" {
-		return nil, errors.New("no GitHub OAuth credentials configured for this client")
-	}
-
-	conf := &oauth2.Config{
-		ClientID:     oauthClientID,
-		ClientSecret: oauthClientSecret,
-		RedirectURL:  s.cfg.OAuth.GitHub.CallbackURL,
-		Scopes:       []string{"user:email"},
-		Endpoint:     github.Endpoint,
-	}
-	return conf, nil
+	return s.getProviderConfig(clientID, "github")
 }
 
 // GetGoogleAuthURL returns the URL to redirect the user to for Google login
@@ -148,29 +135,34 @@ func (s *OAuthService) ExchangeGitHubCode(ctx context.Context, clientID, code st
 	return conf.Exchange(ctx, code)
 }
 
+func (s *OAuthService) fetchUserFromProvider(ctx context.Context, conf *oauth2.Config, token *oauth2.Token, endpointURL, providerName string) (map[string]interface{}, *http.Client, error) {
+	client := conf.Client(ctx, token)
+	resp, err := client.Get(endpointURL)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, nil, fmt.Errorf("failed to fetch %s user info", providerName)
+	}
+
+	var data map[string]interface{}
+	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
+		return nil, nil, err
+	}
+
+	return data, client, nil
+}
+
 // FetchGoogleUser fetches user info from Google
 func (s *OAuthService) FetchGoogleUser(ctx context.Context, clientID string, token *oauth2.Token) (map[string]interface{}, error) {
 	conf, err := s.getGoogleConfig(clientID)
 	if err != nil {
 		return nil, err
 	}
-	client := conf.Client(ctx, token)
-	resp, err := client.Get("https://www.googleapis.com/oauth2/v2/userinfo")
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != 200 {
-		return nil, errors.New("failed to fetch google user info")
-	}
-
-	var data map[string]interface{}
-	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
-		return nil, err
-	}
-
-	return data, nil
+	data, _, err := s.fetchUserFromProvider(ctx, conf, token, "https://www.googleapis.com/oauth2/v2/userinfo", "google")
+	return data, err
 }
 
 // FetchGitHubUser fetches user info from GitHub
@@ -179,20 +171,8 @@ func (s *OAuthService) FetchGitHubUser(ctx context.Context, clientID string, tok
 	if err != nil {
 		return nil, err
 	}
-	client := conf.Client(ctx, token)
-
-	resp, err := client.Get("https://api.github.com/user")
+	data, client, err := s.fetchUserFromProvider(ctx, conf, token, "https://api.github.com/user", "github")
 	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != 200 {
-		return nil, errors.New("failed to fetch github user info")
-	}
-
-	var data map[string]interface{}
-	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
 		return nil, err
 	}
 

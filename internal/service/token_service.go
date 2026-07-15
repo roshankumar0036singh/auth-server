@@ -2,6 +2,7 @@ package service
 
 import (
 	"errors"
+	"log"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -16,6 +17,30 @@ type TokenService struct {
 
 func NewTokenService(cfg *config.Config) *TokenService {
 	return &TokenService{cfg: cfg}
+}
+
+func (s *TokenService) GetAccessTokenDuration() time.Duration {
+	if s.cfg == nil || s.cfg.JWT.AccessExpiry == "" {
+		return 15 * time.Minute
+	}
+	dur, err := time.ParseDuration(s.cfg.JWT.AccessExpiry)
+	if err != nil {
+		log.Printf("Warning: invalid AccessExpiry value %q, using default 15m", s.cfg.JWT.AccessExpiry)
+		return 15 * time.Minute
+	}
+	return dur
+}
+
+func (s *TokenService) GetRefreshTokenDuration() time.Duration {
+	if s.cfg == nil || s.cfg.JWT.RefreshExpiry == "" {
+		return 7 * 24 * time.Hour
+	}
+	dur, err := time.ParseDuration(s.cfg.JWT.RefreshExpiry)
+	if err != nil {
+		log.Printf("Warning: invalid RefreshExpiry value %q, using default 168h", s.cfg.JWT.RefreshExpiry)
+		return 7 * 24 * time.Hour
+	}
+	return dur
 }
 
 // JWTClaims custom claims for JWT
@@ -44,7 +69,7 @@ const (
 
 // GenerateAccessToken generates a new JWT access token
 func (s *TokenService) GenerateAccessToken(user *models.User, sessionID string) (string, error) {
-	expirationTime := time.Now().Add(15 * time.Minute) // 15 minutes
+	expirationTime := time.Now().Add(s.GetAccessTokenDuration())
 
 	claims := &JWTClaims{
 		UserID:    user.ID,
@@ -70,7 +95,7 @@ func (s *TokenService) GenerateAccessToken(user *models.User, sessionID string) 
 
 // GenerateRefreshToken generates a new refresh token (longer expiry)
 func (s *TokenService) GenerateRefreshToken(user *models.User) (string, error) {
-	expirationTime := time.Now().Add(7 * 24 * time.Hour) // 7 days
+	expirationTime := time.Now().Add(s.GetRefreshTokenDuration())
 
 	claims := &JWTClaims{
 		UserID: user.ID,
