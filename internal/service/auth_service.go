@@ -49,6 +49,7 @@ type AuthService struct {
 	auditService      *AuditService
 	mfaService        *MFAService
 	config            *config.Config
+	backupCodeRepo    *repository.BackupCodeRepository
 }
 
 func NewAuthService(
@@ -63,6 +64,7 @@ func NewAuthService(
 	auditService *AuditService,
 	mfaService *MFAService,
 	cfg *config.Config,
+	backupCodeRepo *repository.BackupCodeRepository,
 ) *AuthService {
 	return &AuthService{
 		userRepo:          userRepo,
@@ -76,6 +78,7 @@ func NewAuthService(
 		auditService:      auditService,
 		mfaService:        mfaService,
 		config:            cfg,
+		backupCodeRepo: backupCodeRepo,
 	}
 }
 func (s *AuthService) getRefreshTokenExpiry() time.Duration {
@@ -332,33 +335,57 @@ func (s *AuthService) EnableMFA(userID string) (*dto.MFAEnableResponse, error) {
 }
 
 // VerifyEnableMFA verifies the code and enables MFA
-func (s *AuthService) VerifyEnableMFA(userID, code string) error {
+func (s *AuthService) VerifyEnableMFA(userID, code string) ([]string, error){
 	user, err := s.userRepo.FindByID(userID)
 	if err != nil {
-		return ErrUserNotFound
+		return nil, ErrUserNotFound
 	}
 
 	if user.MFAEnabled {
-		return errors.New("MFA is already enabled")
+		return nil, errors.New("MFA is already enabled")
 	}
 
 	if user.MFASecret == "" {
-		return errors.New("MFA setup not initiated")
+		return nil, errors.New("MFA setup not initiated")
 	}
 
 	if !s.mfaService.ValidateMFA(user.MFASecret, code) {
-		return ErrInvalidMFACode
+		return nil, ErrInvalidMFACode
 	}
+	backupCodes := make([]string, 0, 10)
+	for i := 0; i < 10; i++ {
+    code := s.tokenService.GenerateRandomString(8)
 
+    // Save plaintext to return to the user
+    backupCodes = append(backupCodes, code)
+
+    hash, err := bcrypt.GenerateFromPassword(
+        []byte(code),
+        bcrypt.DefaultCost,
+    )
+    if err != nil {
+        return nil, err
+    }
+
+    backup := &models.BackupCode{
+        UserID:   userID,
+        CodeHash: string(hash),
+        Used:     false,
+    }
+
+    if err := s.backupCodeRepo.Create(backup); err != nil {
+        return nil, err
+    }
+}
 	// Enable MFA
 	if err := s.userRepo.Update(userID, map[string]interface{}{
 		"mfa_enabled": true,
 	}); err != nil {
-		return errors.New("failed to enable MFA")
+		return nil, errors.New("failed to enable MFA")
 	}
 
 	s.auditService.LogEvent(&userID, "MFA_ENABLED", "USER", userID, "", "", nil)
-	return nil
+	return backupCodes, nil
 }
 
 // DisableMFA re-authenticates the user via password and TOTP code, then disables MFA on their account
@@ -402,7 +429,7 @@ func (s *AuthService) DisableMFA(userID, password, code string) error {
 // short-lived MFA-pending token issued by the password step (Login), so the
 // password cannot be bypassed, and rate-limits code attempts to prevent
 // brute-forcing the 6-digit TOTP.
-func (s *AuthService) VerifyLoginMFA(mfaToken, code, ipAddress, userAgent string) (*dto.LoginResponse, error) {
+func (s *AuthService) VerifyLoginMFA(mfaToken,code,backupCode, ipAddress, userAgent string) (*dto.LoginResponse, error) {
 	ctx := context.Background()
 
 	userID, err := s.tokenService.ValidateMFAToken(mfaToken)
@@ -428,13 +455,40 @@ func (s *AuthService) VerifyLoginMFA(mfaToken, code, ipAddress, userAgent string
 		return nil, errors.New("MFA not enabled for this user")
 	}
 
-	if !s.mfaService.ValidateMFA(user.MFASecret, code) {
-		s.cacheService.IncrementMFAAttempts(ctx, userID)
-		if err := s.auditService.LogEvent(&user.ID, "MFA_LOGIN_FAILED", "USER", user.ID, ipAddress, userAgent, nil); err != nil {
-			log.Printf("failed to write MFA_LOGIN_FAILED audit log for user %s: %v", user.ID, err)
+	valid := false
+
+// Prefer TOTP when provided.
+if code != "" {
+	valid = s.mfaService.ValidateMFA(user.MFASecret, code)
+}
+
+// If TOTP wasn't provided or failed, try a backup code.
+if !valid && backupCode != "" {
+	codes, err := s.backupCodeRepo.FindByUserID(userID)
+	if err == nil {
+		for _, bc := range codes {
+			if bcrypt.CompareHashAndPassword(
+				[]byte(bc.CodeHash),
+				[]byte(backupCode),
+			) == nil {
+
+				// Only succeed if the backup code was successfully consumed.
+				if err := s.backupCodeRepo.MarkUsed(bc.ID); err == nil {
+					valid = true
+				}
+				break
+			}
 		}
-		return nil, ErrInvalidMFACode
 	}
+}
+
+if !valid {
+	s.cacheService.IncrementMFAAttempts(ctx, userID)
+	if err := s.auditService.LogEvent(&user.ID, "MFA_LOGIN_FAILED", "USER", user.ID, ipAddress, userAgent, nil); err != nil {
+		log.Printf("failed to write MFA_LOGIN_FAILED audit log for user %s: %v", user.ID, err)
+	}
+	return nil, ErrInvalidMFACode
+}
 
 	s.cacheService.ResetMFAAttempts(ctx, userID)
 

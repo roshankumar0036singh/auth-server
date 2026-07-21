@@ -116,7 +116,13 @@ func TestVerifyLoginMFA_RequiresPasswordStepToken(t *testing.T) {
 	require.NoError(t, err)
 
 	// Bypass attempt: the old contract passed the email here. It must fail now.
-	resp, err := authService.VerifyLoginMFA(email, code, "127.0.0.1", "test")
+	resp, err := authService.VerifyLoginMFA(
+    email,
+    code,
+    "",
+    "127.0.0.1",
+    "test",
+)
 	assert.Error(t, err, "raw email must not complete MFA login")
 	assert.Nil(t, resp)
 
@@ -128,7 +134,13 @@ func TestVerifyLoginMFA_RequiresPasswordStepToken(t *testing.T) {
 	assert.Empty(t, loginResp.AccessToken)
 
 	// Completing MFA with that token and a valid code succeeds.
-	final, err := authService.VerifyLoginMFA(loginResp.MFAToken, code, "127.0.0.1", "test")
+	final, err := authService.VerifyLoginMFA(
+    loginResp.MFAToken,
+    code,
+    "",
+    "127.0.0.1",
+    "test",
+)
 	require.NoError(t, err)
 	require.NotNil(t, final)
 	assert.NotEmpty(t, final.AccessToken)
