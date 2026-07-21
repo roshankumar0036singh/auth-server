@@ -9,6 +9,10 @@ import (
 	"github.com/roshankumar0036singh/auth-server/internal/utils"
 )
 
+// AuthCookieName is the cookie used to carry the session token for
+// browser-based (cookie-authenticated) requests.
+const AuthCookieName = "auth_token"
+
 // AuthMiddleware validates JWT tokens and attaches user info to context (Strict)
 func AuthMiddleware(tokenService *service.TokenService, cacheService *service.CacheService) gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -75,7 +79,7 @@ func getAuthToken(c *gin.Context) string {
 	}
 
 	// 2. Get from cookie
-	if cookie, err := c.Cookie("auth_token"); err == nil {
+	if cookie, err := c.Cookie(AuthCookieName); err == nil {
 		return cookie
 	}
 

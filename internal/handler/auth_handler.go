@@ -10,6 +10,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/roshankumar0036singh/auth-server/internal/dto"
+	"github.com/roshankumar0036singh/auth-server/internal/middleware"
 	"github.com/roshankumar0036singh/auth-server/internal/service"
 	"github.com/roshankumar0036singh/auth-server/internal/utils"
 )
@@ -351,7 +352,13 @@ func (h *AuthHandler) Login(c *gin.Context) {
 
 	// Set session cookie for browser flows (like OAuth)
 	// MaxAge is 7 days (matching refresh token)
-	c.SetCookie("auth_token", loginResp.AccessToken, 7*24*3600, "/", "", false, true)
+	c.SetCookie(middleware.AuthCookieName, loginResp.AccessToken, 7*24*3600, "/", "", true, true)
+
+	// Rotate CSRF token on login
+	if err := middleware.RotateCSRFToken(c); err != nil {
+		utils.InternalServerErrorResponse(c, "Failed to issue CSRF token")
+		return
+	}
 
 	c.JSON(http.StatusOK, utils.SuccessResponse(msgLoginSuccess, loginResp))
 }
@@ -417,6 +424,14 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 		return
 	}
 
+	// Clear the session and CSRF cookies so a stolen/cached browser session
+	// can't be replayed after logout.
+	middleware.ClearAuthCookie(c)
+	if err := middleware.RotateCSRFToken(c); err != nil {
+		utils.InternalServerErrorResponse(c, "Failed to rotate CSRF token")
+		return
+	}
+
 	c.JSON(http.StatusOK, utils.SuccessResponse("Logout successful", nil))
 }
 
@@ -448,6 +463,14 @@ func (h *AuthHandler) LogoutAll(c *gin.Context) {
 	// Logout from all devices
 	if err := h.authService.LogoutAll(userID.(string), accessToken); err != nil {
 		c.JSON(http.StatusInternalServerError, utils.ErrorResponse("Failed to logout from all devices", err))
+		return
+	}
+
+	// Clear the session and CSRF cookies so a stolen/cached browser session
+	// can't be replayed after logout.
+	middleware.ClearAuthCookie(c)
+	if err := middleware.RotateCSRFToken(c); err != nil {
+		utils.InternalServerErrorResponse(c, "Failed to rotate CSRF token")
 		return
 	}
 
