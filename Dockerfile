@@ -25,7 +25,7 @@ FROM alpine:latest
 WORKDIR /app
 
 # Install runtime dependencies (ca-certificates for HTTPS, tzdata for timezones)
-RUN apk add --no-cache ca-certificates tzdata
+RUN apk add --no-cache ca-certificates tzdata wget
 
 # Create a non-root user
 RUN addgroup -S authgroup && adduser -S authuser -G authgroup
