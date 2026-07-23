@@ -41,6 +41,7 @@ const (
 
 type AuthService struct {
 	userRepo          *repository.UserRepository
+	oauthAccountRepo  *repository.UserOAuthAccountRepository
 	tokenRepo         *repository.TokenRepository
 	verificationRepo  *repository.VerificationRepository
 	passwordResetRepo *repository.PasswordResetRepository
@@ -50,10 +51,12 @@ type AuthService struct {
 	auditService      *AuditService
 	mfaService        *MFAService
 	config            *config.Config
+	backupCodeRepo    *repository.BackupCodeRepository
 }
 
 func NewAuthService(
 	userRepo *repository.UserRepository,
+	oauthAccountRepo *repository.UserOAuthAccountRepository,
 	tokenRepo *repository.TokenRepository,
 	verificationRepo *repository.VerificationRepository,
 	passwordResetRepo *repository.PasswordResetRepository,
@@ -63,9 +66,11 @@ func NewAuthService(
 	auditService *AuditService,
 	mfaService *MFAService,
 	cfg *config.Config,
+	backupCodeRepo *repository.BackupCodeRepository,
 ) *AuthService {
 	return &AuthService{
 		userRepo:          userRepo,
+		oauthAccountRepo:  oauthAccountRepo,
 		tokenRepo:         tokenRepo,
 		verificationRepo:  verificationRepo,
 		passwordResetRepo: passwordResetRepo,
@@ -75,6 +80,7 @@ func NewAuthService(
 		auditService:      auditService,
 		mfaService:        mfaService,
 		config:            cfg,
+		backupCodeRepo: backupCodeRepo,
 	}
 }
 func (s *AuthService) getRefreshTokenExpiry() time.Duration {
@@ -390,33 +396,57 @@ func (s *AuthService) EnableMFA(userID string) (*dto.MFAEnableResponse, error) {
 }
 
 // VerifyEnableMFA verifies the code and enables MFA
-func (s *AuthService) VerifyEnableMFA(userID, code string) error {
+func (s *AuthService) VerifyEnableMFA(userID, code string) ([]string, error){
 	user, err := s.userRepo.FindByID(userID)
 	if err != nil {
-		return ErrUserNotFound
+		return nil, ErrUserNotFound
 	}
 
 	if user.MFAEnabled {
-		return errors.New("MFA is already enabled")
+		return nil, errors.New("MFA is already enabled")
 	}
 
 	if user.MFASecret == "" {
-		return errors.New("MFA setup not initiated")
+		return nil, errors.New("MFA setup not initiated")
 	}
 
 	if !s.mfaService.ValidateMFA(user.MFASecret, code) {
-		return ErrInvalidMFACode
+		return nil, ErrInvalidMFACode
 	}
+	backupCodes := make([]string, 0, 10)
+	for i := 0; i < 10; i++ {
+    code := s.tokenService.GenerateRandomString(8)
 
+    // Save plaintext to return to the user
+    backupCodes = append(backupCodes, code)
+
+    hash, err := bcrypt.GenerateFromPassword(
+        []byte(code),
+        bcrypt.DefaultCost,
+    )
+    if err != nil {
+        return nil, err
+    }
+
+    backup := &models.BackupCode{
+        UserID:   userID,
+        CodeHash: string(hash),
+        Used:     false,
+    }
+
+    if err := s.backupCodeRepo.Create(backup); err != nil {
+        return nil, err
+    }
+}
 	// Enable MFA
 	if err := s.userRepo.Update(userID, map[string]interface{}{
 		"mfa_enabled": true,
 	}); err != nil {
-		return errors.New("failed to enable MFA")
+		return nil, errors.New("failed to enable MFA")
 	}
 
 	s.auditService.LogEvent(&userID, "MFA_ENABLED", "USER", userID, "", "", nil)
-	return nil
+	return backupCodes, nil
 }
 
 // DisableMFA re-authenticates the user via password and TOTP code, then disables MFA on their account
@@ -460,7 +490,7 @@ func (s *AuthService) DisableMFA(userID, password, code string) error {
 // short-lived MFA-pending token issued by the password step (Login), so the
 // password cannot be bypassed, and rate-limits code attempts to prevent
 // brute-forcing the 6-digit TOTP.
-func (s *AuthService) VerifyLoginMFA(mfaToken, code, ipAddress, userAgent string) (*dto.LoginResponse, error) {
+func (s *AuthService) VerifyLoginMFA(mfaToken,code,backupCode, ipAddress, userAgent string) (*dto.LoginResponse, error) {
 	ctx := context.Background()
 
 	userID, err := s.tokenService.ValidateMFAToken(mfaToken)
@@ -486,13 +516,40 @@ func (s *AuthService) VerifyLoginMFA(mfaToken, code, ipAddress, userAgent string
 		return nil, errors.New("MFA not enabled for this user")
 	}
 
-	if !s.mfaService.ValidateMFA(user.MFASecret, code) {
-		s.cacheService.IncrementMFAAttempts(ctx, userID)
-		if err := s.auditService.LogEvent(&user.ID, "MFA_LOGIN_FAILED", "USER", user.ID, ipAddress, userAgent, nil); err != nil {
-			log.Printf("failed to write MFA_LOGIN_FAILED audit log for user %s: %v", user.ID, err)
+	valid := false
+
+// Prefer TOTP when provided.
+if code != "" {
+	valid = s.mfaService.ValidateMFA(user.MFASecret, code)
+}
+
+// If TOTP wasn't provided or failed, try a backup code.
+if !valid && backupCode != "" {
+	codes, err := s.backupCodeRepo.FindByUserID(userID)
+	if err == nil {
+		for _, bc := range codes {
+			if bcrypt.CompareHashAndPassword(
+				[]byte(bc.CodeHash),
+				[]byte(backupCode),
+			) == nil {
+
+				// Only succeed if the backup code was successfully consumed.
+				if err := s.backupCodeRepo.MarkUsed(bc.ID); err == nil {
+					valid = true
+				}
+				break
+			}
 		}
-		return nil, ErrInvalidMFACode
 	}
+}
+
+if !valid {
+	s.cacheService.IncrementMFAAttempts(ctx, userID)
+	if err := s.auditService.LogEvent(&user.ID, "MFA_LOGIN_FAILED", "USER", user.ID, ipAddress, userAgent, nil); err != nil {
+		log.Printf("failed to write MFA_LOGIN_FAILED audit log for user %s: %v", user.ID, err)
+	}
+	return nil, ErrInvalidMFACode
+}
 
 	s.cacheService.ResetMFAAttempts(ctx, userID)
 
@@ -692,44 +749,39 @@ func (s *AuthService) ProcessPostLogin(ctx context.Context, user *models.User, i
 
 // LoginWithOAuth handles login or registration via OAuth provider
 func (s *AuthService) LoginWithOAuth(email, oauthID, firstName, lastName, provider, ipAddress, userAgent string) (*dto.LoginResponse, error) {
-	user, err := s.userRepo.FindByEmail(email)
-	if err != nil {
-		// User does not exist, create new one
-		password := s.tokenService.GenerateRandomString(32)
+	account, err := s.oauthAccountRepo.FindByProvider(
+		provider,
+		oauthID,
+	)
 
-		hashedPassword, err := s.hashPassword(password)
+	var user *models.User
+
+	if err == nil {
+		user, err = s.userRepo.FindByID(account.UserID)
 		if err != nil {
 			return nil, err
 		}
-		user = &models.User{
-			Email:         email,
-			PasswordHash:  hashedPassword,
-			FirstName:     firstName,
-			LastName:      lastName,
-			OAuthProvider: provider,
-			OAuthID:       oauthID,
-			IsActive:      true,
-			EmailVerified: true, // Trusted from OAuth
-		}
-
-		if err := s.userRepo.Create(user); err != nil {
-			return nil, errors.New("failed to create user")
-		}
-
-		s.auditService.LogEvent(&user.ID, "USER_REGISTERED_OAUTH", "USER", user.ID, "", "", map[string]interface{}{"provider": provider})
 	} else {
-		// User exists, link account if not generic local
-		// For now simple logic: if email matches, we log them in and update OAuth info if missing
-		updates := make(map[string]interface{})
-		if user.OAuthID == "" {
-			updates["oauth_provider"] = provider
-			updates["oauth_id"] = oauthID
-			// Also mark email as verified if not already
-			if !user.EmailVerified {
-				updates["email_verified"] = true
-			}
-			s.userRepo.Update(user.ID, updates)
-			s.auditService.LogEvent(&user.ID, "ACCOUNT_LINKED_OAUTH", "USER", user.ID, "", "", map[string]interface{}{"provider": provider})
+		user, err = s.userRepo.FindByEmail(email)
+	}
+	if err != nil {
+		user, err = s.createOAuthUser(
+			email,
+			firstName,
+			lastName,
+			provider,
+			oauthID,
+		)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		if err := s.linkOAuthAccountIfNeeded(
+			user,
+			provider,
+			oauthID,
+		); err != nil {
+			return nil, err
 		}
 	}
 
@@ -742,6 +794,126 @@ func (s *AuthService) LoginWithOAuth(email, oauthID, firstName, lastName, provid
 
 	return response, nil
 
+}
+func (s *AuthService) createOAuthUser(
+	email,
+	firstName,
+	lastName,
+	provider,
+	oauthID string,
+) (*models.User, error) {
+
+	password := s.tokenService.GenerateRandomString(32)
+
+	hashedPassword, err := s.hashPassword(password)
+	if err != nil {
+		return nil, err
+	}
+
+	user := &models.User{
+		Email:         email,
+		PasswordHash:  hashedPassword,
+		FirstName:     firstName,
+		LastName:      lastName,
+		IsActive:      true,
+		EmailVerified: true,
+	}
+
+	err = s.userRepo.RunInTx(func(
+		userRepo *repository.UserRepository,
+		tokenRepo *repository.TokenRepository,
+		oauthRepo *repository.UserOAuthAccountRepository,
+	) error {
+		if err := userRepo.Create(user); err != nil {
+			return errors.New("failed to create user")
+		}
+
+		oauthAccount := &models.UserOAuthAccount{
+			UserID:         user.ID,
+			Provider:       provider,
+			ProviderUserID: oauthID,
+			LinkedAt:       time.Now(),
+		}
+
+		return oauthRepo.Create(oauthAccount)
+	},
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	s.auditService.LogEvent(
+		&user.ID,
+		"USER_REGISTERED_OAUTH",
+		"USER",
+		user.ID,
+		"",
+		"",
+		map[string]interface{}{
+			"provider": provider,
+		},
+	)
+
+	return user, nil
+}
+
+func (s *AuthService) linkOAuthAccountIfNeeded(
+	user *models.User,
+	provider,
+	oauthID string,
+) error {
+
+	existingAccount, accountErr := s.oauthAccountRepo.FindByProvider(
+		provider,
+		oauthID,
+	)
+
+	if accountErr == nil {
+		if existingAccount.UserID != user.ID {
+			return errors.New(
+				"oauth account already linked to another user",
+			)
+		}
+
+		return nil
+	}
+
+	oauthAccount := &models.UserOAuthAccount{
+		UserID:         user.ID,
+		Provider:       provider,
+		ProviderUserID: oauthID,
+		LinkedAt:       time.Now(),
+	}
+
+	if err := s.oauthAccountRepo.Create(oauthAccount); err != nil {
+		return err
+	}
+
+	if !user.EmailVerified {
+		if err := s.userRepo.Update(
+			user.ID,
+			map[string]interface{}{
+				"email_verified": true,
+			},
+		); err != nil {
+			return err
+		}
+	}
+
+	s.auditService.LogEvent(
+		&user.ID,
+		"ACCOUNT_LINKED_OAUTH",
+		"USER",
+		user.ID,
+		"",
+		"",
+		map[string]interface{}{
+			"provider": provider,
+		},
+	)
+
+	return nil
 }
 
 func (s *AuthService) handleFailedLogin(user *models.User, email string, ctx context.Context) {
@@ -1029,7 +1201,11 @@ func (s *AuthService) LockUser(userID, adminID, ipAddress, userAgent string) err
 
 	var lockedUntil time.Time
 
-	err := s.userRepo.RunInTx(func(userRepo *repository.UserRepository, tokenRepo *repository.TokenRepository) error {
+	err := s.userRepo.RunInTx(func(
+		userRepo *repository.UserRepository,
+		tokenRepo *repository.TokenRepository,
+		_ *repository.UserOAuthAccountRepository,
+	) error {
 		if err := validateLockUser(userRepo, userID); err != nil {
 			return err
 		}
@@ -1076,7 +1252,11 @@ func (s *AuthService) LockUser(userID, adminID, ipAddress, userAgent string) err
 // Previously revoked refresh tokens remain revoked and are not restored.
 // Users must log in again after the account is unlocked.
 func (s *AuthService) UnlockUser(userID, adminID, ipAddress, userAgent string) error {
-	err := s.userRepo.RunInTx(func(userRepo *repository.UserRepository, tokenRepo *repository.TokenRepository) error {
+	err := s.userRepo.RunInTx(func(
+		userRepo *repository.UserRepository,
+		tokenRepo *repository.TokenRepository,
+		_ *repository.UserOAuthAccountRepository,
+	) error {
 		user, err := userRepo.FindByID(userID)
 		if err != nil {
 			return err
@@ -1145,4 +1325,37 @@ func (s *AuthService) CreateLoginResponse(
 		RefreshToken: refreshTokenString,
 		User:         user.ToPublic(),
 	}, nil
+}
+func (s *AuthService) LinkOAuthProvider(
+	userID, provider, providerUserID string,
+) error {
+
+	account := &models.UserOAuthAccount{
+		UserID:         userID,
+		Provider:       provider,
+		ProviderUserID: providerUserID,
+		LinkedAt:       time.Now(),
+	}
+
+	return s.oauthAccountRepo.Create(account)
+}
+
+func (s *AuthService) UnlinkOAuthProvider(
+	userID, provider string,
+) error {
+
+	accounts, err := s.oauthAccountRepo.FindByUserID(userID)
+	if err != nil {
+		return err
+	}
+
+	// Prevent removing the last login method
+	if len(accounts) == 1 {
+		return errors.New("cannot unlink the last login method")
+	}
+
+	return s.oauthAccountRepo.Delete(
+		userID,
+		provider,
+	)
 }

@@ -165,6 +165,20 @@ const docTemplate = `{
                     "auth"
                 ],
                 "summary": "Get audit logs",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Page number (default: 1)",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Items per page (default: 20, max: 100)",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -1154,13 +1168,13 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Code Challenge",
+                        "description": "PKCE code challenge (base64url-encoded SHA256 hash)",
                         "name": "code_challenge",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "Code Challenge Method",
+                        "description": "PKCE code challenge method (S256 or plain)",
                         "name": "code_challenge_method",
                         "in": "query"
                     }
@@ -1258,7 +1272,7 @@ const docTemplate = `{
         },
         "/oauth/token": {
             "post": {
-                "description": "Exchanges authorization code for access token",
+                "description": "Exchanges authorization code for access token. Public clients must provide code_verifier for PKCE validation.",
                 "consumes": [
                     "application/x-www-form-urlencoded"
                 ],
@@ -1304,6 +1318,12 @@ const docTemplate = `{
                         "name": "client_secret",
                         "in": "formData",
                         "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "PKCE code verifier (required for public clients)",
+                        "name": "code_verifier",
+                        "in": "formData"
                     }
                 ],
                 "responses": {
@@ -1443,10 +1463,12 @@ const docTemplate = `{
         "dto.MFALoginRequest": {
             "type": "object",
             "required": [
-                "code",
                 "mfaToken"
             ],
             "properties": {
+                "backupCode": {
+                    "type": "string"
+                },
                 "code": {
                     "type": "string"
                 },

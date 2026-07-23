@@ -92,7 +92,9 @@ func TestAuthService_DisableMFA_Integration(t *testing.T) {
 
 	verifyCode, err := totp.GenerateCode(enableResp.Secret, time.Now())
 	require.NoError(t, err)
-	require.NoError(t, authService.VerifyEnableMFA(user.ID, verifyCode))
+	backupCodes, err := authService.VerifyEnableMFA(user.ID, verifyCode)
+	require.NoError(t, err)
+	require.Len(t, backupCodes, 10)
 
 	// Wrong password is rejected before the TOTP code is even checked
 	err = authService.DisableMFA(user.ID, "WrongPassword!", verifyCode)

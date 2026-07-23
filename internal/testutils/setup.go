@@ -48,7 +48,11 @@ func SetupIntegrationTest(t *testing.T) (*service.AuthService, *gorm.DB, *minire
 		&models.PasswordResetToken{},
 		&models.AuditLog{},
 		&models.OAuthAccessToken{},
+		&models.BackupCode{}, 
 	)
+	
+   
+
         assert.NoError(t, err)
         assert.NoError(t, db.Exec("DELETE FROM oauth_access_tokens").Error)
         
@@ -113,10 +117,12 @@ func SetupIntegrationTest(t *testing.T) (*service.AuthService, *gorm.DB, *minire
 
 	// 3. Repositories
 	userRepo := repository.NewUserRepository(db)
+	oauthAccountRepo := repository.NewUserOAuthAccountRepository(db)
 	tokenRepo := repository.NewTokenRepository(db)
 	verificationRepo := repository.NewVerificationRepository(db)
 	passwordResetRepo := repository.NewPasswordResetRepository(db)
 	auditRepo := repository.NewAuditRepository(db)
+	backupCodeRepo := repository.NewBackupCodeRepository(db)
 
 	// 4. Services
 	cfg := &config.Config{
@@ -133,6 +139,7 @@ func SetupIntegrationTest(t *testing.T) (*service.AuthService, *gorm.DB, *minire
 
 	authService := service.NewAuthService(
 		userRepo,
+		oauthAccountRepo,
 		tokenRepo,
 		verificationRepo,
 		passwordResetRepo,
@@ -142,6 +149,7 @@ func SetupIntegrationTest(t *testing.T) (*service.AuthService, *gorm.DB, *minire
 		auditService,
 		mfaService,
 		cfg,
+		backupCodeRepo,
 	)
 
 	return authService, db, mr

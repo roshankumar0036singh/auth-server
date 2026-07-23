@@ -10,6 +10,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/roshankumar0036singh/auth-server/internal/dto"
+	"github.com/roshankumar0036singh/auth-server/internal/middleware"
 	"github.com/roshankumar0036singh/auth-server/internal/service"
 	"github.com/roshankumar0036singh/auth-server/internal/utils"
 )
@@ -411,7 +412,13 @@ func (h *AuthHandler) Login(c *gin.Context) {
 
 	// Set session cookie for browser flows (like OAuth)
 	// MaxAge is 7 days (matching refresh token)
-	c.SetCookie("auth_token", loginResp.AccessToken, 7*24*3600, "/", "", false, true)
+	c.SetCookie(middleware.AuthCookieName, loginResp.AccessToken, 7*24*3600, "/", "", true, true)
+
+	// Rotate CSRF token on login
+	if err := middleware.RotateCSRFToken(c); err != nil {
+		utils.InternalServerErrorResponse(c, "Failed to issue CSRF token")
+		return
+	}
 
 	c.JSON(http.StatusOK, utils.SuccessResponse(msgLoginSuccess, loginResp))
 }
@@ -477,6 +484,14 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 		return
 	}
 
+	// Clear the session and CSRF cookies so a stolen/cached browser session
+	// can't be replayed after logout.
+	middleware.ClearAuthCookie(c)
+	if err := middleware.RotateCSRFToken(c); err != nil {
+		utils.InternalServerErrorResponse(c, "Failed to rotate CSRF token")
+		return
+	}
+
 	c.JSON(http.StatusOK, utils.SuccessResponse("Logout successful", nil))
 }
 
@@ -508,6 +523,14 @@ func (h *AuthHandler) LogoutAll(c *gin.Context) {
 	// Logout from all devices
 	if err := h.authService.LogoutAll(userID.(string), accessToken); err != nil {
 		c.JSON(http.StatusInternalServerError, utils.ErrorResponse("Failed to logout from all devices", err))
+		return
+	}
+
+	// Clear the session and CSRF cookies so a stolen/cached browser session
+	// can't be replayed after logout.
+	middleware.ClearAuthCookie(c)
+	if err := middleware.RotateCSRFToken(c); err != nil {
+		utils.InternalServerErrorResponse(c, "Failed to rotate CSRF token")
 		return
 	}
 
@@ -960,12 +983,16 @@ func (h *AuthHandler) VerifyMFA(c *gin.Context) {
 		return
 	}
 
-	if err := h.authService.VerifyEnableMFA(userID.(string), req.Code); err != nil {
-		c.JSON(http.StatusBadRequest, utils.ErrorResponse("MFA verification failed", err))
-		return
-	}
+	backupCodes, err := h.authService.VerifyEnableMFA(userID.(string), req.Code)
+if err != nil {
+    c.JSON(http.StatusBadRequest, utils.ErrorResponse("MFA verification failed", err))
+    return
+}
 
-	c.JSON(http.StatusOK, utils.SuccessResponse("MFA enabled successfully", nil))
+c.JSON(
+    http.StatusOK,
+    utils.SuccessResponse("MFA enabled successfully", backupCodes),
+)
 }
 
 // DisableMFA re-authenticates the user via password and TOTP code, then disables MFA
@@ -981,7 +1008,7 @@ func (h *AuthHandler) VerifyMFA(c *gin.Context) {
 // @Failure 404 {object} utils.Response
 // @Failure 500 {object} utils.Response
 // @Router /api/auth/mfa/disable [post]
-func (h *AuthHandler) DisableMFA(c *gin.Context) {
+func (h *AuthHandler) DisableMFA(c *gin.Context){
 	userIDVal, exists := c.Get("userID")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, utils.UnauthorizedResponse("Unauthorized"))
@@ -1035,11 +1062,106 @@ func (h *AuthHandler) LoginMFA(c *gin.Context) {
 	ipAddress := c.ClientIP()
 	userAgent := c.GetHeader("User-Agent")
 
-	resp, err := h.authService.VerifyLoginMFA(req.MFAToken, req.Code, ipAddress, userAgent)
+	resp, err := h.authService.VerifyLoginMFA(req.MFAToken,
+    req.Code,
+    req.BackupCode,
+    ipAddress,
+    userAgent,)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, utils.ErrorResponse("MFA login failed", err))
 		return
 	}
 
 	c.JSON(http.StatusOK, utils.SuccessResponse("Login successful", resp))
+}
+
+// LinkProvider links an OAuth provider to the current user
+func (h *AuthHandler) LinkProvider(c *gin.Context) {
+
+	userID, exists := c.Get("userID")
+	if !exists {
+		c.JSON(
+			http.StatusUnauthorized,
+			utils.UnauthorizedResponse("Unauthorized"),
+		)
+		return
+	}
+
+	provider := c.Param("provider")
+	providerUserID := c.PostForm("provider_user_id")
+
+	if providerUserID == "" {
+		c.JSON(
+			http.StatusBadRequest,
+			utils.ErrorResponse(
+				"provider_user_id is required",
+				nil,
+			),
+		)
+		return
+	}
+
+	err := h.authService.LinkOAuthProvider(
+		userID.(string),
+		provider,
+		providerUserID,
+	)
+
+	if err != nil {
+		c.JSON(
+			http.StatusInternalServerError,
+			utils.ErrorResponse(
+				"Failed to link provider",
+				err,
+			),
+		)
+		return
+	}
+
+	c.JSON(
+		http.StatusOK,
+		utils.SuccessResponse(
+			"Provider linked successfully",
+			nil,
+		),
+	)
+}
+
+// UnlinkProvider removes an OAuth provider from the current user
+func (h *AuthHandler) UnlinkProvider(c *gin.Context) {
+
+	userID, exists := c.Get("userID")
+	if !exists {
+		c.JSON(
+			http.StatusUnauthorized,
+			utils.UnauthorizedResponse("Unauthorized"),
+		)
+		return
+	}
+
+	provider := c.Param("provider")
+
+	err := h.authService.UnlinkOAuthProvider(
+		userID.(string),
+		provider,
+	)
+
+	if err != nil {
+		c.JSON(
+			http.StatusInternalServerError,
+			utils.ErrorResponse(
+				"Failed to unlink provider",
+				err,
+			),
+		)
+		return
+	}
+
+	c.JSON(
+		http.StatusOK,
+		utils.SuccessResponse(
+			"Provider unlinked successfully",
+			nil,
+		),
+	)
 }

@@ -18,6 +18,7 @@ import (
 func SetupRoutes(router *gin.Engine, db *gorm.DB, redisClient *redis.Client, cfg *config.Config) {
 	// Initialize repositories
 	userRepo := repository.NewUserRepository(db)
+	oauthAccountRepo := repository.NewUserOAuthAccountRepository(db)
 	tokenRepo := repository.NewTokenRepository(db)
 	verificationRepo := repository.NewVerificationRepository(db)
 	passwordResetRepo := repository.NewPasswordResetRepository(db)
@@ -42,9 +43,11 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, redisClient *redis.Client, cfg
 	auditService := service.NewAuditService(auditRepo)
 	oauthService := service.NewOAuthService(cfg, oauthProviderConfigRepo)
 	mfaService := service.NewMFAService(cfg)
+	backupCodeRepo := repository.NewBackupCodeRepository(db)
 
 	authService := service.NewAuthService(
 		userRepo,
+		oauthAccountRepo,
 		tokenRepo,
 		verificationRepo,
 		passwordResetRepo,
@@ -54,6 +57,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, redisClient *redis.Client, cfg
 		auditService,
 		mfaService,
 		cfg,
+		backupCodeRepo,
 	)
 
 	// OAuth Provider service
@@ -96,6 +100,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, redisClient *redis.Client, cfg
 	// Apply global middleware
 	router.Use(middleware.CORSMiddleware(cfg))
 	router.Use(middleware.SecurityMiddleware())
+	router.Use(middleware.CSRFMiddleware())
 
 	// Swagger Documentation (Custom UI)
 	router.Static("/swagger", "./docs")
@@ -157,6 +162,8 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, redisClient *redis.Client, cfg
 			// Public endpoints
 			auth.POST("/register", authHandler.Register)
 			auth.GET("/login", authHandler.ShowLogin)
+			// CSRF token endpoint — for cookie-based auth clients
+			auth.GET("/csrf-token", middleware.SetCSRFTokenHandler)
 			auth.POST("/login", authHandler.Login)
 			auth.POST("/login/mfa", authHandler.LoginMFA)
 			auth.POST("/refresh", authHandler.RefreshToken)
@@ -182,6 +189,8 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, redisClient *redis.Client, cfg
 				protected.GET("/me", authHandler.GetMe)
 				protected.PUT("/profile", authHandler.UpdateProfile)
 				protected.POST("/profile/upload-url", authHandler.GenerateProfileUploadURL)
+				protected.POST("/link/:provider", authHandler.LinkProvider)
+				protected.DELETE("/unlink/:provider", authHandler.UnlinkProvider)
 				protected.POST("/logout", authHandler.Logout)
 				protected.POST("/logout-all", authHandler.LogoutAll)
 				protected.GET("/sessions", authHandler.GetSessions)

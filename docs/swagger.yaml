@@ -46,12 +46,13 @@ definitions:
     type: object
   dto.MFALoginRequest:
     properties:
+      backupCode:
+        type: string
       code:
         type: string
       mfaToken:
         type: string
     required:
-    - code
     - mfaToken
     type: object
   dto.MFAVerifyRequest:
@@ -368,6 +369,15 @@ paths:
     get:
       consumes:
       - application/json
+      parameters:
+      - description: 'Page number (default: 1)'
+        in: query
+        name: page
+        type: integer
+      - description: 'Items per page (default: 20, max: 100)'
+        in: query
+        name: limit
+        type: integer
       produces:
       - application/json
       responses:
@@ -990,11 +1000,11 @@ paths:
         in: query
         name: state
         type: string
-      - description: Code Challenge
+      - description: PKCE code challenge (base64url-encoded SHA256 hash)
         in: query
         name: code_challenge
         type: string
-      - description: Code Challenge Method
+      - description: PKCE code challenge method (S256 or plain)
         in: query
         name: code_challenge_method
         type: string
@@ -1069,7 +1079,8 @@ paths:
     post:
       consumes:
       - application/x-www-form-urlencoded
-      description: Exchanges authorization code for access token
+      description: Exchanges authorization code for access token. Public clients must
+        provide code_verifier for PKCE validation.
       parameters:
       - description: Grant type (authorization_code)
         in: formData
@@ -1095,6 +1106,10 @@ paths:
         in: formData
         name: client_secret
         required: true
+        type: string
+      - description: PKCE code verifier (required for public clients)
+        in: formData
+        name: code_verifier
         type: string
       produces:
       - application/json

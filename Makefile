@@ -1,4 +1,4 @@
-.PHONY: run build test migrate-up migrate-down swagger docker-up docker-down lint clean
+.PHONY: run build test migrate-up migrate-down swagger docker-up docker-down lint clean seed
 
 # Run the application
 run:
@@ -63,3 +63,7 @@ fmt:
 # Tidy dependencies
 tidy:
 	go mod tidy
+
+# Seed development data
+seed:
+	go run ./cmd/seed
