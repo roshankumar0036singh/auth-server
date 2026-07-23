@@ -123,6 +123,7 @@ func SetupIntegrationTest(t *testing.T) (*service.AuthService, *gorm.DB, *minire
 		JWT:      config.JWTConfig{AccessSecret: "secret", RefreshSecret: "refresh"},
 		Security: config.SecurityConfig{RateLimitMax: 10, RateLimitWindow: 60},
 		App:      config.AppConfig{URL: "http://localhost"},
+		Storage:  config.StorageConfig{Bucket: "test-bucket", Region: "us-east-1"},
 	}
 	tokenService := service.NewTokenService(cfg)
 	cacheService := service.NewCacheService(rdb)

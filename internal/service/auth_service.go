@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net/url"
+	"strings"
 	"time"
 
 	"github.com/roshankumar0036singh/auth-server/internal/config"
@@ -206,6 +208,57 @@ func (s *AuthService) ResetPassword(tokenString, newPassword string) error {
 	return nil
 }
 
+func validateProfileImageURL(rawURL, bucket, region, userID string) error {
+	rawURL = strings.TrimSpace(rawURL)
+	if rawURL == "" {
+		return nil
+	}
+
+	u, err := url.Parse(rawURL)
+	if err != nil || (u.Scheme != "https" && u.Scheme != "http") {
+		return errors.New("invalid profile image URL format")
+	}
+
+	host := strings.ToLower(u.Host)
+	path := strings.TrimPrefix(u.Path, "/")
+	expectedPrefix := fmt.Sprintf("users/%s/", userID)
+
+	// Virtual-hosted style: bucket.s3.region.amazonaws.com or bucket.s3.amazonaws.com
+	if bucket != "" && strings.HasPrefix(host, strings.ToLower(bucket)+".") {
+		if region != "" && strings.Contains(host, ".s3.") {
+			parts := strings.Split(host, ".")
+			if len(parts) >= 5 && parts[1] == "s3" && parts[2] != "amazonaws" {
+				if parts[2] != strings.ToLower(region) {
+					return errors.New("profile image URL region does not match configured region")
+				}
+			}
+		}
+		if !strings.HasPrefix(path, expectedPrefix) {
+			return errors.New("profile image URL path must start with users/" + userID + "/")
+		}
+		return nil
+	}
+
+	// Path-style: s3.region.amazonaws.com/bucket/users/{userId}/... or s3.amazonaws.com/bucket/users/{userId}/...
+	if strings.HasPrefix(host, "s3.") || host == "s3.amazonaws.com" {
+		if region != "" && strings.HasPrefix(host, "s3.") && host != "s3.amazonaws.com" {
+			parts := strings.Split(host, ".")
+			if len(parts) >= 4 && parts[1] != "amazonaws" {
+				if parts[1] != strings.ToLower(region) {
+					return errors.New("profile image URL region does not match configured region")
+				}
+			}
+		}
+		expectedPathPrefix := fmt.Sprintf("%s/users/%s/", bucket, userID)
+		if bucket != "" && !strings.HasPrefix(path, expectedPathPrefix) {
+			return errors.New("profile image URL path must belong to configured bucket and user directory")
+		}
+		return nil
+	}
+
+	return errors.New("profile image URL must belong to the configured S3 bucket")
+}
+
 // UpdateProfile updates user profile information
 func (s *AuthService) UpdateProfile(userID string, req *dto.UpdateProfileRequest) (*models.User, error) {
 	updates := make(map[string]interface{})
@@ -220,6 +273,11 @@ func (s *AuthService) UpdateProfile(userID string, req *dto.UpdateProfileRequest
 		updates["phone"] = req.Phone
 	}
 	if req.ProfileImage != "" {
+		if s.cfg != nil && s.cfg.Storage.Bucket != "" {
+			if err := validateProfileImageURL(req.ProfileImage, s.cfg.Storage.Bucket, s.cfg.Storage.Region, userID); err != nil {
+				return nil, err
+			}
+		}
 		updates["profile_image"] = req.ProfileImage
 	}
 

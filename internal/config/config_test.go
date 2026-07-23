@@ -37,6 +37,8 @@ func TestLoadConfigDatabasePooling(t *testing.T) {
 	t.Setenv("ENCRYPTION_KEY", "unique-secret-key-for-testing-purposes")
 	t.Setenv("JWT_SECRET", "super-secret-key-that-is-at-least-32-bytes-long")
 	t.Setenv("JWT_REFRESH_SECRET", "super-secret-refresh-key-that-is-at-least-32-bytes-long")
+	t.Setenv("AWS_S3_BUCKET", "test-bucket")
+	t.Setenv("AWS_REGION", "us-east-1")
 
 	tests := []struct {
 		name         string

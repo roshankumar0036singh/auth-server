@@ -75,10 +75,13 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, redisClient *redis.Client, cfg
 	webAuthnHandler := handler.NewWebAuthnHandler(webAuthnService, authService)
 
 	// Initialize handlers
-	storageService := service.NewStorageService(
+	storageService, err := service.NewStorageService(
 		cfg.Storage.Bucket,
 		cfg.Storage.Region,
 	)
+	if err != nil {
+		log.Fatalf("Failed to initialize Storage service: %v", err)
+	}
 
 	authHandler := handler.NewAuthHandler(
 		authService,

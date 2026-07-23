@@ -16,14 +16,14 @@ type StorageService struct {
 	client *s3.Client
 }
 
-func NewStorageService(bucket, region string) *StorageService {
+func NewStorageService(bucket, region string) (*StorageService, error) {
 	cfg, err := awsconfig.LoadDefaultConfig(
-		context.TODO(),
+		context.Background(),
 		awsconfig.WithRegion(region),
 	)
 
 	if err != nil {
-		panic(err)
+		return nil, fmt.Errorf("failed to load AWS config: %w", err)
 	}
 
 	client := s3.NewFromConfig(cfg)
@@ -32,10 +32,11 @@ func NewStorageService(bucket, region string) *StorageService {
 		bucket: bucket,
 		region: region,
 		client: client,
-	}
+	}, nil
 }
 
 func (s *StorageService) GenerateUploadURL(
+	ctx context.Context,
 	userID, fileName string,
 ) (string, string, error) {
 
@@ -60,7 +61,7 @@ func (s *StorageService) GenerateUploadURL(
 	presignClient := s3.NewPresignClient(s.client)
 
 	req, err := presignClient.PresignPutObject(
-		context.TODO(),
+		ctx,
 		&s3.PutObjectInput{
 			Bucket: &s.bucket,
 			Key:    &objectKey,

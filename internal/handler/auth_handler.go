@@ -228,6 +228,7 @@ func (h *AuthHandler) GenerateProfileUploadURL(c *gin.Context) {
 	}
 
 	uploadURL, fileURL, err := h.storageService.GenerateUploadURL(
+		c.Request.Context(),
 		userIDStr,
 		req.FileName,
 	)
