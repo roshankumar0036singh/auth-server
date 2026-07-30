@@ -1,41 +1,32 @@
 package main
 
 import (
-	"encoding/json"
-	"fmt"
+	"context"
 	"log"
-	"net/http"
-	"net/url"
-)
+	"time"
 
-// Configuration
-// In a real app, these would come from environment variables
-const (
-	AuthServerURL = "https://auth-server-4nmm.onrender.com" // Replace with your Render URL
-	ClientID      = "your-client-id-here"                   // You'll get this after registering the client
-	ClientSecret  = "your-client-secret-here"               // You'll get this after registering the client
-	RedirectURI   = "http://localhost:3000/callback"
-	AppPort       = ":3000"
+	// Replace "auth-server" with your actual module name defined in go.mod
+	"auth-server/internal/telemetry" 
 )
 
 func main() {
-	// Root route - Show "Login" button
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		html := fmt.Sprintf(`
-			<html>
-				<body style="font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; background: #f0f2f5;">
-					<div style="text-align: center; padding: 40px; background: white; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
-						<h1 style="margin-bottom: 24px;">My Awesome App</h1>
-						<a href="%s/oauth/authorize?client_id=%s&redirect_uri=%s&response_type=code&scope=read:profile read:email&state=random_state_string" 
-						   style="display: inline-block; background: #6366f1; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 500;">
-							Sign in with Auth Server
-						</a>
-					</div>
-				</body>
-			</html>
-		`, AuthServerURL, ClientID, RedirectURI)
-		w.Write([]byte(html))
-	})
+	ctx := context.Background()
+
+	// Initialize tracing
+	tp, err := telemetry.InitTracer(ctx)
+	if err != nil {
+		log.Fatalf("failed to initialize tracer: %v", err)
+	}
+	
+	// Flush remaining spans to Jaeger/Zipkin before the application closes
+	defer func() {
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := tp.Shutdown(shutdownCtx); err != nil {
+			log.Printf("error shutting down tracer provider: %v", err)
+		}
+	}()
+
 
 	// Callback route - Handle code exchange
 	http.HandleFunc("/callback", func(w http.ResponseWriter, r *http.Request) {

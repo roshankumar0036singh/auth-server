@@ -10,9 +10,12 @@ import (
 
 // CORSMiddleware configures CORS for the application
 func CORSMiddleware(cfg *config.Config) gin.HandlerFunc {
+	// Default fallbacks if config is somehow nil
 	allowOrigins := []string{"http://localhost:3000", "http://localhost:5173"}
-	if cfg != nil && cfg.App.URL != "" {
-		allowOrigins = append(allowOrigins, cfg.App.URL)
+
+	// Use the cleanly validated, deduplicated origins from our config load setup
+	if cfg != nil && len(cfg.Security.AllowedOrigins) > 0 {
+		allowOrigins = cfg.Security.AllowedOrigins
 	}
 
 	return cors.New(cors.Config{
