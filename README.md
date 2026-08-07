@@ -19,6 +19,7 @@
 [![Release](https://img.shields.io/github/v/release/roshankumar0036singh/auth-server?style=for-the-badge&logo=github&color=181717)](https://github.com/roshankumar0036singh/auth-server/releases)
 [![License](https://img.shields.io/badge/License-MIT-22C55E?style=for-the-badge&logo=opensourceinitiative&logoColor=white)](./LICENSE)
 [![repowise](https://api.repowise.dev/badge/wiki/roshankumar0036singh/auth-server.svg)](https://repowise.dev/repo/roshankumar0036singh/auth-server)
+[![Code health](https://api.repowise.dev/badge/health/roshankumar0036singh/auth-server.svg)](https://repowise.dev/repo/roshankumar0036singh/auth-server)
 
 <br/>
 
