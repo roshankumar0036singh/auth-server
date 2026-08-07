@@ -65,6 +65,7 @@ type PublicUser struct {
 	Email         string     `json:"email"`
 	FirstName     string     `json:"firstName,omitempty"`
 	LastName      string     `json:"lastName,omitempty"`
+	ProfileImage  string     `json:"profileImage,omitempty"`
 	EmailVerified bool       `json:"emailVerified"`
 	MFAEnabled    bool       `json:"mfaEnabled"`
 	CreatedAt     time.Time  `json:"createdAt"`
@@ -78,6 +79,7 @@ func (u *User) ToPublic() *PublicUser {
 		Email:         u.Email,
 		FirstName:     u.FirstName,
 		LastName:      u.LastName,
+		ProfileImage:  u.ProfileImage,
 		EmailVerified: u.EmailVerified,
 		MFAEnabled:    u.MFAEnabled,
 		CreatedAt:     u.CreatedAt,

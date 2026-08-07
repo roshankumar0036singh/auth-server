@@ -9,6 +9,13 @@ import (
 	"github.com/joho/godotenv"
 )
 
+type StorageConfig struct {
+	Bucket          string
+	Region          string
+	AccessKeyID     string
+	SecretAccessKey string
+}
+
 type Config struct {
 	App      AppConfig
 	Database DatabaseConfig
@@ -18,6 +25,7 @@ type Config struct {
 	Email    EmailConfig
 	Security SecurityConfig
 	WebAuthn WebAuthnConfig
+	Storage  StorageConfig
 }
 
 type AppConfig struct {
@@ -136,6 +144,16 @@ func LoadConfig() *Config {
 		log.Fatal("ENCRYPTION_KEY must be set to a unique secret")
 	}
 
+	s3Bucket := getEnv("AWS_S3_BUCKET", "")
+	if s3Bucket == "" {
+		log.Fatal("AWS_S3_BUCKET must be set")
+	}
+	s3Region := getEnv("AWS_REGION", "")
+	if s3Region == "" {
+		log.Fatal("AWS_REGION must be set")
+	}
+	
+
 	return &Config{
 		App: AppConfig{
 			Port: port,
@@ -194,6 +212,12 @@ func LoadConfig() *Config {
 			RPDisplayName: getEnv("WEBAUTHN_RP_DISPLAY_NAME", "Auth Server"),
 			RPID:          getEnv("WEBAUTHN_RP_ID", "localhost"),
 			RPOrigins:     []string{appURL}, // Assuming APP_URL is the primary origin
+		},
+		Storage: StorageConfig{
+			Bucket:          s3Bucket,
+			Region:          s3Region,
+			AccessKeyID:     getEnv("AWS_ACCESS_KEY_ID", ""),
+			SecretAccessKey: getEnv("AWS_SECRET_ACCESS_KEY", ""),
 		},
 	}
 }

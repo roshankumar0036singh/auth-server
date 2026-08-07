@@ -503,3 +503,46 @@ func TestAuthService_RefreshAccessToken_GracePeriod_ConcurrentRotation_Integrati
 	assert.NoError(t, err)
 	assert.Equal(t, int64(0), activeCount)
 }
+
+func TestAuthService_UpdateProfile_ProfileImageValidation(t *testing.T) {
+	authService, _, mr := testutils.SetupIntegrationTest(t)
+	defer mr.Close()
+
+	user, err := authService.Register(&dto.RegisterRequest{
+		Email:     "avatar_test@example.com",
+		Password:  "Password123!",
+		FirstName: "Avatar",
+		LastName:  "Test",
+	})
+	require.NoError(t, err)
+
+	// Valid S3 URL (virtual-hosted)
+	validURL := "https://test-bucket.s3.us-east-1.amazonaws.com/users/" + user.ID + "/avatar.png"
+	updatedUser, err := authService.UpdateProfile(user.ID, &dto.UpdateProfileRequest{
+		ProfileImage: validURL,
+	})
+	assert.NoError(t, err)
+	assert.Equal(t, validURL, updatedUser.ProfileImage)
+	assert.Equal(t, validURL, updatedUser.ToPublic().ProfileImage)
+
+	// Invalid S3 URL (wrong bucket)
+	invalidBucketURL := "https://wrong-bucket.s3.us-east-1.amazonaws.com/users/" + user.ID + "/avatar.png"
+	_, err = authService.UpdateProfile(user.ID, &dto.UpdateProfileRequest{
+		ProfileImage: invalidBucketURL,
+	})
+	assert.Error(t, err)
+
+	// Invalid S3 URL (wrong user directory)
+	invalidUserDirURL := "https://test-bucket.s3.us-east-1.amazonaws.com/users/other-user-id/avatar.png"
+	_, err = authService.UpdateProfile(user.ID, &dto.UpdateProfileRequest{
+		ProfileImage: invalidUserDirURL,
+	})
+	assert.Error(t, err)
+
+	// Invalid URL (arbitrary site)
+	arbitraryURL := "https://malicious-site.com/avatar.png"
+	_, err = authService.UpdateProfile(user.ID, &dto.UpdateProfileRequest{
+		ProfileImage: arbitraryURL,
+	})
+	assert.Error(t, err)
+}

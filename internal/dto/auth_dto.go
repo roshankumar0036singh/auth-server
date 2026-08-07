@@ -63,6 +63,7 @@ type UpdateProfileRequest struct {
 	FirstName string `json:"firstName" binding:"max=100"`
 	LastName  string `json:"lastName" binding:"max=100"`
 	Phone     string `json:"phone" binding:"max=20"`
+	ProfileImage string `json:"profileImage"`
 }
 
 // ChangePasswordRequest represents password change data

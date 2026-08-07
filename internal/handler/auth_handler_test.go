@@ -22,7 +22,7 @@ import (
 func SetupRouter(t *testing.T) (*gin.Engine, *AuthHandler) {
 	authService, _, mr := testutils.SetupIntegrationTest(t)
 	// mock OAuth service or pass nil if not needed for these tests
-	authHandler := NewAuthHandler(authService, nil, nil)
+	authHandler := NewAuthHandler(authService, nil, nil, nil)
 
 	t.Cleanup(func() { mr.Close() }) // Ensure mr is closed after tests in this Setup config
 
@@ -104,7 +104,7 @@ func TestAuthHandler_GetSessions_CurrentSessionFlag(t *testing.T) {
 	authService, _, mr := testutils.SetupIntegrationTest(t)
 	defer mr.Close()
 
-	authHandler := NewAuthHandler(authService, nil, nil)
+	authHandler := NewAuthHandler(authService, nil, nil, nil)
 
 	cfg := &config.Config{
 		JWT: config.JWTConfig{
@@ -197,7 +197,7 @@ func TestAuthHandler_GetSessions_NoSessionIDInContext(t *testing.T) {
 	authService, _, mr := testutils.SetupIntegrationTest(t)
 	defer mr.Close()
 
-	authHandler := NewAuthHandler(authService, nil, nil)
+	authHandler := NewAuthHandler(authService, nil, nil, nil)
 
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
@@ -279,7 +279,7 @@ func TestAuthHandler_OAuthRedirectFlow(t *testing.T) {
 	client, _, err := oauthProviderService.CreateClient("Test Client", []string{"http://localhost:5173/callback"}, []string{"read:profile"}, "user-1", true)
 	assert.NoError(t, err)
 
-	h := NewAuthHandler(authService, nil, oauthProviderService)
+	h := NewAuthHandler(authService, nil, oauthProviderService, nil)
 	gin.SetMode(gin.TestMode)
 
 	executeReq := func(r *gin.Engine, path string) *httptest.ResponseRecorder {
@@ -400,7 +400,7 @@ func TestAuthHandler_GetAuditLogs(t *testing.T) {
 	authService, _, mr := testutils.SetupIntegrationTest(t)
 	defer mr.Close()
 
-	authHandler := NewAuthHandler(authService, nil, nil)
+	authHandler := NewAuthHandler(authService, nil, nil, nil)
 
 	gin.SetMode(gin.TestMode)
 

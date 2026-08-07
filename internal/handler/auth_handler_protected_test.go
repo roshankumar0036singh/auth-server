@@ -21,7 +21,7 @@ func TestAuthHandler_GetMe(t *testing.T) {
 	// Custom setup for protected route
 	authService, _, mr := testutils.SetupIntegrationTest(t)
 	defer mr.Close()
-	authHandler := handler.NewAuthHandler(authService, nil, nil)
+	authHandler := handler.NewAuthHandler(authService, nil, nil, nil)
 	// We need TokenService to create a valid token for the middleware
 	cfg := &config.Config{JWT: config.JWTConfig{AccessSecret: "secret"}}
 	tokenService := service.NewTokenService(cfg)
