@@ -106,7 +106,7 @@ func (h *OAuthHandler) Authorize(c *gin.Context) {
 	if err == nil && hasConsent {
 		// User has already consented, generate code immediately
 		// in Authorize GET:
-                code, err := h.oauthProviderService.GenerateAuthorizationCode(clientID, userID.(string), redirectURI, scopes, strPtr(codeChallenge), strPtr(codeChallengeMethod))
+		code, err := h.oauthProviderService.GenerateAuthorizationCode(clientID, userID.(string), redirectURI, scopes, strPtr(codeChallenge), strPtr(codeChallengeMethod))
 		if err != nil {
 			redirectError(c, redirectURI, "server_error", "Failed to generate authorization code", state)
 			return
@@ -158,11 +158,11 @@ func (h *OAuthHandler) Authorize(c *gin.Context) {
 func (h *OAuthHandler) AuthorizePost(c *gin.Context) {
 	action := c.PostForm("action")
 	clientID := c.PostForm("client_id")
-        redirectURI := c.PostForm("redirect_uri")
-        scope := c.PostForm("scope")
+	redirectURI := c.PostForm("redirect_uri")
+	scope := c.PostForm("scope")
 	state := c.PostForm("state")
-        codeChallenge := c.PostForm("code_challenge")
-        codeChallengeMethod := c.PostForm("code_challenge_method")
+	codeChallenge := c.PostForm("code_challenge")
+	codeChallengeMethod := c.PostForm("code_challenge_method")
 
 	if codeChallenge != "" && codeChallengeMethod == "" {
 		codeChallengeMethod = "S256"
@@ -216,7 +216,7 @@ func (h *OAuthHandler) AuthorizePost(c *gin.Context) {
 	}
 
 	// Generate authorization code
-        code, err := h.oauthProviderService.GenerateAuthorizationCode(clientID, userID.(string), redirectURI, scopes, strPtr(codeChallenge), strPtr(codeChallengeMethod))
+	code, err := h.oauthProviderService.GenerateAuthorizationCode(clientID, userID.(string), redirectURI, scopes, strPtr(codeChallenge), strPtr(codeChallengeMethod))
 	if err != nil {
 		redirectError(c, redirectURI, "server_error", "Failed to generate authorization code", state)
 		return
@@ -248,7 +248,7 @@ func (h *OAuthHandler) Token(c *gin.Context) {
 	clientID := c.PostForm("client_id")
 	clientSecret := c.PostForm("client_secret")
 	redirectURI := c.PostForm("redirect_uri")
-        codeVerifier := c.PostForm("code_verifier")
+	codeVerifier := c.PostForm("code_verifier")
 
 	// Validate grant type
 	if grantType != "authorization_code" {
@@ -291,11 +291,40 @@ func (h *OAuthHandler) Token(c *gin.Context) {
 	}
 
 	// Return access token
-	c.JSON(http.StatusOK, gin.H{
+	response := gin.H{
 		"access_token": accessToken.RawToken,
 		"token_type":   "Bearer",
 		"expires_in":   3600, // 1 hour
 		"scope":        strings.Join(accessToken.Scopes, " "),
+	}
+	if accessToken.IDToken != "" {
+		response["id_token"] = accessToken.IDToken
+	}
+	c.JSON(http.StatusOK, response)
+}
+
+// OpenIDConfiguration returns the OIDC discovery document.
+// @Summary OpenID Connect Discovery
+// @Description Returns OIDC provider metadata per the discovery spec
+// @Tags OAuth Provider
+// @Produce json
+// @Success 200 {object} map[string]interface{}
+// @Router /.well-known/openid-configuration [get]
+func (h *OAuthHandler) OpenIDConfiguration(c *gin.Context) {
+	issuer := h.oauthProviderService.Issuer()
+
+	c.JSON(http.StatusOK, gin.H{
+		"issuer":                                issuer,
+		"authorization_endpoint":                issuer + "/oauth/authorize",
+		"token_endpoint":                        issuer + "/oauth/token",
+		"userinfo_endpoint":                     issuer + "/oauth/userinfo",
+		"response_types_supported":              []string{"code"},
+		"subject_types_supported":               []string{"public"},
+		"id_token_signing_alg_values_supported": []string{"HS256"},
+		"scopes_supported":                      []string{"openid", "read:profile", "write:profile", "read:email", "admin:users"},
+		"token_endpoint_auth_methods_supported": []string{"client_secret_post"},
+		"claims_supported":                      []string{"sub", "email", "name", "iss", "aud", "exp", "iat"},
+		"code_challenge_methods_supported":      []string{"S256", "plain"},
 	})
 }
 
@@ -310,6 +339,7 @@ func (h *OAuthHandler) Token(c *gin.Context) {
 // @Failure 401 {object} ErrorResponse "Invalid or expired token"
 // @Failure 404 {object} ErrorResponse "User not found"
 // @Router /oauth/userinfo [get]
+
 func (h *OAuthHandler) UserInfo(c *gin.Context) {
 	token, err := extractBearerToken(c)
 	if err != nil {

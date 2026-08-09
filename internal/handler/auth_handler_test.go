@@ -272,8 +272,9 @@ func TestAuthHandler_OAuthRedirectFlow(t *testing.T) {
 	configRepo := repository.NewOAuthProviderConfigRepository(db)
 	cfg := &config.Config{}
 	tokenService := service.NewTokenService(cfg)
+	userRepo := repository.NewUserRepository(db)
 	oauthProviderService := service.NewOAuthProviderService(
-		clientRepo, codeRepo, tokenRepo, consentRepo, configRepo, tokenService, cfg,
+		clientRepo, codeRepo, tokenRepo, consentRepo, configRepo, userRepo, tokenService, cfg,
 	)
 
 	client, _, err := oauthProviderService.CreateClient("Test Client", []string{"http://localhost:5173/callback"}, []string{"read:profile"}, "user-1", true)

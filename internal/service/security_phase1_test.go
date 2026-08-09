@@ -37,6 +37,7 @@ func newProviderService(t *testing.T) (*service.OAuthProviderService, *repositor
 		tokenRepo,
 		repository.NewUserConsentRepository(db),
 		repository.NewOAuthProviderConfigRepository(db),
+		repository.NewUserRepository(db),
 		service.NewTokenService(testCfg()),
 		testCfg(),
 	)

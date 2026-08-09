@@ -29,6 +29,7 @@ type OAuthProviderService struct {
 	tokenRepo    *repository.OAuthTokenRepository
 	consentRepo  *repository.UserConsentRepository
 	configRepo   *repository.OAuthProviderConfigRepository
+	userRepo     *repository.UserRepository
 	tokenService *TokenService
 	cfg          *config.Config
 }
@@ -39,6 +40,7 @@ func NewOAuthProviderService(
 	tokenRepo *repository.OAuthTokenRepository,
 	consentRepo *repository.UserConsentRepository,
 	configRepo *repository.OAuthProviderConfigRepository,
+	userRepo *repository.UserRepository,
 	tokenService *TokenService,
 	cfg *config.Config,
 ) *OAuthProviderService {
@@ -48,9 +50,16 @@ func NewOAuthProviderService(
 		tokenRepo:    tokenRepo,
 		consentRepo:  consentRepo,
 		configRepo:   configRepo,
+		userRepo:     userRepo,
 		tokenService: tokenService,
 		cfg:          cfg,
 	}
+}
+
+// Issuer returns the OAuth/OIDC issuer URL for this server, used in
+// id_token claims and the discovery document.
+func (s *OAuthProviderService) Issuer() string {
+	return s.cfg.App.URL
 }
 
 // ValidScopes defines all available OAuth scopes
@@ -59,6 +68,7 @@ var ValidScopes = map[string]string{
 	"write:profile": "Update your profile",
 	"read:email":    "Access your email address",
 	"admin:users":   "Full admin access",
+	"openid":        "OpenID Connect authentication",
 }
 
 // CreateClient creates a new OAuth client
@@ -98,7 +108,7 @@ func (s *OAuthProviderService) CreateClient(name string, redirectURIs []string, 
 		Scopes:       pq.StringArray(scopes),
 		OwnerID:      ownerID,
 		IsActive:     true,
-                IsPublic:     isPublic,
+		IsPublic:     isPublic,
 	}
 
 	if err := s.clientRepo.Create(client); err != nil {
@@ -216,15 +226,15 @@ func (s *OAuthProviderService) GenerateAuthorizationCode(clientID, userID, redir
 	}
 
 	authCode := &models.AuthorizationCode{
-		Code:        code,
-		ClientID:    clientID,
-		UserID:      userID,
-		Scopes:      pq.StringArray(scopes),
-		RedirectURI: redirectURI,
-		ExpiresAt:   time.Now().Add(10 * time.Minute), // 10 minutes
-		Used:        false,
-                CodeChallenge: codeChallenge,
-                CodeChallengeMethod: codeChallengeMethod,
+		Code:                code,
+		ClientID:            clientID,
+		UserID:              userID,
+		Scopes:              pq.StringArray(scopes),
+		RedirectURI:         redirectURI,
+		ExpiresAt:           time.Now().Add(10 * time.Minute), // 10 minutes
+		Used:                false,
+		CodeChallenge:       codeChallenge,
+		CodeChallengeMethod: codeChallengeMethod,
 	}
 
 	if err := s.codeRepo.Create(authCode); err != nil {
@@ -306,6 +316,21 @@ func (s *OAuthProviderService) ExchangeCodeForToken(code, clientID, redirectURI,
 		UserID:    authCode.UserID,
 		Scopes:    models.StringArray(authCode.Scopes),
 		ExpiresAt: time.Now().Add(1 * time.Hour), // 1 hour
+	}
+
+	// If the client requested the "openid" scope, issue an OIDC id_token
+	// alongside the opaque access token. This happens before persisting the
+	// access token so a failure here doesn't leave an orphaned token row.
+	if slices.Contains([]string(authCode.Scopes), "openid") {
+		user, err := s.userRepo.FindByID(authCode.UserID)
+		if err != nil {
+			return nil, err
+		}
+		idToken, err := s.tokenService.GenerateIDToken(user, authCode.ClientID)
+		if err != nil {
+			return nil, err
+		}
+		accessToken.IDToken = idToken
 	}
 
 	if err := s.tokenRepo.Create(accessToken); err != nil {

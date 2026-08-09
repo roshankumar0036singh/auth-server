@@ -67,6 +67,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, redisClient *redis.Client, cfg
 		oauthTokenRepo,
 		userConsentRepo,
 		oauthProviderConfigRepo,
+		userRepo,
 		tokenService,
 		cfg,
 	)
@@ -152,6 +153,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, redisClient *redis.Client, cfg
 	router.POST("/oauth/authorize", middleware.AuthMiddleware(tokenService, cacheService), oauthHandler.AuthorizePost)
 	router.POST("/oauth/token", oauthHandler.Token)
 	router.GET("/oauth/userinfo", oauthHandler.UserInfo)
+	router.GET("/.well-known/openid-configuration", oauthHandler.OpenIDConfiguration)
 
 	// API routes
 	api := router.Group("/api")

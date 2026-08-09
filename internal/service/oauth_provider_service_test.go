@@ -48,8 +48,9 @@ func TestOAuthProviderService(t *testing.T) {
 	}
 	tokenService := service.NewTokenService(cfg)
 
+	userRepo := repository.NewUserRepository(db)
 	providerService := service.NewOAuthProviderService(
-		clientRepo, codeRepo, tokenRepo, consentRepo, configRepo, tokenService, cfg,
+		clientRepo, codeRepo, tokenRepo, consentRepo, configRepo, userRepo, tokenService, cfg,
 	)
 
 	// Create a user and a client

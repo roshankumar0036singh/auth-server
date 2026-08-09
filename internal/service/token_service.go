@@ -2,6 +2,7 @@ package service
 
 import (
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -32,6 +33,13 @@ type JWTClaims struct {
 	jwt.RegisteredClaims
 }
 
+// IDTokenClaims are the standard OpenID Connect claims for an id_token.
+type IDTokenClaims struct {
+	Email string `json:"email,omitempty"`
+	Name  string `json:"name,omitempty"`
+	jwt.RegisteredClaims
+}
+
 // mfaPendingPurpose is the Purpose value of the short-lived token issued after
 // a successful password step, required to complete MFA login.
 const mfaPendingPurpose = "mfa_pending"
@@ -54,7 +62,7 @@ func (s *TokenService) GenerateAccessToken(user *models.User, sessionID string) 
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(expirationTime),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
-			Issuer:    issuerAuthServer,
+			Issuer:    s.cfg.App.URL,
 			ID:        uuid.New().String(),
 		},
 	}
@@ -91,6 +99,29 @@ func (s *TokenService) GenerateRefreshToken(user *models.User) (string, error) {
 	}
 
 	return tokenString, nil
+}
+
+// GenerateIDToken generates a signed OpenID Connect id_token for the given
+// user and OAuth client (audience). Only included when the "openid" scope
+// was granted.
+func (s *TokenService) GenerateIDToken(user *models.User, clientID string) (string, error) {
+	expirationTime := time.Now().Add(1 * time.Hour) // matches access token lifetime
+
+	claims := &IDTokenClaims{
+		Email: user.Email,
+		Name:  strings.TrimSpace(user.FirstName + " " + user.LastName),
+		RegisteredClaims: jwt.RegisteredClaims{
+			Subject:   user.ID,
+			Audience:  jwt.ClaimStrings{clientID},
+			ExpiresAt: jwt.NewNumericDate(expirationTime),
+			IssuedAt:  jwt.NewNumericDate(time.Now()),
+			Issuer:    issuerAuthServer,
+			ID:        uuid.New().String(),
+		},
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	return token.SignedString([]byte(s.cfg.JWT.AccessSecret))
 }
 
 // ValidateAccessToken validates and parses an access token
