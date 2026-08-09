@@ -1,49 +1,113 @@
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+@import "tailwindcss";
+
+@theme {
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+
+  --color-accent: #6366f1;
+  --color-accent-hover: #4f46e5;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+@layer base {
+  html {
+    @apply h-full scroll-smooth;
+  }
+
+  body {
+    @apply flex min-h-full flex-col font-sans text-zinc-100 antialiased;
+    background-color: #000;
+    background-image:
+      linear-gradient(to right, rgb(39 39 42 / 0.22) 1px, transparent 1px),
+      linear-gradient(to bottom, rgb(39 39 42 / 0.22) 1px, transparent 1px),
+      radial-gradient(circle at center, rgb(113 113 122 / 0.45) 1px, transparent 1px),
+      radial-gradient(ellipse 120% 80% at 50% -25%, rgb(99 102 241 / 0.14), transparent 55%);
+    background-size: 72px 72px, 72px 72px, 24px 24px, 100% 100%;
+    background-position: center top;
+    background-attachment: fixed;
   }
 }
 
-html {
-  height: 100%;
-}
+@layer components {
+  .landing-hero {
+    position: relative;
+    isolation: isolate;
+  }
 
-html,
-body {
-  max-width: 100vw;
-  overflow-x: hidden;
-}
+  .landing-hero::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    background: radial-gradient(
+      ellipse 90% 70% at 50% 15%,
+      rgb(99 102 241 / 0.1),
+      transparent 65%
+    );
+    pointer-events: none;
+  }
 
-body {
-  min-height: 100%;
-  display: flex;
-  flex-direction: column;
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
+  .landing-hero > * {
+    position: relative;
+    z-index: 1;
+  }
 
-* {
-  box-sizing: border-box;
-  padding: 0;
-  margin: 0;
-}
+  .terminal-screen {
+    min-height: 8.5rem;
+    text-shadow: 0 0 12px rgb(34 197 94 / 0.08);
+  }
 
-a {
-  color: inherit;
-  text-decoration: none;
-}
+  .terminal-cursor {
+    animation: terminal-blink 1s step-end infinite;
+  }
 
-@media (prefers-color-scheme: dark) {
-  html {
-    color-scheme: dark;
+  .hero-fade-in {
+    animation: hero-fade-in 0.65s ease-out both;
+  }
+
+  .hero-fade-in-delay-1 {
+    animation-delay: 0.08s;
+  }
+
+  .hero-fade-in-delay-2 {
+    animation-delay: 0.16s;
+  }
+
+  .hero-fade-in-delay-3 {
+    animation-delay: 0.24s;
+  }
+
+  .hero-fade-in-delay-4 {
+    animation-delay: 0.32s;
+  }
+
+  @keyframes terminal-blink {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0;
+    }
+  }
+
+  @keyframes hero-fade-in {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .terminal-cursor {
+      animation: none;
+    }
+
+    .hero-fade-in {
+      animation: none;
+    }
   }
 }
