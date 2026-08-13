@@ -112,7 +112,7 @@ func (h *OAuthHandler) Authorize(c *gin.Context) {
 	if err == nil && hasConsent {
 		// User has already consented, generate code immediately
 		// in Authorize GET:
-                code, err := h.oauthProviderService.GenerateAuthorizationCode(clientID, userID.(string), redirectURI, scopes, strPtr(codeChallenge), strPtr(codeChallengeMethod))
+		code, err := h.oauthProviderService.GenerateAuthorizationCode(clientID, userID.(string), redirectURI, scopes, strPtr(codeChallenge), strPtr(codeChallengeMethod))
 		if err != nil {
 			redirectError(c, redirectURI, "server_error", "Failed to generate authorization code", state)
 			return
@@ -164,11 +164,11 @@ func (h *OAuthHandler) Authorize(c *gin.Context) {
 func (h *OAuthHandler) AuthorizePost(c *gin.Context) {
 	action := c.PostForm("action")
 	clientID := c.PostForm("client_id")
-        redirectURI := c.PostForm("redirect_uri")
-        scope := c.PostForm("scope")
+	redirectURI := c.PostForm("redirect_uri")
+	scope := c.PostForm("scope")
 	state := c.PostForm("state")
-        codeChallenge := c.PostForm("code_challenge")
-        codeChallengeMethod := c.PostForm("code_challenge_method")
+	codeChallenge := c.PostForm("code_challenge")
+	codeChallengeMethod := c.PostForm("code_challenge_method")
 
 	if codeChallenge != "" && codeChallengeMethod == "" {
 		codeChallengeMethod = "S256"
@@ -222,7 +222,7 @@ func (h *OAuthHandler) AuthorizePost(c *gin.Context) {
 	}
 
 	// Generate authorization code
-        code, err := h.oauthProviderService.GenerateAuthorizationCode(clientID, userID.(string), redirectURI, scopes, strPtr(codeChallenge), strPtr(codeChallengeMethod))
+	code, err := h.oauthProviderService.GenerateAuthorizationCode(clientID, userID.(string), redirectURI, scopes, strPtr(codeChallenge), strPtr(codeChallengeMethod))
 	if err != nil {
 		redirectError(c, redirectURI, "server_error", "Failed to generate authorization code", state)
 		return
@@ -254,7 +254,7 @@ func (h *OAuthHandler) Token(c *gin.Context) {
 	clientID := c.PostForm("client_id")
 	clientSecret := c.PostForm("client_secret")
 	redirectURI := c.PostForm("redirect_uri")
-        codeVerifier := c.PostForm("code_verifier")
+	codeVerifier := c.PostForm("code_verifier")
 
 	// Validate grant type
 	if grantType != "authorization_code" {

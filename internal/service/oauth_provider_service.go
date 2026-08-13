@@ -11,12 +11,12 @@ import (
 
 	"github.com/lib/pq"
 	"github.com/roshankumar0036singh/auth-server/internal/config"
+	"github.com/roshankumar0036singh/auth-server/internal/dto"
 	"github.com/roshankumar0036singh/auth-server/internal/models"
 	"github.com/roshankumar0036singh/auth-server/internal/repository"
 	"github.com/roshankumar0036singh/auth-server/internal/utils"
 	"golang.org/x/crypto/bcrypt"
 	"net/url"
-	"github.com/roshankumar0036singh/auth-server/internal/dto"
 )
 
 var (
@@ -100,7 +100,7 @@ func (s *OAuthProviderService) CreateClient(name string, redirectURIs []string, 
 		Scopes:       pq.StringArray(scopes),
 		OwnerID:      ownerID,
 		IsActive:     true,
-                IsPublic:     isPublic,
+		IsPublic:     isPublic,
 	}
 
 	if err := s.clientRepo.Create(client); err != nil {
@@ -218,15 +218,15 @@ func (s *OAuthProviderService) GenerateAuthorizationCode(clientID, userID, redir
 	}
 
 	authCode := &models.AuthorizationCode{
-		Code:        code,
-		ClientID:    clientID,
-		UserID:      userID,
-		Scopes:      pq.StringArray(scopes),
-		RedirectURI: redirectURI,
-		ExpiresAt:   time.Now().Add(10 * time.Minute), // 10 minutes
-		Used:        false,
-                CodeChallenge: codeChallenge,
-                CodeChallengeMethod: codeChallengeMethod,
+		Code:                code,
+		ClientID:            clientID,
+		UserID:              userID,
+		Scopes:              pq.StringArray(scopes),
+		RedirectURI:         redirectURI,
+		ExpiresAt:           time.Now().Add(10 * time.Minute), // 10 minutes
+		Used:                false,
+		CodeChallenge:       codeChallenge,
+		CodeChallengeMethod: codeChallengeMethod,
 	}
 
 	if err := s.codeRepo.Create(authCode); err != nil {

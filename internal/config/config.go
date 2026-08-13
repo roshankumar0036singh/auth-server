@@ -48,11 +48,11 @@ type RedisConfig struct {
 }
 
 type JWTConfig struct {
-	AccessSecret        string
-	RefreshSecret       string
-	AccessExpiry        string
-	RefreshExpiry       string
-	RefreshGracePeriod  string
+	AccessSecret       string
+	RefreshSecret      string
+	AccessExpiry       string
+	RefreshExpiry      string
+	RefreshGracePeriod string
 }
 type OAuthConfig struct {
 	Google GoogleOAuthConfig
@@ -140,10 +140,10 @@ func LoadConfig() *Config {
 
 	return &Config{
 		App: AppConfig{
-			Port:                       port,
-			Env:                        getEnv("APP_ENV", "development"),
-			URL:                        appURL,
-			DynamicClientRegistration:  getEnv("DYNAMIC_CLIENT_REGISTRATION", "true") == "true",
+			Port:                      port,
+			Env:                       getEnv("APP_ENV", "development"),
+			URL:                       appURL,
+			DynamicClientRegistration: getEnv("DYNAMIC_CLIENT_REGISTRATION", "true") == "true",
 		},
 		Database: DatabaseConfig{
 			URL:             getEnv("DATABASE_URL", ""),
