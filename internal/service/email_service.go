@@ -13,6 +13,7 @@ import (
 type EmailSender interface {
 	SendVerificationEmail(email, token, appURL string) error
 	SendPasswordResetEmail(email, token, appURL string) error
+	SendMagicLinkEmail(email, token, appURL string) error
 }
 
 type EmailService struct {
@@ -80,6 +81,19 @@ func (s *EmailService) SendVerificationEmail(email, token, appURL string) error 
 	}
 
 	return s.SendEmail([]string{email}, "Verify your email", "verify_email.html", data)
+}
+
+// SendMagicLinkEmail sends a passwordless sign-in link (#155).
+func (s *EmailService) SendMagicLinkEmail(email, token, appURL string) error {
+	link := fmt.Sprintf("%s/api/auth/magic-link/verify?token=%s", appURL, token)
+	data := struct {
+		MagicLink string
+		AppName   string
+	}{
+		MagicLink: link,
+		AppName:   "Auth Server",
+	}
+	return s.SendEmail([]string{email}, "Sign in to Auth Server", "magic_link.html", data)
 }
 
 // SendPasswordResetEmail sends the password reset link

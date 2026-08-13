@@ -2,6 +2,7 @@ package utils
 
 import (
 	"errors"
+	"strings"
 	"unicode"
 )
 
@@ -44,5 +45,24 @@ func ValidatePassword(password string) error {
 		return errors.New("password must contain at least one special character")
 	}
 
+	return nil
+}
+
+// ValidateEmail performs a lightweight structural email check.
+func ValidateEmail(email string) error {
+	if len(email) < 3 || len(email) > 254 {
+		return errors.New("email length must be between 3 and 254 characters")
+	}
+	at := strings.LastIndex(email, "@")
+	if at < 1 || at == len(email)-1 {
+		return errors.New("email must contain an @ with non-empty local and domain parts")
+	}
+	domain := email[at+1:]
+	if strings.Contains(domain, "@") || strings.Contains(domain, " ") {
+		return errors.New("email domain is malformed")
+	}
+	if !strings.Contains(domain, ".") {
+		return errors.New("email domain must contain a dot")
+	}
 	return nil
 }

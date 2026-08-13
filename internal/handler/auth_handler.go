@@ -983,3 +983,62 @@ func (h *AuthHandler) LoginMFA(c *gin.Context) {
 
 	c.JSON(http.StatusOK, utils.SuccessResponse("Login successful", resp))
 }
+
+// RequestMagicLink starts the passwordless flow: a single-use 15-minute link
+// is emailed to the address, when an account exists. The response never
+// discloses account existence (#155).
+// @Summary Request a magic sign-in link
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param request body dto.MagicLinkRequest true "Email address"
+// @Success 200 {object} utils.Response
+// @Failure 429 {object} utils.Response
+// @Router /api/auth/magic-link/request [post]
+func (h *AuthHandler) RequestMagicLink(c *gin.Context) {
+	var req dto.MagicLinkRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, utils.ValidationErrorResponse(err.Error()))
+		return
+	}
+	if err := utils.ValidateEmail(req.Email); err != nil {
+		c.JSON(http.StatusBadRequest, utils.ValidationErrorResponse("a valid email is required"))
+		return
+	}
+
+	err := h.authService.RequestMagicLink(c.Request.Context(), strings.ToLower(strings.TrimSpace(req.Email)))
+	if errors.Is(err, service.ErrMagicLinkRateLimited) {
+		c.JSON(http.StatusTooManyRequests, utils.ErrorResponse("rate_limited", err))
+		return
+	}
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, utils.ErrorResponse("magic_link_request_failed", err))
+		return
+	}
+
+	// Always report success so responders cannot distinguish valid accounts.
+	c.JSON(http.StatusOK, utils.SuccessResponse("if an account exists, you will receive a sign-in link", nil))
+}
+
+// VerifyMagicLink redeems a magic-link token and issues tokens (#155).
+// @Summary Verify a magic link and sign in
+// @Tags auth
+// @Produce json
+// @Param token query string true "Single-use magic link token"
+// @Success 200 {object} utils.Response
+// @Failure 401 {object} utils.Response
+// @Router /api/auth/magic-link/verify [get]
+func (h *AuthHandler) VerifyMagicLink(c *gin.Context) {
+	token := c.Query("token")
+	ipAddress := c.ClientIP()
+	userAgent := c.GetHeader(userAgentHeader)
+
+	loginResp, err := h.authService.VerifyMagicLink(c.Request.Context(), token, ipAddress, userAgent)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, utils.ErrorResponse("magic link is invalid, expired or already used", err))
+		return
+	}
+
+	c.SetCookie("auth_token", loginResp.AccessToken, 7*24*3600, "/", "", false, true)
+	c.JSON(http.StatusOK, utils.SuccessResponse("signed in", loginResp))
+}

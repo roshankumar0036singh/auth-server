@@ -34,6 +34,17 @@ func (m *MockEmailSender) SendPasswordResetEmail(email, token, appURL string) er
 	m.LastEmail["reset"] = email
 	return nil
 }
+func (m *MockEmailSender) SendMagicLinkEmail(email, token, appURL string) error {
+	if m.LastEmail == nil {
+		m.LastEmail = make(map[string]string)
+	}
+	m.LastEmail["magic"] = email
+	return nil
+}
+
+// LastMockEmail exposes the last email capture used inside
+// SetupIntegrationTest so tests can assert on sent mail.
+var LastMockEmail = &MockEmailSender{}
 
 func SetupIntegrationTest(t *testing.T) (*service.AuthService, *gorm.DB, *miniredis.Miniredis) {
 	// 1. In-memory SQLite
@@ -49,11 +60,11 @@ func SetupIntegrationTest(t *testing.T) (*service.AuthService, *gorm.DB, *minire
 		&models.AuditLog{},
 		&models.OAuthAccessToken{},
 	)
-        assert.NoError(t, err)
-        assert.NoError(t, db.Exec("DELETE FROM oauth_access_tokens").Error)
-        
-        // OAuth tables — using raw SQL to avoid Postgres-specific gen_random_uuid()
-        err = db.Exec(`CREATE TABLE IF NOT EXISTS oauth_clients (
+	assert.NoError(t, err)
+	assert.NoError(t, db.Exec("DELETE FROM oauth_access_tokens").Error)
+
+	// OAuth tables — using raw SQL to avoid Postgres-specific gen_random_uuid()
+	err = db.Exec(`CREATE TABLE IF NOT EXISTS oauth_clients (
             id TEXT PRIMARY KEY,
             name TEXT NOT NULL,
             client_id TEXT UNIQUE NOT NULL,
@@ -66,9 +77,9 @@ func SetupIntegrationTest(t *testing.T) (*service.AuthService, *gorm.DB, *minire
             created_at DATETIME,
             updated_at DATETIME
         )`).Error
-        assert.NoError(t, err)
+	assert.NoError(t, err)
 
-        err = db.Exec(`CREATE TABLE IF NOT EXISTS authorization_codes (
+	err = db.Exec(`CREATE TABLE IF NOT EXISTS authorization_codes (
             id TEXT PRIMARY KEY,
             code TEXT UNIQUE NOT NULL,
             client_id TEXT NOT NULL,
@@ -81,9 +92,9 @@ func SetupIntegrationTest(t *testing.T) (*service.AuthService, *gorm.DB, *minire
             code_challenge TEXT,
             code_challenge_method TEXT
         )`).Error
-        assert.NoError(t, err)
+	assert.NoError(t, err)
 
-        err = db.Exec(`CREATE TABLE IF NOT EXISTS user_consents (
+	err = db.Exec(`CREATE TABLE IF NOT EXISTS user_consents (
             id TEXT PRIMARY KEY,
             user_id TEXT NOT NULL,
             client_id TEXT NOT NULL,
@@ -91,9 +102,9 @@ func SetupIntegrationTest(t *testing.T) (*service.AuthService, *gorm.DB, *minire
             created_at DATETIME,
             updated_at DATETIME
         )`).Error
-        assert.NoError(t, err)
+	assert.NoError(t, err)
 
-        err = db.Exec(`CREATE TABLE IF NOT EXISTS web_authn_credentials (
+	err = db.Exec(`CREATE TABLE IF NOT EXISTS web_authn_credentials (
             id TEXT PRIMARY KEY,
             user_id TEXT NOT NULL,
             credential_id BLOB UNIQUE NOT NULL,
@@ -101,9 +112,9 @@ func SetupIntegrationTest(t *testing.T) (*service.AuthService, *gorm.DB, *minire
             created_at DATETIME,
             updated_at DATETIME
         )`).Error
-        assert.NoError(t, err)
+	assert.NoError(t, err)
 
-        // 2. Miniredis
+	// 2. Miniredis
 	mr, err := miniredis.Run()
 	assert.NoError(t, err)
 
@@ -126,7 +137,8 @@ func SetupIntegrationTest(t *testing.T) (*service.AuthService, *gorm.DB, *minire
 	}
 	tokenService := service.NewTokenService(cfg)
 	cacheService := service.NewCacheService(rdb)
-	emailService := &MockEmailSender{}
+	LastMockEmail = &MockEmailSender{}
+	emailService := LastMockEmail
 	auditService := service.NewAuditService(auditRepo)
 	mfaService := service.NewMFAService(cfg)
 
