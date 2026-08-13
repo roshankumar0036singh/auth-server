@@ -9,7 +9,38 @@ import (
 	"github.com/roshankumar0036singh/auth-server/internal/dto"
 	"github.com/roshankumar0036singh/auth-server/internal/repository"
 	"golang.org/x/crypto/bcrypt"
+	"strings"
+	"github.com/roshankumar0036singh/auth-server/internal/utils"
 )
+
+// mfaSecretPrefix marks encrypted-at-rest TOTP seeds (#149). Existing
+// plaintext values (from before this feature) remain readable via fallback.
+const mfaSecretPrefix = "enc:"
+
+// encryptMFASecret seals a TOTP seed with AES-GCM using ENCRYPTION_KEY.
+func (s *AuthService) encryptMFASecret(plaintext string) (string, error) {
+	if s.config.Security.EncryptionKey == "" {
+		return plaintext, nil
+	}
+	sealed, err := utils.Encrypt(plaintext, s.config.Security.EncryptionKey)
+	if err != nil {
+		return "", err
+	}
+	return mfaSecretPrefix + sealed, nil
+}
+
+// decryptMFASecret opens an encrypted seed, falling back to legacy plaintext
+// so pre-existing accounts keep working.
+func (s *AuthService) decryptMFASecret(stored string) (string, error) {
+	if !strings.HasPrefix(stored, mfaSecretPrefix) {
+		return stored, nil
+	}
+	plain, err := utils.Decrypt(strings.TrimPrefix(stored, mfaSecretPrefix), s.config.Security.EncryptionKey)
+	if err != nil {
+		return "", err
+	}
+	return plain, nil
+}
 
 // EnableMFA generates a secret and returns it with QR code URL
 func (s *AuthService) EnableMFA(userID string) (*dto.MFAEnableResponse, error) {
@@ -27,9 +58,13 @@ func (s *AuthService) EnableMFA(userID string) (*dto.MFAEnableResponse, error) {
 		return nil, err
 	}
 
-	// Save temp secret
+	// Save temp secret, encrypted at rest (#149)
+	sealed, err := s.encryptMFASecret(secret)
+	if err != nil {
+		return nil, errors.New("failed to seal MFA secret")
+	}
 	if err := s.userRepo.Update(userID, map[string]interface{}{
-		"mfa_secret": secret,
+		"mfa_secret": sealed,
 	}); err != nil {
 		return nil, errors.New("failed to save temp MFA secret")
 	}
@@ -55,7 +90,11 @@ func (s *AuthService) VerifyEnableMFA(userID, code string) error {
 		return errors.New("MFA setup not initiated")
 	}
 
-	if !s.mfaService.ValidateMFA(user.MFASecret, code) {
+	seed, err := s.decryptMFASecret(user.MFASecret)
+	if err != nil {
+		return errors.New("failed to open MFA secret")
+	}
+	if !s.mfaService.ValidateMFA(seed, code) {
 		return ErrInvalidMFACode
 	}
 
@@ -90,7 +129,11 @@ func (s *AuthService) DisableMFA(userID, password, code string) error {
 		return ErrIncorrectPassword
 	}
 
-	if !s.mfaService.ValidateMFA(user.MFASecret, code) {
+	seed, err := s.decryptMFASecret(user.MFASecret)
+	if err != nil {
+		return errors.New("failed to open MFA secret")
+	}
+	if !s.mfaService.ValidateMFA(seed, code) {
 		return ErrInvalidMFACode
 	}
 
@@ -137,7 +180,12 @@ func (s *AuthService) VerifyLoginMFA(mfaToken, code, ipAddress, userAgent string
 		return nil, errors.New("MFA not enabled for this user")
 	}
 
-	if !s.mfaService.ValidateMFA(user.MFASecret, code) {
+	seed, err := s.decryptMFASecret(user.MFASecret)
+	if err != nil {
+		s.cacheService.IncrementMFAAttempts(ctx, userID)
+		return nil, ErrInvalidMFACode
+	}
+	if !s.mfaService.ValidateMFA(seed, code) {
 		s.cacheService.IncrementMFAAttempts(ctx, userID)
 		if err := s.auditService.LogEvent(&user.ID, "MFA_LOGIN_FAILED", "USER", user.ID, ipAddress, userAgent, nil); err != nil {
 			log.Printf("failed to write MFA_LOGIN_FAILED audit log for user %s: %v", user.ID, err)
@@ -154,4 +202,14 @@ func (s *AuthService) VerifyLoginMFA(mfaToken, code, ipAddress, userAgent string
 
 	s.auditService.LogEvent(&user.ID, "USER_LOGIN_SUCCESS_MFA", "USER", user.ID, ipAddress, userAgent, nil)
 	return response, nil
+}
+
+// SetEncryptionKeyForTest injects an encryption key for at-rest tests.
+func (s *AuthService) SetEncryptionKeyForTest(key string) {
+	s.config.Security.EncryptionKey = key
+}
+
+// DecryptMFASecretForTest exposes the decrypt path for tests.
+func (s *AuthService) DecryptMFASecretForTest(stored string) (string, error) {
+	return s.decryptMFASecret(stored)
 }
