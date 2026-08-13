@@ -54,6 +54,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, redisClient *redis.Client, cfg
 		auditService,
 		mfaService,
 		cfg,
+		service.NewDisposableEmailService(),
 	)
 
 	// OAuth Provider service
@@ -210,6 +211,11 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, redisClient *redis.Client, cfg
 			admin.POST("/users/:id/lock", adminHandler.LockUser)
 			admin.POST("/users/:id/unlock", adminHandler.UnlockUser)
 			admin.DELETE("/users/:id", adminHandler.DeleteUser)
+
+			// Disposable email blocklist (issue #164)
+			disposableHandler := &handler.DisposableEmailAPI{Svc: service.NewDisposableEmailService()}
+			admin.GET("/disposable-email", disposableHandler.List)
+			admin.PUT("/disposable-email", disposableHandler.Update)
 		}
 	}
 }
