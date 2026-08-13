@@ -12,12 +12,14 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"gorm.io/gorm"
+
 	"github.com/roshankumar0036singh/auth-server/internal/config"
 	"github.com/roshankumar0036singh/auth-server/internal/metrics"
 	"github.com/roshankumar0036singh/auth-server/internal/middleware"
 	"github.com/roshankumar0036singh/auth-server/internal/models"
-	"github.com/roshankumar0036singh/auth-server/internal/routes"
 	"github.com/roshankumar0036singh/auth-server/internal/repository"
+	"github.com/roshankumar0036singh/auth-server/internal/routes"
 )
 
 // @title Auth Server API
@@ -83,6 +85,19 @@ func main() {
 	tokenRepo := repository.NewTokenRepository(db)
 
 	metrics.Register(tokenRepo)
+
+	// Background token cleanup (issue #72): purges expired refresh, verification,
+	// password-reset and OAuth tokens on a schedule. Interval configurable via
+	// TOKEN_CLEANUP_INTERVAL (default 1h).
+	cleanupInterval := 1 * time.Hour
+	if v := os.Getenv("TOKEN_CLEANUP_INTERVAL"); v != "" {
+		if d, err := time.ParseDuration(v); err == nil && d > 0 {
+			cleanupInterval = d
+		}
+	}
+	cleanupCtx, cleanupCancel := context.WithCancel(context.Background())
+	defer cleanupCancel()
+	startTokenCleanup(db, cleanupInterval, cleanupCtx)
 
 	router := gin.Default()
 
@@ -201,4 +216,48 @@ func main() {
 	}
 
 	log.Println(" Server exited gracefully")
+}
+
+// startTokenCleanup runs periodic purges of expired tokens. A first pass runs
+// shortly after startup, then every interval until ctx is cancelled. Failures
+// are logged and retried on the next tick.
+func startTokenCleanup(db *gorm.DB, interval time.Duration, ctx context.Context) {
+	run := func() {
+		jobs := []struct {
+			name string
+			fn   func() error
+		}{
+			{"refresh_tokens", func() error {
+				_, err := repository.NewTokenRepository(db).DeleteExpiredTokens()
+				return err
+			}},
+			{"verification_tokens", repository.NewVerificationRepository(db).DeleteExpired},
+			{"password_reset_tokens", repository.NewPasswordResetRepository(db).DeleteExpired},
+			{"oauth_tokens", repository.NewOAuthTokenRepository(db).DeleteExpired},
+		}
+		for _, job := range jobs {
+			if err := job.fn(); err != nil {
+				log.Printf("⚠️ token cleanup failed for %s: %v", job.name, err)
+				continue
+			}
+			log.Printf("🧹 token cleanup: purged expired %s", job.name)
+		}
+	}
+
+	go func() {
+		// Small delay so cleanup never competes with startup queries.
+		time.Sleep(15 * time.Second)
+		run()
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				run()
+			case <-ctx.Done():
+				log.Println("🧹 token cleanup job stopped")
+				return
+			}
+		}
+	}()
 }
