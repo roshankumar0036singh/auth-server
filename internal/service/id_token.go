@@ -12,13 +12,13 @@ import (
 
 // OIDCClaims are the standard id_token claims (issue #85).
 type OIDCClaims struct {
-	Issuer    string `json:"iss"`
-	Subject   string `json:"sub"`
-	Audience  string `json:"aud"`
-	Nonce     string `json:"nonce,omitempty"`
-	Email     string `json:"email,omitempty"`
-	EmailVerified *bool `json:"email_verified,omitempty"`
-	AuthTime  int64  `json:"auth_time,omitempty"`
+	Issuer        string `json:"iss"`
+	Subject       string `json:"sub"`
+	Audience      string `json:"aud"`
+	Nonce         string `json:"nonce,omitempty"`
+	Email         string `json:"email,omitempty"`
+	EmailVerified *bool  `json:"email_verified,omitempty"`
+	AuthTime      int64  `json:"auth_time,omitempty"`
 	jwt.RegisteredClaims
 }
 
