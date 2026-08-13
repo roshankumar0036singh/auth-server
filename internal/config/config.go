@@ -46,11 +46,15 @@ type RedisConfig struct {
 }
 
 type JWTConfig struct {
-	AccessSecret        string
-	RefreshSecret       string
-	AccessExpiry        string
-	RefreshExpiry       string
-	RefreshGracePeriod  string
+	AccessSecret       string
+	RefreshSecret      string
+	AccessExpiry       string
+	RefreshExpiry      string
+	RefreshGracePeriod string
+	// RSAPrivateKey optionally enables RS256 signing (issue #171). When set,
+	// the public key is published at /.well-known/jwks.json. Accepts a PEM
+	// string or a "base64:" prefixed base64-encoded PEM.
+	RSAPrivateKey string
 }
 type OAuthConfig struct {
 	Google GoogleOAuthConfig
@@ -159,6 +163,7 @@ func LoadConfig() *Config {
 			AccessExpiry:       getEnv("JWT_ACCESS_EXPIRY", "15m"),
 			RefreshExpiry:      getEnv("JWT_REFRESH_EXPIRY", "168h"),
 			RefreshGracePeriod: getEnv("JWT_REFRESH_GRACE_PERIOD", "10s"),
+			RSAPrivateKey:      getEnv("JWT_RSA_PRIVATE_KEY", ""),
 		},
 		OAuth: OAuthConfig{
 			Google: GoogleOAuthConfig{

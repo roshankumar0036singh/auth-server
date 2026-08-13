@@ -12,11 +12,55 @@ import (
 )
 
 type TokenService struct {
-	cfg *config.Config
+	cfg  *config.Config
+	jwks *JWKSService
 }
 
 func NewTokenService(cfg *config.Config) *TokenService {
-	return &TokenService{cfg: cfg}
+	return &TokenService{cfg: cfg, jwks: NewJWKSService(cfg)}
+}
+
+// signingMethodAndKey returns the active algorithm and its signing key.
+// RS256 (with the key from JWT_RSA_PRIVATE_KEY) when configured, otherwise
+// the historical HS256 secrets.
+func (s *TokenService) signingMethodAndKey(refresh bool) (jwt.SigningMethod, interface{}) {
+	if key := s.jwks.PrivateKey(); key != nil {
+		return jwt.SigningMethodRS256, key
+	}
+	if refresh {
+		return jwt.SigningMethodHS256, []byte(s.cfg.JWT.RefreshSecret)
+	}
+	return jwt.SigningMethodHS256, []byte(s.cfg.JWT.AccessSecret)
+}
+
+func (s *TokenService) sign(claims *JWTClaims, refresh bool) (string, error) {
+	method, key := s.signingMethodAndKey(refresh)
+	token := jwt.NewWithClaims(method, claims)
+	if method == jwt.SigningMethodRS256 {
+		token.Header["kid"] = s.jwks.KeyID()
+	}
+	return token.SignedString(key)
+}
+
+// keyfuncForValidation accepts RS256 tokens signed by the published key and
+// (backward compatible) HS256 tokens signed with the configured secrets.
+func (s *TokenService) keyfuncForValidation(refresh bool) jwt.Keyfunc {
+	return func(token *jwt.Token) (interface{}, error) {
+		switch token.Method.(type) {
+		case *jwt.SigningMethodHMAC:
+			if refresh {
+				return []byte(s.cfg.JWT.RefreshSecret), nil
+			}
+			return []byte(s.cfg.JWT.AccessSecret), nil
+		case *jwt.SigningMethodRSA:
+			if key := s.jwks.PrivateKey(); key != nil {
+				return &key.PublicKey, nil
+			}
+			return nil, errors.New(errInvalidSignMethod)
+		default:
+			return nil, errors.New(errInvalidSignMethod)
+		}
+	}
 }
 
 func (s *TokenService) GetAccessTokenDuration() time.Duration {
@@ -84,13 +128,7 @@ func (s *TokenService) GenerateAccessToken(user *models.User, sessionID string) 
 		},
 	}
 
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	tokenString, err := token.SignedString([]byte(s.cfg.JWT.AccessSecret))
-	if err != nil {
-		return "", err
-	}
-
-	return tokenString, nil
+	return s.sign(claims, false)
 }
 
 // GenerateRefreshToken generates a new refresh token (longer expiry)
@@ -109,23 +147,12 @@ func (s *TokenService) GenerateRefreshToken(user *models.User) (string, error) {
 		},
 	}
 
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	tokenString, err := token.SignedString([]byte(s.cfg.JWT.RefreshSecret))
-	if err != nil {
-		return "", err
-	}
-
-	return tokenString, nil
+	return s.sign(claims, true)
 }
 
 // ValidateAccessToken validates and parses an access token
 func (s *TokenService) ValidateAccessToken(tokenString string) (*JWTClaims, error) {
-	token, err := jwt.ParseWithClaims(tokenString, &JWTClaims{}, func(token *jwt.Token) (interface{}, error) {
-		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, errors.New(errInvalidSignMethod)
-		}
-		return []byte(s.cfg.JWT.AccessSecret), nil
-	})
+	token, err := jwt.ParseWithClaims(tokenString, &JWTClaims{}, s.keyfuncForValidation(false))
 
 	if err != nil {
 		return nil, err
@@ -185,12 +212,7 @@ func (s *TokenService) ValidateMFAToken(tokenString string) (string, error) {
 
 // ValidateRefreshToken validates and parses a refresh token
 func (s *TokenService) ValidateRefreshToken(tokenString string) (*JWTClaims, error) {
-	token, err := jwt.ParseWithClaims(tokenString, &JWTClaims{}, func(token *jwt.Token) (interface{}, error) {
-		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, errors.New(errInvalidSignMethod)
-		}
-		return []byte(s.cfg.JWT.RefreshSecret), nil
-	})
+	token, err := jwt.ParseWithClaims(tokenString, &JWTClaims{}, s.keyfuncForValidation(true))
 
 	if err != nil {
 		return nil, err

@@ -78,6 +78,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, redisClient *redis.Client, cfg
 	authHandler := handler.NewAuthHandler(authService, oauthService, oauthProviderService)
 	adminHandler := handler.NewAdminHandler(authService)
 	oauthClientHandler := handler.NewOAuthClientHandler(oauthProviderService)
+	wellKnownHandler := handler.NewWellKnownHandler(service.NewJWKSService(cfg))
 	oauthHandler := handler.NewOAuthHandler(oauthProviderService, userRepo)
 
 	// Apply global middleware
@@ -91,6 +92,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, redisClient *redis.Client, cfg
 	})
 
 	// Health check endpoint
+	router.GET("/.well-known/jwks.json", wellKnownHandler.JWKS)
 	router.GET("/health", func(c *gin.Context) {
 		dbStatus := "up"
 		redisStatus := "up"
