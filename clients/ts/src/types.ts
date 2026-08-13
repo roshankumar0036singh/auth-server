@@ -5,8 +5,18 @@ export interface User {
   firstName?: string;
   /** Present when the user has a name on file (server omits when empty). */
   lastName?: string;
+  /** Phone number when the user has provided one (server omits when empty). */
+  phone?: string;
+  /** Whether the user's phone number has been verified. */
+  phoneVerified: boolean;
   /** Whether the user's email address has been verified. */
   emailVerified: boolean;
+  /** Whether the account is active (false when locked/disabled). */
+  isActive: boolean;
+  /** Profile image URL when one is set. */
+  profileImage?: string;
+  /** The OAuth provider used to create the account ('google', 'github'), when applicable. */
+  oauthProvider?: string;
   /** Whether time-based one-time-password MFA is enabled. */
   mfaEnabled: boolean;
   /** ISO 8601 timestamp of account creation. */
@@ -15,16 +25,31 @@ export interface User {
   lastLoginAt?: string;
 }
 
+/**
+ * Pagination metadata as defined by the server's PaginationMetaData struct
+ * (used by list-style admin/audit endpoints).
+ */
 export interface PaginationMetaData {
-  total: number;
-  page: number;
-  limit: number;
-  totalPages: number;
+  totalCount: number;
+  currentPage: number;
+  hasMore: boolean;
 }
 
+/**
+ * Response shape of `GET /api/admin/users` (server's `PaginatedUsers` struct):
+ * the users for the current page plus the total number of matching users.
+ */
 export interface UsersResponse {
   users: User[];
-  meta: PaginationMetaData;
+  total: number;
+}
+
+/** Query parameters accepted by list-style admin endpoints. */
+export interface ListUsersParams {
+  /** 1-based page number. Defaults to 1 on the server. */
+  page?: number;
+  /** Items per page (capped at 100 on the server). Defaults to 10. */
+  limit?: number;
 }
 
 export interface Session {
