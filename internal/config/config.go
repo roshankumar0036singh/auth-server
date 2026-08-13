@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/joho/godotenv"
+	"strings"
 )
 
 type Config struct {
@@ -41,8 +42,10 @@ type DatabaseConfig struct {
 }
 
 type RedisConfig struct {
-	URL string
-	TTL int
+	URL  string // single-instance DSN (kept for backward compatibility)
+	URIs []string
+	Mode string // "", "single", "cluster", "sentinel"
+	TTL  int
 }
 
 type JWTConfig struct {
@@ -150,8 +153,10 @@ func LoadConfig() *Config {
 			ConnMaxIdleTime: getEnvAsDuration("DB_CONN_MAX_IDLE_TIME", 10*time.Minute),
 		},
 		Redis: RedisConfig{
-			URL: getEnv("REDIS_URL", ""),
-			TTL: redisTTL,
+			URL:  getEnv("REDIS_URL", ""),
+			URIs: splitRedisURIs(getEnv("REDIS_URLS", "")),
+			Mode: strings.ToLower(getEnv("REDIS_MODE", "single")),
+			TTL:  redisTTL,
 		},
 		JWT: JWTConfig{
 			AccessSecret:       getEnv("JWT_SECRET", ""),
@@ -203,4 +208,20 @@ func getEnv(key, defaultValue string) string {
 		return value
 	}
 	return defaultValue
+}
+
+// splitRedisURIs parses a comma-separated list of Redis node URIs into
+// host:port addresses for cluster mode (issue #191). An empty input keeps
+// the legacy single-instance path.
+// SplitRedisURIsForTest exposes splitRedisURIs for tests.
+func SplitRedisURIsForTest(raw string) []string { return splitRedisURIs(raw) }
+
+func splitRedisURIs(raw string) []string {
+	uris := []string{}
+	for _, part := range strings.Split(raw, ",") {
+		if part = strings.TrimSpace(part); part != "" {
+			uris = append(uris, part)
+		}
+	}
+	return uris
 }

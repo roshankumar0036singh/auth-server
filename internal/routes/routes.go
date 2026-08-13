@@ -15,7 +15,7 @@ import (
 	"github.com/roshankumar0036singh/auth-server/internal/service"
 )
 
-func SetupRoutes(router *gin.Engine, db *gorm.DB, redisClient *redis.Client, cfg *config.Config) {
+func SetupRoutes(router *gin.Engine, db *gorm.DB, redisClient redis.UniversalClient, cfg *config.Config) {
 	// Initialize repositories
 	userRepo := repository.NewUserRepository(db)
 	tokenRepo := repository.NewTokenRepository(db)
