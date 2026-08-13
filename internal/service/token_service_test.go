@@ -65,8 +65,22 @@ func TestTokenService_GenerateRandomString(t *testing.T) {
 	cfg := &config.Config{}
 	svc := service.NewTokenService(cfg)
 
-	str := svc.GenerateRandomString(32)
+	str, err := svc.GenerateRandomString(32)
+	assert.NoError(t, err)
 	// Base64 encoding of 32 bytes result in 4*ceil(32/3) = 44 characters
 	assert.Greater(t, len(str), 32)
 	assert.Equal(t, 44, len(str))
+}
+
+func TestTokenService_GenerateRandomStringUniqueness(t *testing.T) {
+	cfg := &config.Config{}
+	svc := service.NewTokenService(cfg)
+
+	seen := make(map[string]bool)
+	for i := 0; i < 100; i++ {
+		str, err := svc.GenerateRandomString(32)
+		assert.NoError(t, err)
+		assert.False(t, seen[str], "generated duplicate token")
+		seen[str] = true
+	}
 }

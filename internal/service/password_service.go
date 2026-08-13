@@ -41,9 +41,13 @@ func (s *AuthService) ForgotPassword(email string) error {
 	s.passwordResetRepo.DeleteByUserID(user.ID)
 
 	// Create new reset token
+	rawToken, err := s.tokenService.GenerateRandomString(32)
+	if err != nil {
+		return err
+	}
 	token := &models.PasswordResetToken{
 		UserID:    user.ID,
-		Token:     s.tokenService.GenerateRandomString(32),
+		Token:     rawToken,
 		ExpiresAt: time.Now().Add(1 * time.Hour),
 	}
 
