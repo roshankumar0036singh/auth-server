@@ -63,6 +63,8 @@ func SetupIntegrationTest(t *testing.T) (*service.AuthService, *gorm.DB, *minire
             owner_id TEXT,
             is_active INTEGER DEFAULT 1,
             is_public INTEGER DEFAULT 0,
+            access_token_ttl_seconds INTEGER DEFAULT 0,
+            refresh_token_ttl_seconds INTEGER DEFAULT 0,
             created_at DATETIME,
             updated_at DATETIME
         )`).Error

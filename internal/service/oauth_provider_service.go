@@ -293,11 +293,14 @@ func (s *OAuthProviderService) ExchangeCodeForToken(code, clientID, redirectURI,
 		return nil, errors.New("authorization code already used")
 	}
 
-	// Generate access token
+	// Generate access token; honor per-client TTL overrides (issue #162)
 	tokenString, err := generateRandomString(48)
 	if err != nil {
 		return nil, err
 	}
+
+	client, _ := s.clientRepo.FindByClientID(authCode.ClientID)
+	ttl := s.EffectiveAccessTokenTTL(client)
 
 	accessToken := &models.OAuthAccessToken{
 		Token:     utils.HashToken(tokenString),
@@ -305,7 +308,7 @@ func (s *OAuthProviderService) ExchangeCodeForToken(code, clientID, redirectURI,
 		ClientID:  authCode.ClientID,
 		UserID:    authCode.UserID,
 		Scopes:    models.StringArray(authCode.Scopes),
-		ExpiresAt: time.Now().Add(1 * time.Hour), // 1 hour
+		ExpiresAt: time.Now().Add(ttl),
 	}
 
 	if err := s.tokenRepo.Create(accessToken); err != nil {
@@ -397,6 +400,37 @@ func (s *OAuthProviderService) DeleteClient(clientID, ownerID string) error {
 	}
 
 	return s.clientRepo.Delete(clientID)
+}
+
+// UpdateClientSessionTTL overrides the session expiration for a single OAuth
+// client (issue #162). Each value is in seconds; 0 keeps the global default.
+// Only the client owner may change it.
+func (s *OAuthProviderService) UpdateClientSessionTTL(clientID, ownerID string, accessTTL, refreshTTL int64) (*models.OAuthClient, error) {
+	client, err := s.clientRepo.FindByClientID(clientID)
+	if err != nil {
+		return nil, errors.New("client not found")
+	}
+	if client.OwnerID != ownerID {
+		return nil, errors.New("unauthorized to modify this client")
+	}
+	if accessTTL < 0 || refreshTTL < 0 {
+		return nil, errors.New("TTLs must be zero or a positive number of seconds")
+	}
+	client.AccessTokenTTLSeconds = accessTTL
+	client.RefreshTokenTTLSeconds = refreshTTL
+	if err := s.clientRepo.Update(client); err != nil {
+		return nil, err
+	}
+	return client, nil
+}
+
+// EffectiveAccessTokenTTL returns the client-specific access-token lifetime,
+// falling back to the global default when the client hasn't overridden it.
+func (s *OAuthProviderService) EffectiveAccessTokenTTL(client *models.OAuthClient) time.Duration {
+	if client != nil && client.AccessTokenTTLSeconds > 0 {
+		return time.Duration(client.AccessTokenTTLSeconds) * time.Second
+	}
+	return time.Hour // 1 hour global default
 }
 
 // ParseScopes parses a space-separated scope string
