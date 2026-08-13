@@ -95,9 +95,23 @@ func (s *AuthService) ProcessPostLogin(ctx context.Context, user *models.User, i
 
 // LoginWithOAuth handles login or registration via OAuth provider
 func (s *AuthService) LoginWithOAuth(email, oauthID, firstName, lastName, provider, ipAddress, userAgent string) (*dto.LoginResponse, error) {
+	// 1) Existing provider identity → straight login (issue #89, multi-provider).
+	existing, err := s.oauthAccountRepo.FindByProviderAndOAuthID(provider, oauthID)
+	if err == nil {
+		user, err := s.userRepo.FindByID(existing.UserID)
+		if err != nil {
+			return nil, errors.New("linked account no longer exists")
+		}
+		if !user.IsActive {
+			return nil, errors.New("account is deactivated")
+		}
+		return s.finishOAuthLogin(user, provider, ipAddress, userAgent)
+	}
+
+	// 2) New provider identity → find or create the local user.
 	user, err := s.userRepo.FindByEmail(email)
 	if err != nil {
-		// User does not exist, create new one
+		// User does not exist, create new one and link the identity.
 		password := s.tokenService.GenerateRandomString(32)
 
 		hashedPassword, err := s.hashPassword(password)
@@ -118,41 +132,91 @@ func (s *AuthService) LoginWithOAuth(email, oauthID, firstName, lastName, provid
 		if err := s.userRepo.Create(user); err != nil {
 			return nil, errors.New("failed to create user")
 		}
+		if err := s.linkOAuthAccount(user, provider, oauthID, email); err != nil {
+			return nil, err
+		}
 
 		s.auditService.LogEvent(&user.ID, "USER_REGISTERED_OAUTH", "USER", user.ID, "", "", map[string]interface{}{"provider": provider})
-	} else {
-		// Check if user account is active
-		if !user.IsActive {
-			return nil, errors.New("account is deactivated")
-		}
-
-		// User exists, check if linking is needed and safe
-		if user.OAuthID == "" {
-			if !user.EmailVerified {
-				return nil, errors.New("cannot link OAuth to unverified account; please verify your email first")
-			}
-			updates := map[string]interface{}{
-				"oauth_provider": provider,
-				"oauth_id":       oauthID,
-			}
-			if err := s.userRepo.Update(user.ID, updates); err != nil {
-				log.Printf("Warning: failed to update OAuth link for user %s: %v", user.ID, err)
-			}
-			s.auditService.LogEvent(&user.ID, "ACCOUNT_LINKED_OAUTH", "USER", user.ID, "", "", map[string]interface{}{"provider": provider})
-		} else if user.OAuthProvider != provider || user.OAuthID != oauthID {
-			return nil, errors.New("account is linked to a different OAuth provider/ID")
-		}
+		return s.finishOAuthLogin(user, provider, ipAddress, userAgent)
 	}
 
+	// 3) Local user exists → link the new provider safely.
+	if !user.IsActive {
+		return nil, errors.New("account is deactivated")
+	}
+	if !user.EmailVerified {
+		return nil, errors.New("cannot link OAuth to unverified account; please verify your email first")
+	}
+	if err := s.linkOAuthAccount(user, provider, oauthID, email); err != nil {
+		return nil, err
+	}
+	s.auditService.LogEvent(&user.ID, "ACCOUNT_LINKED_OAUTH", "USER", user.ID, "", "", map[string]interface{}{"provider": provider})
+	return s.finishOAuthLogin(user, provider, ipAddress, userAgent)
+}
+
+// linkOAuthAccount records the provider identity for a user. The legacy
+// oauth_provider/oauth_id columns are kept in sync (latest provider wins)
+// for backward compatibility with existing integrations.
+func (s *AuthService) linkOAuthAccount(user *models.User, provider, oauthID, email string) error {
+	account := &models.UserOAuthAccount{
+		UserID:   user.ID,
+		Provider: provider,
+		OAuthID:  oauthID,
+		Email:    email,
+	}
+	if err := s.oauthAccountRepo.Create(account); err != nil {
+		return fmt.Errorf("failed to link OAuth account: %w", err)
+	}
+	updates := map[string]interface{}{
+		"oauth_provider": provider,
+		"oauth_id":       oauthID,
+	}
+	if err := s.userRepo.Update(user.ID, updates); err != nil {
+		log.Printf("Warning: failed to update legacy OAuth link for user %s: %v", user.ID, err)
+	}
+	return nil
+}
+
+// ListLinkedOAuthAccounts returns all provider identities for a user.
+func (s *AuthService) ListLinkedOAuthAccounts(userID string) ([]models.UserOAuthAccount, error) {
+	return s.oauthAccountRepo.ListByUserID(userID)
+}
+
+// UnlinkOAuthAccount removes one provider identity. The last remaining
+// identity cannot be removed, keeping the user reachable via OAuth.
+func (s *AuthService) UnlinkOAuthAccount(userID, provider string) error {
+	accounts, err := s.oauthAccountRepo.ListByUserID(userID)
+	if err != nil {
+		return err
+	}
+	if len(accounts) <= 1 {
+		return errors.New("cannot unlink the only OAuth identity; add another provider first")
+	}
+	found := false
+	for _, a := range accounts {
+		if a.Provider == provider {
+			found = true
+			break
+		}
+	}
+	if !found {
+		return errors.New("no linked identity for provider")
+	}
+	if err := s.oauthAccountRepo.Delete(userID, provider); err != nil {
+		return err
+	}
+	s.auditService.LogEvent(&userID, "ACCOUNT_UNLINKED_OAUTH", "USER", userID, "", "", map[string]interface{}{"provider": provider})
+	return nil
+}
+
+// finishOAuthLogin issues the session for an OAuth-authenticated user.
+func (s *AuthService) finishOAuthLogin(user *models.User, provider, ipAddress, userAgent string) (*dto.LoginResponse, error) {
 	response, err := s.CreateLoginResponse(user, ipAddress, userAgent)
 	if err != nil {
 		return nil, err
 	}
-
 	s.auditService.LogEvent(&user.ID, "USER_LOGIN_SUCCESS_OAUTH", "USER", user.ID, ipAddress, userAgent, nil)
-
 	return response, nil
-
 }
 
 func (s *AuthService) handleFailedLogin(user *models.User, email string, ctx context.Context) {

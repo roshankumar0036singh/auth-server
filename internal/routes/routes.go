@@ -53,6 +53,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, redisClient *redis.Client, cfg
 		emailService,
 		auditService,
 		mfaService,
+		repository.NewUserOAuthAccountRepository(db),
 		cfg,
 	)
 
@@ -174,6 +175,8 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, redisClient *redis.Client, cfg
 				protected.DELETE("/sessions/:sessionId", authHandler.RevokeSession)
 				protected.POST("/password", authHandler.ChangePassword)
 				protected.DELETE("/me", authHandler.DeleteAccount)
+				protected.GET("/me/linked-accounts", authHandler.GetLinkedOAuthAccounts)
+				protected.DELETE("/me/linked-accounts/:provider", authHandler.UnlinkOAuthAccount)
 				protected.GET("/audit-logs", authHandler.GetAuditLogs)
 
 				// WebAuthn Registration
