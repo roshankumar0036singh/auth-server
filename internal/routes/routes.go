@@ -82,6 +82,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, redisClient *redis.Client, cfg
 
 	// Apply global middleware
 	router.Use(middleware.CORSMiddleware(cfg))
+	router.Use(middleware.RequestIDMiddleware())
 	router.Use(middleware.SecurityMiddleware())
 
 	// Swagger Documentation (Custom UI)
