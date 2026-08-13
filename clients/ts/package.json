@@ -1,7 +1,7 @@
 {
   "name": "@authserver/client",
   "version": "2.0.0",
-  "description": "Official TypeScript SDK for the Auth Server — auto token refresh, session persistence, React bindings",
+  "description": "Official TypeScript SDK for the Auth Server \u2014 auto token refresh, session persistence, React bindings",
   "main": "dist/index.js",
   "module": "dist/index.mjs",
   "types": "dist/index.d.ts",
@@ -133,5 +133,8 @@
     "@react-native-async-storage/async-storage": {
       "optional": true
     }
+  },
+  "dependencies": {
+    "rxjs": "^7.8.1"
   }
 }
