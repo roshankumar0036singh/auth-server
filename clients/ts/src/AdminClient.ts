@@ -1,4 +1,4 @@
-import { ApiResponse, UsersResponse } from './types';
+import { ApiResponse, ListUsersParams, UsersResponse } from './types';
 
 export interface AdminClientConfig {
   serverUrl: string;
@@ -37,11 +37,28 @@ export class AdminClient {
   }
 
   /**
-   * List all users. 
-   * Resolved Issue #61: Returns a paginated UsersResponse.
+   * List all users with pagination (GET /api/admin/users).
+   * The response is strictly typed against the server's PaginatedUsers
+   * struct: `data.total` (total matching users) and `data.users` (current page).
+   * Resolved Issue #180: previously returned a placeholder/incorrect shape.
+   * @param params Optional pagination ({ page, limit }); server defaults 1 and 10.
    */
-  public async listUsers(): Promise<ApiResponse<UsersResponse>> {
-    return this.fetchApi<UsersResponse>("/api/admin/users", { method: "GET" });
+  public async getUsers(params?: ListUsersParams): Promise<ApiResponse<UsersResponse>> {
+    const query = new URLSearchParams();
+    if (params?.page !== undefined) query.set("page", String(params.page));
+    if (params?.limit !== undefined) query.set("limit", String(params.limit));
+    const qs = query.toString();
+    return this.fetchApi<UsersResponse>(`/api/admin/users${qs ? `?${qs}` : ""}`, {
+      method: "GET",
+    });
+  }
+
+  /**
+   * List all users. Alias of {@link getUsers} kept for backward compatibility.
+   * @param params Optional pagination ({ page, limit }).
+   */
+  public async listUsers(params?: ListUsersParams): Promise<ApiResponse<UsersResponse>> {
+    return this.getUsers(params);
   }
 
   /**
