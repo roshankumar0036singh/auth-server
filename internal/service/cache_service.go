@@ -8,6 +8,7 @@ import (
 
 	"github.com/go-redis/redis/v8"
 	"github.com/go-webauthn/webauthn/webauthn"
+	"errors"
 )
 
 const (
@@ -164,4 +165,31 @@ func (s *CacheService) AllowRequest(ctx context.Context, key string, limit int, 
 	}
 
 	return count <= int64(limit), nil
+}
+
+// StoreConsentChallenge binds the initial /authorize request parameters so the
+// consent submission can never grant different scopes than the user saw
+// (issue #153).
+func (s *CacheService) StoreConsentChallenge(ctx context.Context, challenge, payload string, ttl time.Duration) error {
+	key := fmt.Sprintf("consent_challenge:%s", challenge)
+	return s.client.Set(ctx, key, payload, ttl).Err()
+}
+
+// GetConsentChallenge retrieves the stored request payload for a challenge.
+func (s *CacheService) GetConsentChallenge(ctx context.Context, challenge string) (string, error) {
+	key := fmt.Sprintf("consent_challenge:%s", challenge)
+	val, err := s.client.Get(ctx, key).Result()
+	if err == redis.Nil {
+		return "", errors.New("consent challenge is invalid or has expired")
+	}
+	if err != nil {
+		return "", err
+	}
+	return val, nil
+}
+
+// DeleteConsentChallenge removes a redeemed challenge (#153).
+func (s *CacheService) DeleteConsentChallenge(ctx context.Context, challenge string) error {
+	key := fmt.Sprintf("consent_challenge:%s", challenge)
+	return s.client.Del(ctx, key).Err()
 }

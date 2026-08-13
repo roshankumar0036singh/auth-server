@@ -78,7 +78,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, redisClient *redis.Client, cfg
 	authHandler := handler.NewAuthHandler(authService, oauthService, oauthProviderService)
 	adminHandler := handler.NewAdminHandler(authService)
 	oauthClientHandler := handler.NewOAuthClientHandler(oauthProviderService)
-	oauthHandler := handler.NewOAuthHandler(oauthProviderService, userRepo)
+	oauthHandler := handler.NewOAuthHandler(oauthProviderService, userRepo, cacheService)
 
 	// Apply global middleware
 	router.Use(middleware.CORSMiddleware(cfg))

@@ -11,6 +11,7 @@ import (
 	"github.com/roshankumar0036singh/auth-server/internal/models"
 	"github.com/roshankumar0036singh/auth-server/internal/repository"
 	"github.com/roshankumar0036singh/auth-server/internal/service"
+	"time"
 )
 
 const errTmpl = "error.html"
@@ -18,9 +19,10 @@ const errTmpl = "error.html"
 type OAuthHandler struct {
 	oauthProviderService *service.OAuthProviderService
 	userRepo             *repository.UserRepository
+	cacheService         *service.CacheService
 }
 
-func NewOAuthHandler(oauthProviderService *service.OAuthProviderService, userRepo *repository.UserRepository) *OAuthHandler {
+func NewOAuthHandler(oauthProviderService *service.OAuthProviderService, userRepo *repository.UserRepository, cacheService *service.CacheService) *OAuthHandler {
 	if userRepo == nil {
 		panic("oauth handler requires user repository")
 	}
@@ -28,6 +30,7 @@ func NewOAuthHandler(oauthProviderService *service.OAuthProviderService, userRep
 	return &OAuthHandler{
 		oauthProviderService: oauthProviderService,
 		userRepo:             userRepo,
+		cacheService:         cacheService,
 	}
 }
 
@@ -117,7 +120,30 @@ func (h *OAuthHandler) Authorize(c *gin.Context) {
 		return
 	}
 
-	// Show consent screen
+	// Show consent screen. The exact request parameters are bound to a
+	// cryptographically random, short-lived challenge so the submission can
+	// never grant scopes other than the ones the user was shown (issue #153).
+	challenge, err := service.GenChallenge()
+	if err != nil {
+		redirectError(c, redirectURI, "server_error", "Failed to start consent flow", state)
+		return
+	}
+	payload, err := service.MarshalConsentPayload(service.ConsentChallengePayload{
+		ClientID:            clientID,
+		UserID:              userID.(string),
+		Scopes:              scopes,
+		CodeChallenge:       codeChallenge,
+		CodeChallengeMethod: codeChallengeMethod,
+	})
+	if err != nil {
+		redirectError(c, redirectURI, "server_error", "Failed to start consent flow", state)
+		return
+	}
+	if err := h.cacheService.StoreConsentChallenge(c.Request.Context(), challenge, payload, 10*time.Minute); err != nil {
+		redirectError(c, redirectURI, "server_error", "Failed to start consent flow", state)
+		return
+	}
+
 	scopeDescriptions := make([]string, len(scopes))
 	for i, scope := range scopes {
 		if desc, ok := service.ValidScopes[scope]; ok {
@@ -136,6 +162,7 @@ func (h *OAuthHandler) Authorize(c *gin.Context) {
 		"State":               state,
 		"CodeChallenge":       codeChallenge,
 		"CodeChallengeMethod": codeChallengeMethod,
+		"ConsentChallenge":    challenge,
 	})
 }
 
@@ -159,7 +186,6 @@ func (h *OAuthHandler) AuthorizePost(c *gin.Context) {
 	action := c.PostForm("action")
 	clientID := c.PostForm("client_id")
         redirectURI := c.PostForm("redirect_uri")
-        scope := c.PostForm("scope")
 	state := c.PostForm("state")
         codeChallenge := c.PostForm("code_challenge")
         codeChallengeMethod := c.PostForm("code_challenge_method")
@@ -201,11 +227,38 @@ func (h *OAuthHandler) AuthorizePost(c *gin.Context) {
 		return
 	}
 
-	// Parse and validate scopes against the client's registered scopes so a
-	// tampered consent POST cannot escalate to scopes the client never had.
-	scopes := service.ParseScopes(scope)
-	if err := h.oauthProviderService.ValidateClientScopes(client, scopes); err != nil {
-		redirectError(c, redirectURI, "invalid_scope", err.Error(), state)
+	// The consent submission must match the exact request the user approved.
+	// The scope, code challenge and challenge method are taken from the
+	// stored consent_challenge — values posted by the client are ignored, so
+	// tampering cannot escalate or swap permissions (issue #153).
+	challenge := c.PostForm("consent_challenge")
+	if challenge == "" {
+		c.HTML(http.StatusBadRequest, errTmpl, gin.H{
+			"error": "Missing consent challenge",
+		})
+		return
+	}
+	rawPayload, err := h.cacheService.GetConsentChallenge(c.Request.Context(), challenge)
+	if err != nil {
+		c.HTML(http.StatusBadRequest, errTmpl, gin.H{
+			"error": "Consent challenge is invalid or has expired — please start over",
+		})
+		return
+	}
+	approved, err := service.UnmarshalConsentPayload(rawPayload)
+	if err != nil || approved.ClientID != clientID || approved.UserID != userID.(string) {
+		c.HTML(http.StatusBadRequest, errTmpl, gin.H{
+			"error": "Consent challenge does not match this request",
+		})
+		return
+	}
+	h.cacheService.DeleteConsentChallenge(c.Request.Context(), challenge)
+
+	scopes := approved.Scopes
+	if len(scopes) == 0 {
+		c.HTML(http.StatusBadRequest, errTmpl, gin.H{
+			"error": "No scopes in approved request",
+		})
 		return
 	}
 
@@ -216,7 +269,7 @@ func (h *OAuthHandler) AuthorizePost(c *gin.Context) {
 	}
 
 	// Generate authorization code
-        code, err := h.oauthProviderService.GenerateAuthorizationCode(clientID, userID.(string), redirectURI, scopes, strPtr(codeChallenge), strPtr(codeChallengeMethod))
+        code, err := h.oauthProviderService.GenerateAuthorizationCode(clientID, userID.(string), redirectURI, scopes, strPtr(approved.CodeChallenge), strPtr(approved.CodeChallengeMethod))
 	if err != nil {
 		redirectError(c, redirectURI, "server_error", "Failed to generate authorization code", state)
 		return
