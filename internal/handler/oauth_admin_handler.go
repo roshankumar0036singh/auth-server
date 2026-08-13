@@ -132,6 +132,52 @@ func (h *OAuthClientHandler) DeleteOAuthClient(c *gin.Context) {
 	c.JSON(http.StatusOK, utils.SuccessResponse("OAuth client deleted successfully", nil))
 }
 
+// UpdateOAuthClient updates an OAuth client owned by the user
+// @Summary Update OAuth Client
+// @Description Update name, redirect URIs, scopes, or flags of an OAuth client owned by the user
+// @Tags OAuth Client
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param clientId path string true "Client ID (UUID)"
+// @Param request body UpdateOAuthClientRequest true "Fields to update (omit to leave unchanged)"
+// @Success 200 {object} utils.Response
+// @Failure 400 {object} utils.Response
+// @Failure 401 {object} utils.Response
+// @Failure 403 {object} utils.Response
+// @Failure 404 {object} utils.Response
+// @Router /api/auth/oauth/clients/{clientId} [put]
+func (h *OAuthClientHandler) UpdateOAuthClient(c *gin.Context) {
+	clientID := c.Param("clientId")
+	userID, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, utils.UnauthorizedResponse(errUserNotAuthenticated))
+		return
+	}
+
+	var req UpdateOAuthClientRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.BadRequestResponse(c, "Invalid request body")
+		return
+	}
+
+	params := service.UpdateClientParams{
+		Name:         req.Name,
+		RedirectURIs: req.RedirectURIs,
+		Scopes:       req.Scopes,
+		IsActive:     req.IsActive,
+		IsPublic:     req.IsPublic,
+	}
+
+	client, err := h.oauthProviderService.UpdateClient(clientID, userID.(string), params)
+	if err != nil {
+		utils.BadRequestResponse(c, err.Error())
+		return
+	}
+
+	c.JSON(http.StatusOK, utils.SuccessResponse("OAuth client updated successfully", client))
+}
+
 // DTOs
 type CreateOAuthClientRequest struct {
 	Name         string   `json:"name" binding:"required"`
@@ -159,5 +205,14 @@ type OAuthClientData struct {
 type ListOAuthClientsResponse struct {
 	Success bool                 `json:"success"`
 	Data    []models.OAuthClient `json:"data"`
+}
+
+// UpdateOAuthClientRequest uses pointers so omitted fields keep their value.
+type UpdateOAuthClientRequest struct {
+	Name         *string   `json:"name"`
+	RedirectURIs *[]string `json:"redirect_uris"`
+	Scopes       *[]string `json:"scopes"`
+	IsActive     *bool     `json:"is_active"`
+	IsPublic     *bool     `json:"is_public"`
 }
 
