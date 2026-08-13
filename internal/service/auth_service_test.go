@@ -115,3 +115,38 @@ func TestAuthService_ResendVerification(t *testing.T) {
 	assert.Error(t, err)
 	assert.ErrorIs(t, err, repository.ErrUserNotFound)
 }
+
+func TestAuthService_LoginDeactivatedAccountRejectedBeforePasswordCheck(t *testing.T) {
+	authService, db, mr := testutils.SetupIntegrationTest(t)
+	defer mr.Close()
+
+	req := &dto.RegisterRequest{
+		Email:    "deactivated@example.com",
+		Password: "StrongP@ss123",
+	}
+	user, err := authService.Register(req)
+	assert.NoError(t, err)
+
+	// Deactivate the account
+	err = db.Model(user).Update("is_active", false).Error
+	assert.NoError(t, err)
+
+	// Correct password, deactivated account -> must be rejected as deactivated
+	// (NOT as "invalid email or password", which would mean the password was
+	// verified before the IsActive check).
+	_, err = authService.Login(&dto.LoginRequest{
+		Email:    "deactivated@example.com",
+		Password: "StrongP@ss123",
+	}, "127.0.0.1", "test-agent")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "account is deactivated")
+
+	// Even a wrong password must report the deactivation, never the password
+	// result (the bcrypt compare must not run for deactivated accounts).
+	_, err = authService.Login(&dto.LoginRequest{
+		Email:    "deactivated@example.com",
+		Password: "DefinitelyWrongP@ss",
+	}, "127.0.0.1", "test-agent")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "account is deactivated")
+}
