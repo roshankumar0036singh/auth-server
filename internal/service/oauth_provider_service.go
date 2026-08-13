@@ -335,6 +335,40 @@ func (s *OAuthProviderService) ValidateAccessToken(tokenString string) (*models.
 	return token, nil
 }
 
+// IntrospectionResult is the RFC 7662 token introspection response.
+type IntrospectionResult struct {
+	Active   bool   `json:"active"`
+	Scope    string `json:"scope,omitempty"`
+	ClientID string `json:"client_id,omitempty"`
+	UserID   string `json:"sub,omitempty"`
+	TokenType string `json:"token_type,omitempty"`
+	Exp      int64  `json:"exp,omitempty"`
+	Iat      int64  `json:"iat,omitempty"`
+}
+
+// IntrospectToken returns token metadata per RFC 7662. Per the spec, an
+// invalid/unknown/expired token yields Active:false with HTTP 200, not an
+// error.
+func (s *OAuthProviderService) IntrospectToken(tokenString string) *IntrospectionResult {
+	token, err := s.tokenRepo.FindByToken(utils.HashToken(tokenString))
+	if err != nil {
+		token, err = s.tokenRepo.FindByToken(tokenString)
+	}
+	if err != nil || token.IsExpired() {
+		return &IntrospectionResult{Active: false}
+	}
+
+	return &IntrospectionResult{
+		Active:    true,
+		Scope:     strings.Join(token.Scopes, " "),
+		ClientID:  token.ClientID,
+		UserID:    token.UserID,
+		TokenType: "Bearer",
+		Exp:       token.ExpiresAt.Unix(),
+		Iat:       token.CreatedAt.Unix(),
+	}
+}
+
 // CheckConsent checks if user has previously consented to the client
 func (s *OAuthProviderService) CheckConsent(userID, clientID string, requestedScopes []string) (bool, error) {
 	consent, err := s.consentRepo.FindByUserAndClient(userID, clientID)
