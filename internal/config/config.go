@@ -4,6 +4,7 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/joho/godotenv"
@@ -21,9 +22,10 @@ type Config struct {
 }
 
 type AppConfig struct {
-	Port int
-	Env  string
-	URL  string
+	Port               int
+	Env                string
+	URL                string
+	CORSAllowedOrigins []string
 }
 
 type WebAuthnConfig struct {
@@ -138,9 +140,10 @@ func LoadConfig() *Config {
 
 	return &Config{
 		App: AppConfig{
-			Port: port,
-			Env:  getEnv("APP_ENV", "development"),
-			URL:  appURL,
+			Port:               port,
+			Env:                getEnv("APP_ENV", "development"),
+			URL:                appURL,
+			CORSAllowedOrigins: splitCSV(getEnv("CORS_ALLOWED_ORIGINS", "")),
 		},
 		Database: DatabaseConfig{
 			URL:             getEnv("DATABASE_URL", ""),
@@ -203,4 +206,17 @@ func getEnv(key, defaultValue string) string {
 		return value
 	}
 	return defaultValue
+}
+
+// splitCSV splits a comma-separated list into a trimmed, non-empty slice.
+// Used for CORS_ALLOWED_ORIGINS.
+func splitCSV(value string) []string {
+	var out []string
+	for _, part := range strings.Split(value, ",") {
+		part = strings.TrimSpace(part)
+		if part != "" {
+			out = append(out, part)
+		}
+	}
+	return out
 }
