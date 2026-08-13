@@ -21,7 +21,16 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
         "github.com/lib/pq"
+	"github.com/alicebob/miniredis/v2"
+	"github.com/go-redis/redis/v8"
+	"context"
+	"maps"
+	"net/url"
 )
+
+func newTestCache(mr *miniredis.Miniredis) *service.CacheService {
+	return service.NewCacheService(redis.NewClient(&redis.Options{Addr: mr.Addr()}))
+}
 
 func setupOAuthUserInfoRouter(t *testing.T) (*gin.Engine, *repository.UserRepository, *repository.OAuthTokenRepository) {
 	_, db, mr := testutils.SetupIntegrationTest(t)
@@ -43,7 +52,7 @@ func setupOAuthUserInfoRouter(t *testing.T) (*gin.Engine, *repository.UserReposi
 
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
-	r.GET("/oauth/userinfo", handler.NewOAuthHandler(oauthProviderService, userRepo).UserInfo)
+	r.GET("/oauth/userinfo", handler.NewOAuthHandler(oauthProviderService, userRepo, newTestCache(mr)).UserInfo)
 
 	return r, userRepo, tokenRepo
 }
@@ -89,7 +98,7 @@ func TestNewOAuthHandlerPanicsWithoutUserRepository(t *testing.T) {
 	)
 
 	require.Panics(t, func() {
-		handler.NewOAuthHandler(oauthProviderService, nil)
+		handler.NewOAuthHandler(oauthProviderService, nil, newTestCache(mr))
 	})
 }
 
@@ -372,7 +381,7 @@ func setupTokenRouter(t *testing.T) (*gin.Engine, *repository.OAuthClientReposit
 
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
-	r.POST("/oauth/token", handler.NewOAuthHandler(oauthProviderService, userRepo).Token)
+	r.POST("/oauth/token", handler.NewOAuthHandler(oauthProviderService, userRepo, newTestCache(mr)).Token)
 	return r, clientRepo, codeRepo
 }
 
@@ -463,3 +472,99 @@ func TestToken_ConfidentialClient_MissingSecret_Rejected(t *testing.T) {
 }
 
 func stringPtr(s string) *string { return &s }
+
+func TestOAuthHandler_ConsentChallengeBinding(t *testing.T) {
+	_, db, mr := testutils.SetupIntegrationTest(t)
+	defer mr.Close()
+
+	cache := newTestCache(mr)
+	oauthProviderService := service.NewOAuthProviderService(
+		repository.NewOAuthClientRepository(db),
+		repository.NewAuthorizationCodeRepository(db),
+		repository.NewOAuthTokenRepository(db),
+		repository.NewUserConsentRepository(db),
+		repository.NewOAuthProviderConfigRepository(db),
+		service.NewTokenService(&config.Config{JWT: config.JWTConfig{AccessSecret: "secret", RefreshSecret: "refresh"}}),
+		&config.Config{},
+	)
+	userRepo := repository.NewUserRepository(db)
+	err := userRepo.Create(&models.User{ID: uuid.NewString(), Email: "consent@example.com", IsActive: true})
+	require.NoError(t, err)
+	user, err := userRepo.FindByEmail("consent@example.com")
+	require.NoError(t, err)
+
+	client, _, err := oauthProviderService.CreateClient("Consent App", []string{"https://app.example.com/cb"}, []string{"read:profile", "read:email"}, user.ID, false)
+	require.NoError(t, err)
+
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	r.LoadHTMLGlob("../../templates/*")
+	h := handler.NewOAuthHandler(oauthProviderService, userRepo, cache)
+	r.POST("/oauth/authorize", func(c *gin.Context) {
+		c.Set("userID", user.ID)
+		h.AuthorizePost(c)
+	})
+
+	post := func(form map[string]string) *httptest.ResponseRecorder {
+		req := httptest.NewRequest(http.MethodPost, "/oauth/authorize", nil)
+		body := &strings.Builder{}
+		for k, v := range form {
+			if body.Len() > 0 {
+				body.WriteString("&")
+			}
+			body.WriteString(url.QueryEscape(k) + "=" + url.QueryEscape(v))
+		}
+		req, _ = http.NewRequest(http.MethodPost, "/oauth/authorize", strings.NewReader(body.String()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		return w
+	}
+
+	base := map[string]string{
+		"client_id":           client.ClientID,
+		"redirect_uri":        "https://app.example.com/cb",
+		"state":               "xyz",
+		"action":              "approve",
+		"code_challenge":      "abc",
+		"code_challenge_method": "S256",
+	}
+
+	t.Run("missing challenge is rejected", func(t *testing.T) {
+		w := post(base)
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+		assert.Contains(t, w.Body.String(), "Missing consent challenge")
+	})
+
+	t.Run("unknown challenge is rejected", func(t *testing.T) {
+		f := maps.Clone(base)
+		f["consent_challenge"] = "deadbeefdeadbeefdeadbeefdeadbeef"
+		assert.Equal(t, http.StatusBadRequest, post(f).Code)
+	})
+
+	t.Run("posted scope is ignored; stored scope is granted", func(t *testing.T) {
+		// seed a challenge claiming only read:profile
+		payload, err := service.MarshalConsentPayload(service.ConsentChallengePayload{
+			ClientID: client.ClientID, UserID: user.ID,
+			Scopes: []string{"read:profile"}, CodeChallenge: "abc", CodeChallengeMethod: "S256",
+		})
+		require.NoError(t, err)
+		require.NoError(t, cache.StoreConsentChallenge(context.Background(), "goodchallenge1234567890", payload, time.Minute))
+
+		// attacker posts an escalated scope
+		f := maps.Clone(base)
+		f["scope"] = "read:profile read:email admin:users"
+		f["consent_challenge"] = "goodchallenge1234567890"
+		w := post(f)
+		assert.Equal(t, http.StatusFound, w.Code)
+		loc := w.Header().Get("Location")
+		assert.NotContains(t, loc, "error", "redirect carries the code")
+
+		// the issued code is bound to the STORED scope, not the posted one
+		codeRepo := repository.NewAuthorizationCodeRepository(db)
+		codes, err := codeRepo.FindAll()
+		require.NoError(t, err)
+		require.Len(t, codes, 1)
+		assert.Equal(t, []string{"read:profile"}, []string(codes[0].Scopes))
+	})
+}

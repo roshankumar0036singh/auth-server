@@ -47,3 +47,10 @@ func (r *AuthorizationCodeRepository) MarkAsUsed(code string) (bool, error) {
 func (r *AuthorizationCodeRepository) DeleteExpired() error {
 	return r.db.Where("expires_at < NOW()").Delete(&models.AuthorizationCode{}).Error
 }
+
+// FindAll returns every stored authorization code (test/audit helper).
+func (r *AuthorizationCodeRepository) FindAll() ([]models.AuthorizationCode, error) {
+	var codes []models.AuthorizationCode
+	err := r.db.Order("created_at ASC").Find(&codes).Error
+	return codes, err
+}
