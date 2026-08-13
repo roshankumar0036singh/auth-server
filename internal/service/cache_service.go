@@ -8,6 +8,7 @@ import (
 
 	"github.com/go-redis/redis/v8"
 	"github.com/go-webauthn/webauthn/webauthn"
+	"errors"
 )
 
 const (
@@ -51,6 +52,26 @@ func (s *CacheService) IsTokenBlacklisted(ctx context.Context, token string) (bo
 	}
 
 	return result == "1", nil
+}
+
+// StoreMagicLink persists a single-use magic-link token for 15 minutes (#155).
+func (s *CacheService) StoreMagicLink(ctx context.Context, token, userID string, expiry time.Duration) error {
+	key := fmt.Sprintf("magic_link:%s", token)
+	return s.client.Set(ctx, key, userID, expiry).Err()
+}
+
+// ConsumeMagicLink atomically redeems a magic-link token; a second attempt
+// fails because the key is deleted on first use (#155).
+func (s *CacheService) ConsumeMagicLink(ctx context.Context, token string) (string, error) {
+	key := fmt.Sprintf("magic_link:%s", token)
+	val, err := s.client.GetDel(ctx, key).Result()
+	if err == redis.Nil {
+		return "", errors.New("magic link is invalid, expired or already used")
+	}
+	if err != nil {
+		return "", err
+	}
+	return val, nil
 }
 
 // StoreSession stores session data in Redis

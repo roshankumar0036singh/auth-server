@@ -34,6 +34,17 @@ func (m *MockEmailSender) SendPasswordResetEmail(email, token, appURL string) er
 	m.LastEmail["reset"] = email
 	return nil
 }
+func (m *MockEmailSender) SendMagicLinkEmail(email, token, appURL string) error {
+	if m.LastEmail == nil {
+		m.LastEmail = make(map[string]string)
+	}
+	m.LastEmail["magic"] = email
+	return nil
+}
+
+// LastMockEmail exposes the last email capture used inside
+// SetupIntegrationTest so tests can assert on sent mail.
+var LastMockEmail = &MockEmailSender{}
 
 func SetupIntegrationTest(t *testing.T) (*service.AuthService, *gorm.DB, *miniredis.Miniredis) {
 	// 1. In-memory SQLite
@@ -126,7 +137,8 @@ func SetupIntegrationTest(t *testing.T) (*service.AuthService, *gorm.DB, *minire
 	}
 	tokenService := service.NewTokenService(cfg)
 	cacheService := service.NewCacheService(rdb)
-	emailService := &MockEmailSender{}
+	LastMockEmail = &MockEmailSender{}
+	emailService := LastMockEmail
 	auditService := service.NewAuditService(auditRepo)
 	mfaService := service.NewMFAService(cfg)
 

@@ -152,6 +152,10 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, redisClient *redis.Client, cfg
 			auth.POST("/forgot-password", authHandler.ForgotPassword)
 			auth.POST("/reset-password", authHandler.ResetPassword)
 
+			// Passwordless magic link login (#155)
+			auth.POST("/magic-link/request", authHandler.RequestMagicLink)
+			auth.GET("/magic-link/verify", authHandler.VerifyMagicLink)
+
 			// WebAuthn Login
 			auth.POST("/webauthn/login/begin", webAuthnHandler.BeginLogin)
 			auth.POST("/webauthn/login/finish/:session_id", webAuthnHandler.FinishLogin)
