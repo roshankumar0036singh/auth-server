@@ -251,6 +251,36 @@ func (h *OAuthHandler) Token(c *gin.Context) {
         codeVerifier := c.PostForm("code_verifier")
 
 	// Validate grant type
+	if grantType == "client_credentials" {
+		// RFC 6749 §4.4: machine-to-machine, no user involved. The client
+		// authenticates with its credentials; scopes are optional and
+		// validated against the client's registered set.
+		scope := c.PostForm("scope")
+		accessToken, err := h.oauthProviderService.IssueClientCredentialsToken(clientID, clientSecret, scope)
+		if err != nil {
+			if isCredentialError(err) {
+				c.JSON(http.StatusUnauthorized, gin.H{
+					"error": "invalid_client",
+					"code":  "INVALID_CLIENT",
+				})
+				return
+			}
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error":             "invalid_scope",
+				"error_description": err.Error(),
+				"code":              "INVALID_SCOPE",
+			})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{
+			"access_token": accessToken.RawToken,
+			"token_type":   "Bearer",
+			"expires_in":   3600,
+			"scope":        strings.Join(accessToken.Scopes, " "),
+		})
+		return
+	}
+
 	if grantType != "authorization_code" {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "unsupported_grant_type",
@@ -452,4 +482,16 @@ func strPtr(s string) *string {
 		return nil
 	}
 	return &s
+}
+
+// isCredentialError reports whether an error originates from client
+// credential validation (invalid secret, inactive client, missing secret).
+func isCredentialError(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := err.Error()
+	return msg == service.ErrInvalidClientCredentials.Error() ||
+		msg == service.ErrClientInactive.Error() ||
+		msg == "client_secret required for confidential client"
 }

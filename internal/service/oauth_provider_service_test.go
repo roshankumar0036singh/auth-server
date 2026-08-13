@@ -1,6 +1,7 @@
 package service_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/roshankumar0036singh/auth-server/internal/config"
@@ -56,7 +57,7 @@ func TestOAuthProviderService(t *testing.T) {
 	ownerID := "user1"
 	otherOwnerID := "user2"
 
-	client, _, err := providerService.CreateClient("test-client", []string{"http://localhost"}, []string{"read:profile"}, ownerID, false)
+	client, rawClientSecret, err := providerService.CreateClient("test-client", []string{"http://localhost"}, []string{"read:profile"}, ownerID, false)
 	assert.NoError(t, err)
 
 	t.Run("CreateOrUpdateProviderConfig - Success", func(t *testing.T) {
@@ -95,4 +96,26 @@ func TestOAuthProviderService(t *testing.T) {
 		err := providerService.DeleteProviderConfig(otherOwnerID, client.ID, "google")
 		assert.ErrorIs(t, err, service.ErrUnauthorized)
 	})
+
+	t.Run("IssueClientCredentialsToken - Success", func(t *testing.T) {
+		tok, err := providerService.IssueClientCredentialsToken(client.ClientID, rawClientSecret, "read:profile")
+		assert.NoError(t, err)
+		assert.NotEmpty(t, tok.RawToken)
+		assert.Equal(t, "read:profile", strings.Join(tok.Scopes, " "))
+		assert.Equal(t, client.ClientID, tok.ClientID)
+		assert.Equal(t, ownerID, tok.UserID)
+	})
+
+	t.Run("IssueClientCredentialsToken - Disallowed Scope", func(t *testing.T) {
+		_, err := providerService.IssueClientCredentialsToken(client.ClientID, rawClientSecret, "admin:everything")
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "scope")
+	})
+
+	t.Run("IssueClientCredentialsToken - Bad Secret", func(t *testing.T) {
+		_, err := providerService.IssueClientCredentialsToken(client.ClientID, "wrong-secret", "read:profile")
+		assert.Error(t, err)
+		assert.ErrorIs(t, err, service.ErrInvalidClientCredentials)
+	})
+
 }

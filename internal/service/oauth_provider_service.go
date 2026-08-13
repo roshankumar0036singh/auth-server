@@ -315,6 +315,53 @@ func (s *OAuthProviderService) ExchangeCodeForToken(code, clientID, redirectURI,
 	return accessToken, nil
 }
 
+// IssueClientCredentialsToken issues an access token for the
+// client_credentials grant (RFC 6749 §4.4). Scopes are validated against
+// the client's registered scope set. There is no user in this flow, so the
+// token is bound to the client owner as its subject on the token record.
+func (s *OAuthProviderService) IssueClientCredentialsToken(clientID, clientSecret, scopeString string) (*models.OAuthAccessToken, error) {
+	client, err := s.ResolveClientForToken(clientID, clientSecret)
+	if err != nil {
+		return nil, err
+	}
+	if !client.IsActive {
+		return nil, ErrClientInactive
+	}
+
+	var requested []string
+	if scopeString != "" {
+		requested = strings.Split(scopeString, " ")
+		if err := s.ValidateScopes(requested); err != nil {
+			return nil, errors.New("invalid scope requested")
+		}
+		if err := s.ValidateClientScopes(client, requested); err != nil {
+			return nil, errors.New("scope not allowed for this client")
+		}
+	} else {
+		requested = client.Scopes
+	}
+
+	tokenString, err := generateRandomString(48)
+	if err != nil {
+		return nil, err
+	}
+
+	accessToken := &models.OAuthAccessToken{
+		Token:     utils.HashToken(tokenString),
+		RawToken:  tokenString,
+		ClientID:  client.ClientID,
+		UserID:    client.OwnerID,
+		Scopes:    models.StringArray(requested),
+		ExpiresAt: time.Now().Add(1 * time.Hour),
+	}
+
+	if err := s.tokenRepo.Create(accessToken); err != nil {
+		return nil, errors.New("failed to persist access token")
+	}
+
+	return accessToken, nil
+}
+
 // ValidateAccessToken validates an OAuth access token
 // It first tries the hashed token lookup (new behavior), then falls back to
 // raw token lookup (backward compatibility for unhashed tokens).
