@@ -28,8 +28,8 @@ func TestInitTracerDisabled(t *testing.T) {
 
 func TestInitTracerEnabledWithDummyExporter(t *testing.T) {
 	cfg := &config.Config{Tracing: config.TracingConfig{
-		Enabled:    true,
-		Endpoint:   "127.0.0.1:1", // nothing listening; exporter setup must still succeed
+		Enabled:     true,
+		Endpoint:    "127.0.0.1:1", // nothing listening; exporter setup must still succeed
 		ServiceName: "auth-server-test",
 	}}
 	shutdown, err := tracing.InitTracer(cfg)
@@ -69,11 +69,11 @@ func TestTraceMiddlewarePropagatesTraceparent(t *testing.T) {
 
 func TestDefaultTracingFromEnv(t *testing.T) {
 	env := map[string]string{
-		"TRACING_ENABLED":          "true",
-		"TRACING_ENDPOINT":         "jaeger:4318",
-		"TRACING_SERVICE_NAME":     "auth",
-		"TRACING_SAMPLING_RATIO":   "0.5",
-		"TRACING_EXPORT_TIMEOUT":   "5s",
+		"TRACING_ENABLED":        "true",
+		"TRACING_ENDPOINT":       "jaeger:4318",
+		"TRACING_SERVICE_NAME":   "auth",
+		"TRACING_SAMPLING_RATIO": "0.5",
+		"TRACING_EXPORT_TIMEOUT": "5s",
 	}
 	get := func(k string) string { return env[k] }
 	getDur := func(k string, d time.Duration) time.Duration {

@@ -9,7 +9,7 @@ import (
 // TracingConfig controls OpenTelemetry distributed tracing (issue #189).
 type TracingConfig struct {
 	Enabled       bool
-	Endpoint      string        // OTLP/HTTP collector host:port (no scheme)
+	Endpoint      string // OTLP/HTTP collector host:port (no scheme)
 	ServiceName   string
 	SamplingRatio float64       // 0..1, share of requests to sample
 	ExportTimeout time.Duration // per-batch export deadline
