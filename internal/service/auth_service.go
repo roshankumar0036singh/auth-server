@@ -122,9 +122,13 @@ func (s *AuthService) Register(req *dto.RegisterRequest) (*models.User, error) {
 
 func (s *AuthService) sendVerificationEmail(user *models.User) error {
 	// Generate verification token
+	rawToken, err := s.tokenService.GenerateRandomString(32)
+	if err != nil {
+		return err
+	}
 	token := &models.VerificationToken{
 		UserID:    user.ID,
-		Token:     s.tokenService.GenerateRandomString(32),
+		Token:     rawToken,
 		ExpiresAt: time.Now().Add(24 * time.Hour),
 	}
 

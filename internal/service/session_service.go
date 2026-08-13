@@ -98,7 +98,10 @@ func (s *AuthService) LoginWithOAuth(email, oauthID, firstName, lastName, provid
 	user, err := s.userRepo.FindByEmail(email)
 	if err != nil {
 		// User does not exist, create new one
-		password := s.tokenService.GenerateRandomString(32)
+		password, err := s.tokenService.GenerateRandomString(32)
+		if err != nil {
+			return nil, err
+		}
 
 		hashedPassword, err := s.hashPassword(password)
 		if err != nil {
