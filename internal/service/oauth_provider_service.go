@@ -399,6 +399,58 @@ func (s *OAuthProviderService) DeleteClient(clientID, ownerID string) error {
 	return s.clientRepo.Delete(clientID)
 }
 
+// UpdateClientParams holds the optional fields that UpdateClient can change.
+// Nil pointers mean "leave unchanged"; a fully nil params set is a no-op.
+type UpdateClientParams struct {
+	Name         *string
+	RedirectURIs *[]string
+	Scopes       *[]string
+	IsActive     *bool
+	IsPublic     *bool
+}
+
+// UpdateClient updates an OAuth client if owned by the requesting user.
+func (s *OAuthProviderService) UpdateClient(clientID, ownerID string, params UpdateClientParams) (*models.OAuthClient, error) {
+	client, err := s.clientRepo.FindByID(clientID)
+	if err != nil {
+		return nil, errors.New("client not found")
+	}
+
+	if client.OwnerID != ownerID {
+		return nil, errors.New("unauthorized to update this client")
+	}
+
+	changed := false
+	if params.Name != nil {
+		client.Name = *params.Name
+		changed = true
+	}
+	if params.RedirectURIs != nil {
+		client.RedirectURIs = pq.StringArray(*params.RedirectURIs)
+		changed = true
+	}
+	if params.Scopes != nil {
+		client.Scopes = pq.StringArray(*params.Scopes)
+		changed = true
+	}
+	if params.IsActive != nil {
+		client.IsActive = *params.IsActive
+		changed = true
+	}
+	if params.IsPublic != nil {
+		client.IsPublic = *params.IsPublic
+		changed = true
+	}
+	if !changed {
+		return nil, errors.New("no fields to update")
+	}
+
+	if err := s.clientRepo.Update(client); err != nil {
+		return nil, errors.New("failed to update client")
+	}
+	return client, nil
+}
+
 // ParseScopes parses a space-separated scope string
 func ParseScopes(scopeString string) []string {
 	if scopeString == "" {

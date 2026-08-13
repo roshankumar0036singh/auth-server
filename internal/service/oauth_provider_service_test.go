@@ -88,6 +88,39 @@ func TestOAuthProviderService(t *testing.T) {
 		assert.Error(t, err)
 	})
 
+
+	t.Run("UpdateClient - Success", func(t *testing.T) {
+		newName := "renamed-client"
+		newScopes := []string{"read:profile", "write:profile"}
+		updated, err := providerService.UpdateClient(client.ID, ownerID, service.UpdateClientParams{
+			Name:   &newName,
+			Scopes: &newScopes,
+		})
+		assert.NoError(t, err)
+		assert.Equal(t, newName, updated.Name)
+		assert.Equal(t, newScopes, []string(updated.Scopes))
+	})
+
+	t.Run("UpdateClient - Unauthorized", func(t *testing.T) {
+		newName := "hijack"
+		_, err := providerService.UpdateClient(client.ID, otherOwnerID, service.UpdateClientParams{
+			Name: &newName,
+		})
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "unauthorized")
+	})
+
+	t.Run("UpdateClient - Not Found", func(t *testing.T) {
+		_, err := providerService.UpdateClient("missing-id", ownerID, service.UpdateClientParams{})
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "not found")
+	})
+
+	t.Run("UpdateClient - No Fields", func(t *testing.T) {
+		_, err := providerService.UpdateClient(client.ID, ownerID, service.UpdateClientParams{})
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "no fields")
+	})
 	t.Run("DeleteProviderConfig - Unauthorized", func(t *testing.T) {
 		// recreate
 		providerService.CreateOrUpdateProviderConfig(ownerID, client.ID, "google", "g-id", "g-secret")
