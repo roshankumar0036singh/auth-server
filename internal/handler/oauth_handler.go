@@ -299,6 +299,45 @@ func (h *OAuthHandler) Token(c *gin.Context) {
 	})
 }
 
+// Introspect returns RFC 7662 token introspection for a submitted token.
+// The caller authenticates with client credentials (same resolution as the
+// token endpoint); the response is always HTTP 200 with active:false for
+// unknown or expired tokens, per the spec.
+// @Summary OAuth Token Introspection
+// @Description Validate an access token and return its metadata (RFC 7662)
+// @Tags OAuth Provider
+// @Accept  x-www-form-urlencoded
+// @Produce json
+// @Param   client_id     formData string true "OAuth client ID"
+// @Param   client_secret formData string false "OAuth client secret (required for confidential clients)"
+// @Param   token         formData string true "Access token to inspect"
+// @Success 200 {object} service.IntrospectionResult
+// @Router /oauth/introspect [post]
+func (h *OAuthHandler) Introspect(c *gin.Context) {
+	clientID := c.PostForm("client_id")
+	clientSecret := c.PostForm("client_secret")
+	tokenString := c.PostForm("token")
+
+	if tokenString == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "invalid_request",
+			"code":  "INVALID_REQUEST",
+		})
+		return
+	}
+
+	// Authenticate the introspection caller with client credentials.
+	if _, err := h.oauthProviderService.ResolveClientForToken(clientID, clientSecret); err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"error": "invalid_client",
+			"code":  "INVALID_CLIENT",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, h.oauthProviderService.IntrospectToken(tokenString))
+}
+
 // UserInfo returns user information based on the access token
 // @Summary OAuth User Info
 // @Description Returns user profile information for the provided access token

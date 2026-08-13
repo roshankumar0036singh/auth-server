@@ -463,3 +463,72 @@ func TestToken_ConfidentialClient_MissingSecret_Rejected(t *testing.T) {
 }
 
 func stringPtr(s string) *string { return &s }
+
+func TestOAuthHandler_Introspect(t *testing.T) {
+	_, db, mr := testutils.SetupIntegrationTest(t)
+	defer mr.Close()
+
+	clientRepo := repository.NewOAuthClientRepository(db)
+	tokenRepo := repository.NewOAuthTokenRepository(db)
+	oauthProviderService := service.NewOAuthProviderService(
+		clientRepo,
+		repository.NewAuthorizationCodeRepository(db),
+		tokenRepo,
+		repository.NewUserConsentRepository(db),
+		repository.NewOAuthProviderConfigRepository(db),
+		service.NewTokenService(&config.Config{JWT: config.JWTConfig{AccessSecret: "secret", RefreshSecret: "refresh"}}),
+		&config.Config{},
+	)
+
+	r := gin.New()
+	h := handler.NewOAuthHandler(oauthProviderService, repository.NewUserRepository(db))
+	r.POST("/oauth/introspect", h.Introspect)
+
+	userRepo := repository.NewUserRepository(db)
+	user := &models.User{Email: "intro@example.com", PasswordHash: "hash", FirstName: "Intro", EmailVerified: true}
+	require.NoError(t, userRepo.Create(user))
+
+	// Create a confidential client (hashed secret)
+	client, rawSecret, err := oauthProviderService.CreateClient("intro-client", []string{"http://localhost"}, []string{"read:profile"}, user.ID, false)
+	require.NoError(t, err)
+	require.NotEmpty(t, rawSecret)
+
+	// Issue an access token for the client
+	rawToken := createOAuthAccessToken(t, tokenRepo, user.ID, []string{"read:profile"})
+	accessToken, err := tokenRepo.FindByToken(utils.HashToken(rawToken))
+	require.NoError(t, err)
+	accessToken.ClientID = client.ID
+	// Update in place to keep the unique token index intact.
+	var count int64
+	db.Model(&models.OAuthAccessToken{}).Where("id = ?", accessToken.ID).Count(&count)
+	require.Equal(t, int64(1), count)
+	require.NoError(t, db.Model(&models.OAuthAccessToken{}).Where("id = ?", accessToken.ID).Update("client_id", client.ID).Error)
+
+	do := func(tokenValue, clientSecret string) *httptest.ResponseRecorder {
+		body := strings.NewReader("client_id=" + client.ClientID + "&client_secret=" + clientSecret + "&token=" + tokenValue)
+		req := httptest.NewRequest(http.MethodPost, "/oauth/introspect", body)
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		return w
+	}
+
+	// Valid token + valid credentials -> active
+	w := do(rawToken, rawSecret)
+	assert.Equal(t, http.StatusOK, w.Code)
+	var resp map[string]interface{}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+	assert.Equal(t, true, resp["active"])
+	assert.Equal(t, client.ID, resp["client_id"])
+	assert.Equal(t, user.ID, resp["sub"])
+
+	// Invalid credentials -> 401, no leak
+	w = do(rawToken, "wrong-secret")
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+
+	// Unknown token -> 200 with active:false
+	w = do("no-such-token", rawSecret)
+	assert.Equal(t, http.StatusOK, w.Code)
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+	assert.Equal(t, false, resp["active"])
+}
