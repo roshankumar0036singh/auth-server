@@ -11,10 +11,12 @@ import (
 
 	"github.com/lib/pq"
 	"github.com/roshankumar0036singh/auth-server/internal/config"
+	"github.com/roshankumar0036singh/auth-server/internal/dto"
 	"github.com/roshankumar0036singh/auth-server/internal/models"
 	"github.com/roshankumar0036singh/auth-server/internal/repository"
 	"github.com/roshankumar0036singh/auth-server/internal/utils"
 	"golang.org/x/crypto/bcrypt"
+	"net/url"
 )
 
 var (
@@ -98,7 +100,7 @@ func (s *OAuthProviderService) CreateClient(name string, redirectURIs []string, 
 		Scopes:       pq.StringArray(scopes),
 		OwnerID:      ownerID,
 		IsActive:     true,
-                IsPublic:     isPublic,
+		IsPublic:     isPublic,
 	}
 
 	if err := s.clientRepo.Create(client); err != nil {
@@ -216,15 +218,15 @@ func (s *OAuthProviderService) GenerateAuthorizationCode(clientID, userID, redir
 	}
 
 	authCode := &models.AuthorizationCode{
-		Code:        code,
-		ClientID:    clientID,
-		UserID:      userID,
-		Scopes:      pq.StringArray(scopes),
-		RedirectURI: redirectURI,
-		ExpiresAt:   time.Now().Add(10 * time.Minute), // 10 minutes
-		Used:        false,
-                CodeChallenge: codeChallenge,
-                CodeChallengeMethod: codeChallengeMethod,
+		Code:                code,
+		ClientID:            clientID,
+		UserID:              userID,
+		Scopes:              pq.StringArray(scopes),
+		RedirectURI:         redirectURI,
+		ExpiresAt:           time.Now().Add(10 * time.Minute), // 10 minutes
+		Used:                false,
+		CodeChallenge:       codeChallenge,
+		CodeChallengeMethod: codeChallengeMethod,
 	}
 
 	if err := s.codeRepo.Create(authCode); err != nil {
@@ -482,4 +484,118 @@ func (s *OAuthProviderService) DeleteProviderConfig(ownerID, clientID, provider 
 	}
 
 	return s.configRepo.Delete(config.ID)
+}
+
+// DynamicClientRegistrationError is returned for invalid RFC 7591 metadata.
+type DynamicClientRegistrationError struct {
+	Message string
+}
+
+func (e *DynamicClientRegistrationError) Error() string { return e.Message }
+
+// RegisterClient implements RFC 7591 dynamic client registration (#173).
+// A third-party app provides client metadata and receives a freshly issued
+// client_id and client_secret. The secret is returned in plaintext exactly
+// once. Access is gated by the DYNAMIC_CLIENT_REGISTRATION config flag.
+func (s *OAuthProviderService) RegisterClient(req dto.DynamicClientRegistrationRequest) (*models.OAuthClient, string, error) {
+	if req.ClientName == "" {
+		return nil, "", &DynamicClientRegistrationError{"client_name is required"}
+	}
+	if len(req.ClientName) > 100 {
+		return nil, "", &DynamicClientRegistrationError{"client_name must not exceed 100 characters"}
+	}
+
+	if req.TokenEndpointAuthMethod == "" {
+		req.TokenEndpointAuthMethod = "client_secret_basic"
+	}
+	if req.ApplicationType == "" {
+		req.ApplicationType = "web"
+	}
+	if req.ApplicationType != "web" && req.ApplicationType != "native" {
+		return nil, "", &DynamicClientRegistrationError{"application_type must be 'web' or 'native'"}
+	}
+	if req.TokenEndpointAuthMethod != "client_secret_basic" && req.TokenEndpointAuthMethod != "client_secret_post" && req.TokenEndpointAuthMethod != "none" {
+		return nil, "", &DynamicClientRegistrationError{"token_endpoint_auth_method must be client_secret_basic, client_secret_post or none"}
+	}
+
+	if len(req.RedirectURIs) == 0 && req.ApplicationType == "web" {
+		return nil, "", &DynamicClientRegistrationError{"redirect_uris is required for web applications"}
+	}
+	for _, u := range req.RedirectURIs {
+		parsed, err := url.ParseRequestURI(u)
+		if err != nil || !parsed.IsAbs() {
+			return nil, "", &DynamicClientRegistrationError{"redirect_uris must be absolute URIs"}
+		}
+	}
+
+	if len(req.GrantTypes) == 0 {
+		req.GrantTypes = []string{"authorization_code"}
+	}
+	allowedGrants := map[string]bool{"authorization_code": true, "client_credentials": true, "refresh_token": true}
+	for _, g := range req.GrantTypes {
+		if !allowedGrants[g] {
+			return nil, "", &DynamicClientRegistrationError{"unsupported grant_types: " + g}
+		}
+	}
+
+	if len(req.ResponseTypes) == 0 {
+		req.ResponseTypes = []string{"code"}
+	}
+	for _, r := range req.ResponseTypes {
+		if r != "code" {
+			return nil, "", &DynamicClientRegistrationError{"unsupported response_types: " + r}
+		}
+	}
+
+	if req.Scope == "" {
+		req.Scope = "read:profile"
+	}
+	if err := s.ValidateScopes(strings.Fields(req.Scope)); err != nil {
+		return nil, "", &DynamicClientRegistrationError{"invalid scope: " + err.Error()}
+	}
+
+	// Public (native) clients get no usable shared secret.
+	isPublic := req.ApplicationType == "native" || req.TokenEndpointAuthMethod == "none"
+
+	clientID, err := generateRandomString(32)
+	if err != nil {
+		return nil, "", err
+	}
+	clientSecret, err := generateRandomString(48)
+	if err != nil {
+		return nil, "", err
+	}
+	if isPublic {
+		clientSecret = ""
+	}
+
+	rounds := s.cfg.Security.BcryptRounds
+	if rounds < bcrypt.MinCost || rounds > bcrypt.MaxCost {
+		rounds = bcrypt.DefaultCost
+	}
+	var hashedSecret string
+	if clientSecret != "" {
+		hashed, err := bcrypt.GenerateFromPassword([]byte(clientSecret), rounds)
+		if err != nil {
+			return nil, "", err
+		}
+		hashedSecret = string(hashed)
+	}
+
+	client := &models.OAuthClient{
+		Name:         req.ClientName,
+		ClientID:     clientID,
+		ClientSecret: hashedSecret,
+		RedirectURIs: pq.StringArray(req.RedirectURIs),
+		Scopes:       pq.StringArray(strings.Fields(req.Scope)),
+		OwnerID:      "dynamically-registered",
+		IsActive:     true,
+		IsPublic:     isPublic,
+	}
+
+	if err := s.clientRepo.Create(client); err != nil {
+		return nil, "", err
+	}
+
+	return client, clientSecret, nil
 }
