@@ -79,7 +79,8 @@ func SetupIntegrationTest(t *testing.T) (*service.AuthService, *gorm.DB, *minire
             used INTEGER DEFAULT 0,
             created_at DATETIME,
             code_challenge TEXT,
-            code_challenge_method TEXT
+            code_challenge_method TEXT,
+            nonce TEXT
         )`).Error
         assert.NoError(t, err)
 

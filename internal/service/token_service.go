@@ -1,6 +1,7 @@
 package service
 
 import (
+	"crypto/rsa"
 	"errors"
 	"log"
 	"time"
@@ -12,11 +13,22 @@ import (
 )
 
 type TokenService struct {
-	cfg *config.Config
+	cfg  *config.Config
+	jwks *JWKSService
 }
 
 func NewTokenService(cfg *config.Config) *TokenService {
-	return &TokenService{cfg: cfg}
+	return &TokenService{cfg: cfg, jwks: NewJWKSService(cfg)}
+}
+
+// JWKSPrivateKey returns the optional RSA key used for RS256 id_tokens.
+func (s *TokenService) JWKSPrivateKey() *rsa.PrivateKey {
+	return s.jwks.PrivateKey()
+}
+
+// JWKSKeyID returns the kid of the published key ("" in HS256 mode).
+func (s *TokenService) JWKSKeyID() string {
+	return s.jwks.KeyID()
 }
 
 func (s *TokenService) GetAccessTokenDuration() time.Duration {

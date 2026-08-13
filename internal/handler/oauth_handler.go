@@ -11,6 +11,7 @@ import (
 	"github.com/roshankumar0036singh/auth-server/internal/models"
 	"github.com/roshankumar0036singh/auth-server/internal/repository"
 	"github.com/roshankumar0036singh/auth-server/internal/service"
+	"time"
 )
 
 const errTmpl = "error.html"
@@ -76,6 +77,7 @@ func (h *OAuthHandler) Authorize(c *gin.Context) {
 	state := c.Query("state")
 	codeChallenge := c.Query("code_challenge")
 	codeChallengeMethod := c.Query("code_challenge_method")
+	nonce := c.Query("nonce")
 	if codeChallenge != "" && codeChallengeMethod == "" {
 		codeChallengeMethod = "S256"
 	}
@@ -106,7 +108,7 @@ func (h *OAuthHandler) Authorize(c *gin.Context) {
 	if err == nil && hasConsent {
 		// User has already consented, generate code immediately
 		// in Authorize GET:
-                code, err := h.oauthProviderService.GenerateAuthorizationCode(clientID, userID.(string), redirectURI, scopes, strPtr(codeChallenge), strPtr(codeChallengeMethod))
+		code, err := h.oauthProviderService.GenerateAuthorizationCode(clientID, userID.(string), redirectURI, scopes, strPtr(codeChallenge), strPtr(codeChallengeMethod), strPtr(nonce))
 		if err != nil {
 			redirectError(c, redirectURI, "server_error", "Failed to generate authorization code", state)
 			return
@@ -136,6 +138,7 @@ func (h *OAuthHandler) Authorize(c *gin.Context) {
 		"State":               state,
 		"CodeChallenge":       codeChallenge,
 		"CodeChallengeMethod": codeChallengeMethod,
+		"Nonce":               nonce,
 	})
 }
 
@@ -158,11 +161,12 @@ func (h *OAuthHandler) Authorize(c *gin.Context) {
 func (h *OAuthHandler) AuthorizePost(c *gin.Context) {
 	action := c.PostForm("action")
 	clientID := c.PostForm("client_id")
-        redirectURI := c.PostForm("redirect_uri")
-        scope := c.PostForm("scope")
+	redirectURI := c.PostForm("redirect_uri")
+	scope := c.PostForm("scope")
 	state := c.PostForm("state")
-        codeChallenge := c.PostForm("code_challenge")
-        codeChallengeMethod := c.PostForm("code_challenge_method")
+	codeChallenge := c.PostForm("code_challenge")
+	codeChallengeMethod := c.PostForm("code_challenge_method")
+	nonce := c.PostForm("nonce")
 
 	if codeChallenge != "" && codeChallengeMethod == "" {
 		codeChallengeMethod = "S256"
@@ -216,7 +220,7 @@ func (h *OAuthHandler) AuthorizePost(c *gin.Context) {
 	}
 
 	// Generate authorization code
-        code, err := h.oauthProviderService.GenerateAuthorizationCode(clientID, userID.(string), redirectURI, scopes, strPtr(codeChallenge), strPtr(codeChallengeMethod))
+	code, err := h.oauthProviderService.GenerateAuthorizationCode(clientID, userID.(string), redirectURI, scopes, strPtr(codeChallenge), strPtr(codeChallengeMethod), strPtr(nonce))
 	if err != nil {
 		redirectError(c, redirectURI, "server_error", "Failed to generate authorization code", state)
 		return
@@ -248,7 +252,7 @@ func (h *OAuthHandler) Token(c *gin.Context) {
 	clientID := c.PostForm("client_id")
 	clientSecret := c.PostForm("client_secret")
 	redirectURI := c.PostForm("redirect_uri")
-        codeVerifier := c.PostForm("code_verifier")
+	codeVerifier := c.PostForm("code_verifier")
 
 	// Validate grant type
 	if grantType != "authorization_code" {
@@ -281,7 +285,7 @@ func (h *OAuthHandler) Token(c *gin.Context) {
 	}
 
 	// Exchange code for token
-	accessToken, err := h.oauthProviderService.ExchangeCodeForToken(code, clientID, redirectURI, codeVerifier, client.IsPublic)
+	accessToken, authCode, err := h.oauthProviderService.ExchangeCodeForToken(code, clientID, redirectURI, codeVerifier, client.IsPublic)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "invalid_grant",
@@ -290,13 +294,40 @@ func (h *OAuthHandler) Token(c *gin.Context) {
 		return
 	}
 
-	// Return access token
-	c.JSON(http.StatusOK, gin.H{
+	response := gin.H{
 		"access_token": accessToken.RawToken,
 		"token_type":   "Bearer",
 		"expires_in":   3600, // 1 hour
 		"scope":        strings.Join(accessToken.Scopes, " "),
-	})
+	}
+
+	// OIDC: with the openid scope, mint and return an id_token (issue #85).
+	if scopes := accessToken.Scopes; containsScope(scopes, "openid") {
+		user, err := h.userRepo.FindByID(authCode.UserID)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": "server_error",
+				"code":  "SERVER_ERROR",
+			})
+			return
+		}
+		nonceVal := ""
+		if authCode.Nonce != nil {
+			nonceVal = *authCode.Nonce
+		}
+		idToken, err := h.oauthProviderService.GenerateIDToken(user, clientID, nonceVal, time.Now())
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": "server_error",
+				"code":  "SERVER_ERROR",
+			})
+			return
+		}
+		response["id_token"] = idToken
+	}
+
+	// Return access token (and id_token for openid scope)
+	c.JSON(http.StatusOK, response)
 }
 
 // UserInfo returns user information based on the access token
@@ -452,4 +483,14 @@ func strPtr(s string) *string {
 		return nil
 	}
 	return &s
+}
+
+// containsScope reports whether the scope list contains the given value.
+func containsScope(scopes []string, want string) bool {
+	for _, sc := range scopes {
+		if sc == want {
+			return true
+		}
+	}
+	return false
 }

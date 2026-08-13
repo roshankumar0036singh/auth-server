@@ -18,6 +18,8 @@ type AuthorizationCode struct {
 	Used        bool           `gorm:"default:false" json:"used"`
 	CreatedAt   time.Time      `json:"created_at"`
         CodeChallenge       *string `gorm:"size:128" json:"code_challenge,omitempty"`
+        // Nonce is the optional OIDC nonce echoed in the id_token (issue #85).
+        Nonce               *string `gorm:"size:255" json:"nonce,omitempty"`
         CodeChallengeMethod *string `gorm:"size:10" json:"code_challenge_method,omitempty"`
 }
 
