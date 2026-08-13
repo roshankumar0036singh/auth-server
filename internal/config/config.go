@@ -46,11 +46,11 @@ type RedisConfig struct {
 }
 
 type JWTConfig struct {
-	AccessSecret        string
-	RefreshSecret       string
-	AccessExpiry        string
-	RefreshExpiry       string
-	RefreshGracePeriod  string
+	AccessSecret       string
+	RefreshSecret      string
+	AccessExpiry       string
+	RefreshExpiry      string
+	RefreshGracePeriod string
 }
 type OAuthConfig struct {
 	Google GoogleOAuthConfig
@@ -102,8 +102,8 @@ func LoadConfig() *Config {
 	}
 
 	port, _ := strconv.Atoi(getEnv("PORT", "3000"))
-	poolMin, _ := strconv.Atoi(getEnv("DB_POOL_MIN", "2"))
-	poolMax, _ := strconv.Atoi(getEnv("DB_POOL_MAX", "10"))
+	poolMin := mustAtoi("DB_POOL_MIN", 2)
+	poolMax := mustAtoi("DB_POOL_MAX", 10)
 	redisTTL, _ := strconv.Atoi(getEnv("REDIS_TTL", "3600"))
 	bcryptRounds, _ := strconv.Atoi(getEnv("BCRYPT_ROUNDS", "12"))
 	rateLimitWindow, _ := strconv.Atoi(getEnv("RATE_LIMIT_WINDOW", "900000"))
