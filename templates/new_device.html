@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <title>New device signed in</title>
+</head>
+
+<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+    <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+        <h2>New device signed in</h2>
+        <p>Your {{.AppName}} account was just signed in from a device we have
+            not seen before.</p>
+        <ul>
+            <li><strong>Browser / device:</strong> {{.UserAgent}}</li>
+            <li><strong>Network:</strong> {{.IP}}</li>
+            <li><strong>Time:</strong> {{.Time}}</li>
+        </ul>
+        <p>If this was you, you can ignore this email. Otherwise
+            <a href="{{.SessionsURL}}">review your active sessions</a>
+            and sign out of anything you do not recognize.</p>
+    </div>
+</body>
+
+</html>

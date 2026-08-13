@@ -8,11 +8,14 @@ import (
 	"path/filepath"
 
 	"github.com/roshankumar0036singh/auth-server/internal/config"
+	"os"
+	"time"
 )
 
 type EmailSender interface {
 	SendVerificationEmail(email, token, appURL string) error
 	SendPasswordResetEmail(email, token, appURL string) error
+	SendNewDeviceEmail(email, userAgent, ip string, at time.Time) error
 }
 
 type EmailService struct {
@@ -23,6 +26,13 @@ func NewEmailService(cfg *config.Config) *EmailService {
 	return &EmailService{
 		config: cfg.Email,
 	}
+}
+
+func sessionsURL() string {
+	if u := os.Getenv("APP_URL"); u != "" {
+		return u + "/sessions"
+	}
+	return "http://localhost:3000/sessions"
 }
 
 // SendEmail sends an email using SMTP
@@ -80,6 +90,24 @@ func (s *EmailService) SendVerificationEmail(email, token, appURL string) error 
 	}
 
 	return s.SendEmail([]string{email}, "Verify your email", "verify_email.html", data)
+}
+
+// SendNewDeviceEmail alerts a user about a login from an unknown device (#168).
+func (s *EmailService) SendNewDeviceEmail(email, userAgent, ip string, at time.Time) error {
+	data := struct {
+		UserAgent   string
+		IP          string
+		Time        string
+		AppName     string
+		SessionsURL string
+	}{
+		UserAgent:   userAgent,
+		IP:          ip,
+		Time:        at.UTC().Format("2006-01-02 15:04:05 UTC"),
+		AppName:     "Auth Server",
+		SessionsURL: sessionsURL(),
+	}
+	return s.SendEmail([]string{email}, "New device signed in", "new_device.html", data)
 }
 
 // SendPasswordResetEmail sends the password reset link

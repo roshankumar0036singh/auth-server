@@ -43,6 +43,9 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, redisClient *redis.Client, cfg
 	oauthService := service.NewOAuthService(cfg, oauthProviderConfigRepo)
 	mfaService := service.NewMFAService(cfg)
 
+	deviceRepo := repository.NewDeviceFingerprintRepository(db)
+	deviceService := service.NewDeviceFingerprintService(deviceRepo, emailService, auditService)
+
 	authService := service.NewAuthService(
 		userRepo,
 		tokenRepo,
@@ -54,6 +57,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, redisClient *redis.Client, cfg
 		auditService,
 		mfaService,
 		cfg,
+		deviceService,
 	)
 
 	// OAuth Provider service
@@ -79,7 +83,6 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, redisClient *redis.Client, cfg
 	adminHandler := handler.NewAdminHandler(authService)
 	oauthClientHandler := handler.NewOAuthClientHandler(oauthProviderService)
 	oauthHandler := handler.NewOAuthHandler(oauthProviderService, userRepo)
-
 	// Apply global middleware
 	router.Use(middleware.CORSMiddleware(cfg))
 	router.Use(middleware.SecurityMiddleware())

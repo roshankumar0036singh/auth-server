@@ -422,6 +422,15 @@ func (s *AuthService) CreateLoginResponse(
 		return nil, errors.New(errGenAccessToken)
 	}
 
+	// Issue #168: alert on first login from an unknown device/location.
+	// Best effort — alert failures never fail the login.
+	if s.deviceService != nil {
+		ctx := context.Background()
+		if err := s.deviceService.CheckAndAlert(ctx, user.ID, user.Email, ipAddress, userAgent); err != nil {
+			log.Printf("Warning: new device alert failed for user %s: %v", user.ID, err)
+		}
+	}
+
 	return &dto.LoginResponse{
 		AccessToken:  accessToken,
 		RefreshToken: refreshTokenString,
