@@ -42,6 +42,7 @@ type AuthService struct {
 	emailService      EmailSender
 	auditService      *AuditService
 	mfaService        *MFAService
+	oauthAccountRepo  *repository.UserOAuthAccountRepository
 	config            *config.Config
 }
 
@@ -55,6 +56,7 @@ func NewAuthService(
 	emailService EmailSender,
 	auditService *AuditService,
 	mfaService *MFAService,
+	oauthAccountRepo *repository.UserOAuthAccountRepository,
 	cfg *config.Config,
 ) *AuthService {
 	return &AuthService{
@@ -67,6 +69,7 @@ func NewAuthService(
 		emailService:      emailService,
 		auditService:      auditService,
 		mfaService:        mfaService,
+		oauthAccountRepo:  oauthAccountRepo,
 		config:            cfg,
 	}
 }

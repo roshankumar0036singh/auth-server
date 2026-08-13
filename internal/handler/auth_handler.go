@@ -983,3 +983,51 @@ func (h *AuthHandler) LoginMFA(c *gin.Context) {
 
 	c.JSON(http.StatusOK, utils.SuccessResponse("Login successful", resp))
 }
+
+// GetLinkedOAuthAccounts lists every provider identity linked to the user
+// (issue #89).
+// @Summary List linked OAuth accounts
+// @Tags auth
+// @Security BearerAuth
+// @Produce json
+// @Success 200 {array} models.UserOAuthAccount
+// @Router /api/auth/me/linked-accounts [get]
+func (h *AuthHandler) GetLinkedOAuthAccounts(c *gin.Context) {
+	userID, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, utils.UnauthorizedResponse(errUserNotAuthenticated))
+		return
+	}
+	accounts, err := h.authService.ListLinkedOAuthAccounts(userID.(string))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, utils.ErrorResponse("Failed to list linked accounts", err))
+		return
+	}
+	c.JSON(http.StatusOK, accounts)
+}
+
+// UnlinkOAuthAccount removes one provider identity from the user (issue #89).
+// The last remaining identity cannot be removed.
+// @Summary Unlink an OAuth provider
+// @Tags auth
+// @Security BearerAuth
+// @Param provider path string true "Provider (google, github)"
+// @Success 200 {object} utils.APIResponse
+// @Router /api/auth/me/linked-accounts/{provider} [delete]
+func (h *AuthHandler) UnlinkOAuthAccount(c *gin.Context) {
+	userID, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, utils.UnauthorizedResponse(errUserNotAuthenticated))
+		return
+	}
+	provider := strings.ToLower(c.Param("provider"))
+	if provider != "google" && provider != "github" {
+		c.JSON(http.StatusBadRequest, utils.ErrorResponse("Unsupported provider", nil))
+		return
+	}
+	if err := h.authService.UnlinkOAuthAccount(userID.(string), provider); err != nil {
+		c.JSON(http.StatusBadRequest, utils.ErrorResponse(err.Error(), nil))
+		return
+	}
+	c.JSON(http.StatusOK, utils.SuccessResponse("OAuth account unlinked", nil))
+}
