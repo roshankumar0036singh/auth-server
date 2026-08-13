@@ -25,10 +25,10 @@ var incrExpireScript = redis.NewScript(`
 `)
 
 type CacheService struct {
-	client *redis.Client
+	client redis.UniversalClient
 }
 
-func NewCacheService(client *redis.Client) *CacheService {
+func NewCacheService(client redis.UniversalClient) *CacheService {
 	return &CacheService{client: client}
 }
 
