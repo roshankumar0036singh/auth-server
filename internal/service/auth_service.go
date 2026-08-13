@@ -42,6 +42,7 @@ type AuthService struct {
 	emailService      EmailSender
 	auditService      *AuditService
 	mfaService        *MFAService
+	disposableCheck   *DisposableEmailService
 	config            *config.Config
 }
 
@@ -56,6 +57,7 @@ func NewAuthService(
 	auditService *AuditService,
 	mfaService *MFAService,
 	cfg *config.Config,
+	disposableCheck *DisposableEmailService,
 ) *AuthService {
 	return &AuthService{
 		userRepo:          userRepo,
@@ -67,12 +69,18 @@ func NewAuthService(
 		emailService:      emailService,
 		auditService:      auditService,
 		mfaService:        mfaService,
+		disposableCheck:   disposableCheck,
 		config:            cfg,
 	}
 }
 
 // Register creates a new user account and sends verification email
 func (s *AuthService) Register(req *dto.RegisterRequest) (*models.User, error) {
+	// Reject burner domains before creating anything (issue #164)
+	if s.disposableCheck != nil && s.disposableCheck.IsDisposable(req.Email) {
+		return nil, ErrDisposableEmail
+	}
+
 	// Check if email already exists
 	exists, err := s.userRepo.EmailExists(req.Email)
 	if err != nil {

@@ -141,6 +141,7 @@ func SetupIntegrationTest(t *testing.T) (*service.AuthService, *gorm.DB, *minire
 		auditService,
 		mfaService,
 		cfg,
+		service.NewDisposableEmailService(),
 	)
 
 	return authService, db, mr

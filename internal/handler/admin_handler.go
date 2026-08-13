@@ -10,6 +10,7 @@ import (
 	"github.com/roshankumar0036singh/auth-server/internal/service"
 	"github.com/roshankumar0036singh/auth-server/internal/utils"
 	"github.com/roshankumar0036singh/auth-server/internal/models"
+	"strings"
 )
 
 type AdminAuthService interface {
@@ -146,4 +147,53 @@ func (h *AdminHandler) DeleteUser(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, utils.SuccessResponse("User deleted successfully", nil))
+}
+
+// DisposableEmailAPI exposes dynamic management of the burner-domain
+// blocklist (issue #164).
+type DisposableEmailAPI struct {
+	Svc *service.DisposableEmailService
+}
+
+// GetDisposableDomains lists the currently blocked domains (issue #164).
+// @Summary List blocked disposable domains
+// @Tags admin
+// @Produce json
+// @Success 200 {object} map[string]interface{}
+// @Router /api/admin/disposable-email [get]
+func (h *DisposableEmailAPI) List(c *gin.Context) {
+	domains := h.Svc.Domains()
+	c.JSON(http.StatusOK, gin.H{"domains": domains, "count": len(domains)})
+}
+
+type disposableEmailUpdateRequest struct {
+	Domains []string `json:"domains"`
+}
+
+// Update replaces the blocklist, enabling admins to extend it dynamically
+// (issue #164).
+// @Summary Replace disposable domain blocklist
+// @Tags admin
+// @Accept json
+// @Produce json
+// @Param request body disposableEmailUpdateRequest true "Full list of blocked domains"
+// @Success 200 {object} map[string]interface{}
+// @Router /api/admin/disposable-email [put]
+func (h *DisposableEmailAPI) Update(c *gin.Context) {
+	var req disposableEmailUpdateRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_request", "message": "domains must be an array of strings"})
+		return
+	}
+	dedup := map[string]bool{}
+	cleaned := []string{}
+	for _, d := range req.Domains {
+		d = strings.ToLower(strings.TrimSpace(d))
+		if d != "" && !dedup[d] {
+			dedup[d] = true
+			cleaned = append(cleaned, d)
+		}
+	}
+	h.Svc.ReplaceBlocklist(cleaned)
+	c.JSON(http.StatusOK, gin.H{"updated": len(cleaned), "total": len(cleaned)})
 }
