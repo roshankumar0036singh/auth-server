@@ -13,6 +13,7 @@ type Config struct {
 	App      AppConfig
 	Database DatabaseConfig
 	Redis    RedisConfig
+	Tracing  TracingConfig
 	JWT      JWTConfig
 	OAuth    OAuthConfig
 	Email    EmailConfig
@@ -153,6 +154,7 @@ func LoadConfig() *Config {
 			URL: getEnv("REDIS_URL", ""),
 			TTL: redisTTL,
 		},
+		Tracing: DefaultTracingFromEnv(func(k string) string { return getEnv(k, "") }, getEnvAsDuration),
 		JWT: JWTConfig{
 			AccessSecret:       getEnv("JWT_SECRET", ""),
 			RefreshSecret:      getEnv("JWT_REFRESH_SECRET", ""),

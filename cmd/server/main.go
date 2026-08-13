@@ -16,8 +16,9 @@ import (
 	"github.com/roshankumar0036singh/auth-server/internal/metrics"
 	"github.com/roshankumar0036singh/auth-server/internal/middleware"
 	"github.com/roshankumar0036singh/auth-server/internal/models"
-	"github.com/roshankumar0036singh/auth-server/internal/routes"
 	"github.com/roshankumar0036singh/auth-server/internal/repository"
+	"github.com/roshankumar0036singh/auth-server/internal/routes"
+	"github.com/roshankumar0036singh/auth-server/internal/tracing"
 )
 
 // @title Auth Server API
@@ -117,6 +118,13 @@ func main() {
 	// Load HTML templates for OAuth consent
 	router.LoadHTMLGlob("templates/*")
 
+	// Distributed tracing (issue #189): W3C traceparent in, OTLP spans out.
+	shutdownTracer, err := tracing.InitTracer(cfg)
+	if err != nil {
+		log.Fatalf("Initialize tracing: %v", err)
+	}
+	defer func() { _ = shutdownTracer(context.Background()) }()
+
 	// Setup routes
 	routes.SetupRoutes(router, db, redisClient, cfg)
 
@@ -124,7 +132,7 @@ func main() {
 	addr := fmt.Sprintf(":%d", cfg.App.Port)
 	srv := &http.Server{
 		Addr:    addr,
-		Handler: router,
+		Handler: middleware.TraceMiddleware(router),
 	}
 
 	// Start server in goroutine
