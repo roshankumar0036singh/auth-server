@@ -119,28 +119,41 @@ func (s *TokenService) GenerateRefreshToken(user *models.User) (string, error) {
 }
 
 // ValidateAccessToken validates and parses an access token
-func (s *TokenService) ValidateAccessToken(tokenString string) (*JWTClaims, error) {
-	token, err := jwt.ParseWithClaims(tokenString, &JWTClaims{}, func(token *jwt.Token) (interface{}, error) {
-		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, errors.New(errInvalidSignMethod)
-		}
-		return []byte(s.cfg.JWT.AccessSecret), nil
-	})
-
+// trySecret parses and validates tokenString with a single HMAC secret.
+func trySecret(tokenString string, secret string, purposeAllowed bool) (*JWTClaims, error) {
+	token, err := jwt.ParseWithClaims(tokenString, &JWTClaims{}, func(_ *jwt.Token) (interface{}, error) {
+		return []byte(secret), nil
+	}, jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}))
 	if err != nil {
 		return nil, err
 	}
+	claims, ok := token.Claims.(*JWTClaims)
+	if !ok || !token.Valid {
+		return nil, errors.New(errInvalidToken)
+	}
+	if !purposeAllowed && claims.Purpose != "" {
+		return nil, errors.New(errInvalidToken)
+	}
+	return claims, nil
+}
 
-	if claims, ok := token.Claims.(*JWTClaims); ok && token.Valid {
-		// Purpose-scoped tokens (e.g. the MFA-pending token) must never be
-		// accepted as access tokens.
-		if claims.Purpose != "" {
-			return nil, errors.New(errInvalidToken)
-		}
+// validateWithRotation tries the primary secret first and then every rotated
+// secret, so sessions survive a secret rotation (issue #152).
+func (s *TokenService) validateWithRotation(tokenString, primary string, purposeAllowed bool) (*JWTClaims, error) {
+	claims, err := trySecret(tokenString, primary, purposeAllowed)
+	if err == nil {
 		return claims, nil
 	}
+	for _, secret := range s.cfg.JWT.RotationSecrets {
+		if claims, ok := trySecret(tokenString, secret, purposeAllowed); ok == nil {
+			return claims, nil
+		}
+	}
+	return nil, err
+}
 
-	return nil, errors.New(errInvalidToken)
+func (s *TokenService) ValidateAccessToken(tokenString string) (*JWTClaims, error) {
+	return s.validateWithRotation(tokenString, s.cfg.JWT.AccessSecret, false)
 }
 
 // GenerateMFAToken issues a short-lived token proving the password step of
@@ -185,20 +198,5 @@ func (s *TokenService) ValidateMFAToken(tokenString string) (string, error) {
 
 // ValidateRefreshToken validates and parses a refresh token
 func (s *TokenService) ValidateRefreshToken(tokenString string) (*JWTClaims, error) {
-	token, err := jwt.ParseWithClaims(tokenString, &JWTClaims{}, func(token *jwt.Token) (interface{}, error) {
-		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, errors.New(errInvalidSignMethod)
-		}
-		return []byte(s.cfg.JWT.RefreshSecret), nil
-	})
-
-	if err != nil {
-		return nil, err
-	}
-
-	if claims, ok := token.Claims.(*JWTClaims); ok && token.Valid {
-		return claims, nil
-	}
-
-	return nil, errors.New(errInvalidToken)
+	return s.validateWithRotation(tokenString, s.cfg.JWT.RefreshSecret, true)
 }

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/joho/godotenv"
+	"strings"
 )
 
 type Config struct {
@@ -46,11 +47,15 @@ type RedisConfig struct {
 }
 
 type JWTConfig struct {
-	AccessSecret        string
-	RefreshSecret       string
-	AccessExpiry        string
-	RefreshExpiry       string
-	RefreshGracePeriod  string
+	AccessSecret string
+	RefreshSecret string
+	AccessExpiry string
+	RefreshExpiry string
+	RefreshGracePeriod string
+	// RotationSecrets holds previously-used secrets (issue #152). Signing
+	// always uses the primary AccessSecret/RefreshSecret, but validation
+	// also accepts any rotated key until it is removed from the env list.
+	RotationSecrets []string
 }
 type OAuthConfig struct {
 	Google GoogleOAuthConfig
@@ -159,6 +164,7 @@ func LoadConfig() *Config {
 			AccessExpiry:       getEnv("JWT_ACCESS_EXPIRY", "15m"),
 			RefreshExpiry:      getEnv("JWT_REFRESH_EXPIRY", "168h"),
 			RefreshGracePeriod: getEnv("JWT_REFRESH_GRACE_PERIOD", "10s"),
+			RotationSecrets:    append(splitList(getEnv("JWT_ROTATION_SECRETS", "")), splitList(getEnv("JWT_REFRESH_ROTATION_SECRETS", ""))...),
 		},
 		OAuth: OAuthConfig{
 			Google: GoogleOAuthConfig{
@@ -203,4 +209,16 @@ func getEnv(key, defaultValue string) string {
 		return value
 	}
 	return defaultValue
+}
+
+// splitList splits a comma-separated env list, trimming whitespace and
+// dropping empty entries.
+func splitList(raw string) []string {
+	var out []string
+	for _, part := range strings.Split(raw, ",") {
+		if part = strings.TrimSpace(part); part != "" {
+			out = append(out, part)
+		}
+	}
+	return out
 }
