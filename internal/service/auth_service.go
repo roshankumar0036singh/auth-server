@@ -42,6 +42,7 @@ type AuthService struct {
 	emailService      EmailSender
 	auditService      *AuditService
 	mfaService        *MFAService
+	pwnedCheck        *PwnedPasswordCheck
 	config            *config.Config
 }
 
@@ -56,6 +57,7 @@ func NewAuthService(
 	auditService *AuditService,
 	mfaService *MFAService,
 	cfg *config.Config,
+	pwnedCheck *PwnedPasswordCheck,
 ) *AuthService {
 	return &AuthService{
 		userRepo:          userRepo,
@@ -67,6 +69,7 @@ func NewAuthService(
 		emailService:      emailService,
 		auditService:      auditService,
 		mfaService:        mfaService,
+		pwnedCheck:        pwnedCheck,
 		config:            cfg,
 	}
 }
@@ -84,6 +87,11 @@ func (s *AuthService) Register(req *dto.RegisterRequest) (*models.User, error) {
 
 	// Validate password strength
 	if err := utils.ValidatePassword(req.Password); err != nil {
+		return nil, err
+	}
+
+	// Reject passwords known to be compromised (issue #150)
+	if err := s.rejectBreachedPassword(req.Password); err != nil {
 		return nil, err
 	}
 
@@ -178,4 +186,23 @@ func (s *AuthService) ResendVerification(email string) error {
 
 	// Send new email
 	return s.sendVerificationEmail(user)
+}
+
+// rejectBreachedPassword enforces the HIBP k-Anonymity check (issue #150)
+// wherever a new password is set. When the checker is unavailable (nil or
+// network error) the check is skipped so registration is never hard-blocked
+// by an outage.
+func (s *AuthService) rejectBreachedPassword(password string) error {
+	if s.pwnedCheck == nil {
+		return nil
+	}
+	breached, err := s.pwnedCheck.Check(password)
+	if err != nil {
+		log.Printf("Warning: pwned password check failed: %v", err)
+		return nil
+	}
+	if breached {
+		return ErrBreachedPassword
+	}
+	return nil
 }

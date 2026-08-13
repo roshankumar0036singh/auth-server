@@ -14,6 +14,14 @@ import (
 	"gorm.io/gorm"
 )
 
+// LastMockEmail exposes the last email capture used inside
+// SetupIntegrationTest so tests can assert on sent mail.
+var LastMockEmail = &MockEmailSender{}
+
+// lastRedis is captured from the most recent SetupIntegrationTest for
+// helpers that rebuild services against the same redis instance.
+var lastRedis *redis.Client
+
 // MockEmailSender
 type MockEmailSender struct {
 	LastEmail map[string]string
@@ -141,7 +149,35 @@ func SetupIntegrationTest(t *testing.T) (*service.AuthService, *gorm.DB, *minire
 		auditService,
 		mfaService,
 		cfg,
+		nil, // avoid network calls in unit tests; pwned tests inject a stub
 	)
 
 	return authService, db, mr
+}
+
+// BuildAuthServiceWithPwned constructs an AuthService with the given pwned
+// checker wired in, reusing the test database from the most recent
+// SetupIntegrationTest.
+func BuildAuthServiceWithPwned(t *testing.T, check *service.PwnedPasswordCheck) *service.AuthService {
+	_, db, mr := SetupIntegrationTest(t)
+	t.Cleanup(mr.Close)
+
+	cfg := &config.Config{
+		JWT:      config.JWTConfig{AccessSecret: "secret", RefreshSecret: "refresh"},
+		Security: config.SecurityConfig{RateLimitMax: 10, RateLimitWindow: 60},
+		App:      config.AppConfig{URL: "http://localhost"},
+	}
+	return service.NewAuthService(
+		repository.NewUserRepository(db),
+		repository.NewTokenRepository(db),
+		repository.NewVerificationRepository(db),
+		repository.NewPasswordResetRepository(db),
+		service.NewTokenService(cfg),
+		service.NewCacheService(lastRedis),
+		LastMockEmail,
+		service.NewAuditService(repository.NewAuditRepository(db)),
+		service.NewMFAService(cfg),
+		cfg,
+		check,
+	)
 }

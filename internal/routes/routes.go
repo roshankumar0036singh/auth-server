@@ -40,6 +40,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, redisClient *redis.Client, cfg
 	emailService := service.NewEmailService(cfg)
 
 	auditService := service.NewAuditService(auditRepo)
+	pwnedCheck := service.NewPwnedPasswordCheck()
 	oauthService := service.NewOAuthService(cfg, oauthProviderConfigRepo)
 	mfaService := service.NewMFAService(cfg)
 
@@ -54,6 +55,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, redisClient *redis.Client, cfg
 		auditService,
 		mfaService,
 		cfg,
+		pwnedCheck,
 	)
 
 	// OAuth Provider service

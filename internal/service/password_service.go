@@ -80,6 +80,11 @@ func (s *AuthService) ResetPassword(tokenString, newPassword string) error {
 		return err
 	}
 
+	// Reject passwords known to be compromised (issue #150)
+	if err := s.rejectBreachedPassword(newPassword); err != nil {
+		return err
+	}
+
 	// Hash new password
 	hashedPassword, err := s.hashPassword(newPassword)
 	if err != nil {
@@ -123,6 +128,11 @@ func (s *AuthService) ChangePassword(userID string, req *dto.ChangePasswordReque
 
 	// Validate password strength
 	if err := utils.ValidatePassword(req.NewPassword); err != nil {
+		return err
+	}
+
+	// Reject passwords known to be compromised (issue #150)
+	if err := s.rejectBreachedPassword(req.NewPassword); err != nil {
 		return err
 	}
 
