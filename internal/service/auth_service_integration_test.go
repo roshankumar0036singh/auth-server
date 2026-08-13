@@ -501,3 +501,57 @@ func TestAuthService_RefreshAccessToken_GracePeriod_ConcurrentRotation_Integrati
 	assert.NoError(t, err)
 	assert.Equal(t, int64(0), activeCount)
 }
+
+// TestAuthService_RefreshAccessToken_SingleFlight_Integration verifies that
+// two truly concurrent refreshes of the same token are deduplicated: both
+// callers succeed and receive identical token pairs, and only one rotation
+// hits the database (no reuse-detection storm).
+func TestAuthService_RefreshAccessToken_SingleFlight_Integration(t *testing.T) {
+	authService, db, mr := testutils.SetupIntegrationTest(t)
+	defer mr.Close()
+
+	authService.SetRefreshTokenGracePeriod("0s")
+
+	user, loginResp := setupTestUserAndLogin(t, authService, "singleflight@example.com", "Flight")
+
+	results := make(chan *dto.TokenRefreshResponse, 2)
+	errs := make(chan error, 2)
+	for i := 0; i < 2; i++ {
+		go func() {
+			resp, err := authService.RefreshAccessToken(loginResp.RefreshToken, "127.0.0.1", "UserAgent")
+			if err != nil {
+				errs <- err
+				return
+			}
+			results <- resp
+		}()
+	}
+
+	var resp1, resp2 *dto.TokenRefreshResponse
+	for i := 0; i < 2; i++ {
+		select {
+		case err := <-errs:
+			t.Fatalf("concurrent refresh failed: %v", err)
+		case resp := <-results:
+			if resp1 == nil {
+				resp1 = resp
+			} else {
+				resp2 = resp
+			}
+		case <-time.After(10 * time.Second):
+			t.Fatal("timed out waiting for concurrent refreshes")
+		}
+	}
+
+	require.NotNil(t, resp1)
+	require.NotNil(t, resp2)
+	assert.Equal(t, resp1.AccessToken, resp2.AccessToken, "both callers should receive the same access token")
+	assert.Equal(t, resp1.RefreshToken, resp2.RefreshToken, "both callers should receive the same rotated refresh token")
+	assert.NotEqual(t, loginResp.RefreshToken, resp1.RefreshToken, "the original token must be rotated once")
+
+	// Exactly one live (non-revoked) refresh token should remain.
+	var activeCount int64
+	err := db.Model(&models.RefreshToken{}).Where("user_id = ? AND is_revoked = ?", user.ID, false).Count(&activeCount).Error
+	assert.NoError(t, err)
+	assert.Equal(t, int64(1), activeCount, "exactly one rotation should have been persisted")
+}

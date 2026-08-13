@@ -5,6 +5,8 @@ import (
 	"log"
 	"time"
 
+	"golang.org/x/sync/singleflight"
+
 	"github.com/roshankumar0036singh/auth-server/internal/config"
 	"github.com/roshankumar0036singh/auth-server/internal/dto"
 	"github.com/roshankumar0036singh/auth-server/internal/models"
@@ -34,6 +36,7 @@ const (
 
 type AuthService struct {
 	userRepo          *repository.UserRepository
+	singleflightGroup singleflight.Group
 	tokenRepo         *repository.TokenRepository
 	verificationRepo  *repository.VerificationRepository
 	passwordResetRepo *repository.PasswordResetRepository
