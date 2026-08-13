@@ -24,6 +24,8 @@ type AppConfig struct {
 	Port int
 	Env  string
 	URL  string
+	// DynamicClientRegistration gates the RFC 7591 endpoint (issue #173).
+	DynamicClientRegistration bool
 }
 
 type WebAuthnConfig struct {
@@ -138,9 +140,10 @@ func LoadConfig() *Config {
 
 	return &Config{
 		App: AppConfig{
-			Port: port,
-			Env:  getEnv("APP_ENV", "development"),
-			URL:  appURL,
+			Port:                       port,
+			Env:                        getEnv("APP_ENV", "development"),
+			URL:                        appURL,
+			DynamicClientRegistration:  getEnv("DYNAMIC_CLIENT_REGISTRATION", "true") == "true",
 		},
 		Database: DatabaseConfig{
 			URL:             getEnv("DATABASE_URL", ""),

@@ -8,6 +8,10 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"time"
+
+	"github.com/roshankumar0036singh/auth-server/internal/config"
+	"github.com/roshankumar0036singh/auth-server/internal/dto"
 	"github.com/roshankumar0036singh/auth-server/internal/models"
 	"github.com/roshankumar0036singh/auth-server/internal/repository"
 	"github.com/roshankumar0036singh/auth-server/internal/service"
@@ -18,9 +22,10 @@ const errTmpl = "error.html"
 type OAuthHandler struct {
 	oauthProviderService *service.OAuthProviderService
 	userRepo             *repository.UserRepository
+	cfg                  *config.Config
 }
 
-func NewOAuthHandler(oauthProviderService *service.OAuthProviderService, userRepo *repository.UserRepository) *OAuthHandler {
+func NewOAuthHandler(oauthProviderService *service.OAuthProviderService, userRepo *repository.UserRepository, cfg *config.Config) *OAuthHandler {
 	if userRepo == nil {
 		panic("oauth handler requires user repository")
 	}
@@ -28,6 +33,7 @@ func NewOAuthHandler(oauthProviderService *service.OAuthProviderService, userRep
 	return &OAuthHandler{
 		oauthProviderService: oauthProviderService,
 		userRepo:             userRepo,
+		cfg:                  cfg,
 	}
 }
 
@@ -310,6 +316,69 @@ func (h *OAuthHandler) Token(c *gin.Context) {
 // @Failure 401 {object} ErrorResponse "Invalid or expired token"
 // @Failure 404 {object} ErrorResponse "User not found"
 // @Router /oauth/userinfo [get]
+// RegisterClient implements RFC 7591 dynamic client registration (#173).
+// @Summary Dynamic client registration
+// @Description Registers a third-party client and issues client_id/client_secret (RFC 7591)
+// @Tags OAuth
+// @Accept json
+// @Produce json
+// @Param metadata body dto.DynamicClientRegistrationRequest true "Client metadata"
+// @Success 201 {object} dto.DynamicClientRegistrationResponse
+// @Failure 400 {object} map[string]interface{}
+// @Router /oauth/register [post]
+func (h *OAuthHandler) RegisterClient(c *gin.Context) {
+	if !h.cfg.App.DynamicClientRegistration {
+		c.JSON(http.StatusForbidden, gin.H{"error": "dynamic_registration_disabled"})
+		return
+	}
+
+	var req dto.DynamicClientRegistrationRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_client_metadata", "message": "malformed registration request"})
+		return
+	}
+
+	client, secret, err := h.oauthProviderService.RegisterClient(req)
+	if err != nil {
+		var de *service.DynamicClientRegistrationError
+		if errors.As(err, &de) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_client_metadata", "message": de.Message})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "registration_failed"})
+		return
+	}
+
+	issuedAt := client.CreatedAt.Unix()
+	if issuedAt == 0 {
+		issuedAt = time.Now().Unix()
+	}
+
+	grantTypes := req.GrantTypes
+	if len(grantTypes) == 0 {
+		grantTypes = []string{"authorization_code"}
+	}
+	resp := dto.DynamicClientRegistrationResponse{
+		ClientID:                client.ClientID,
+		ClientSecret:            secret,
+		ClientIDIssuedAt:        issuedAt,
+		ClientSecretExpiresAt:   0, // never expires, revocation removes it
+		ClientName:              client.Name,
+		RedirectURIs:            client.RedirectURIs,
+		GrantTypes:              grantTypes,
+		ResponseTypes:           []string{"code"},
+		Scope:                   strings.Join(client.Scopes, " "),
+		TokenEndpointAuthMethod: "client_secret_basic",
+		ApplicationType:         "web",
+	}
+	if client.IsPublic {
+		resp.TokenEndpointAuthMethod = "none"
+		resp.ApplicationType = "native"
+	}
+
+	c.JSON(http.StatusCreated, resp)
+}
+
 func (h *OAuthHandler) UserInfo(c *gin.Context) {
 	token, err := extractBearerToken(c)
 	if err != nil {

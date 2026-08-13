@@ -21,6 +21,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
         "github.com/lib/pq"
+	"github.com/roshankumar0036singh/auth-server/internal/dto"
 )
 
 func setupOAuthUserInfoRouter(t *testing.T) (*gin.Engine, *repository.UserRepository, *repository.OAuthTokenRepository) {
@@ -43,7 +44,7 @@ func setupOAuthUserInfoRouter(t *testing.T) (*gin.Engine, *repository.UserReposi
 
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
-	r.GET("/oauth/userinfo", handler.NewOAuthHandler(oauthProviderService, userRepo).UserInfo)
+	r.GET("/oauth/userinfo", handler.NewOAuthHandler(oauthProviderService, userRepo, &config.Config{}).UserInfo)
 
 	return r, userRepo, tokenRepo
 }
@@ -89,7 +90,7 @@ func TestNewOAuthHandlerPanicsWithoutUserRepository(t *testing.T) {
 	)
 
 	require.Panics(t, func() {
-		handler.NewOAuthHandler(oauthProviderService, nil)
+		handler.NewOAuthHandler(oauthProviderService, nil, &config.Config{})
 	})
 }
 
@@ -372,7 +373,7 @@ func setupTokenRouter(t *testing.T) (*gin.Engine, *repository.OAuthClientReposit
 
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
-	r.POST("/oauth/token", handler.NewOAuthHandler(oauthProviderService, userRepo).Token)
+	r.POST("/oauth/token", handler.NewOAuthHandler(oauthProviderService, userRepo, &config.Config{}).Token)
 	return r, clientRepo, codeRepo
 }
 
@@ -463,3 +464,89 @@ func TestToken_ConfidentialClient_MissingSecret_Rejected(t *testing.T) {
 }
 
 func stringPtr(s string) *string { return &s }
+
+func TestOAuthHandler_RegisterClient(t *testing.T) {
+	_, db, mr := testutils.SetupIntegrationTest(t)
+	defer mr.Close()
+
+	cfg := &config.Config{App: config.AppConfig{DynamicClientRegistration: true}}
+	oauthProviderService := service.NewOAuthProviderService(
+		repository.NewOAuthClientRepository(db),
+		repository.NewAuthorizationCodeRepository(db),
+		repository.NewOAuthTokenRepository(db),
+		repository.NewUserConsentRepository(db),
+		repository.NewOAuthProviderConfigRepository(db),
+		service.NewTokenService(&config.Config{JWT: config.JWTConfig{AccessSecret: "secret", RefreshSecret: "refresh"}}),
+		&config.Config{},
+	)
+
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	h := handler.NewOAuthHandler(oauthProviderService, repository.NewUserRepository(db), cfg)
+	r.POST("/oauth/register", h.RegisterClient)
+
+	send := func(body string) *httptest.ResponseRecorder {
+		req := httptest.NewRequest(http.MethodPost, "/oauth/register", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		return w
+	}
+
+	t.Run("registers confidential client", func(t *testing.T) {
+		w := send(`{"client_name":"third-party-app","redirect_uris":["https://app.example.com/cb"],"scope":"read:profile write:profile"}`)
+		assert.Equal(t, http.StatusCreated, w.Code)
+
+		var resp dto.DynamicClientRegistrationResponse
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+		assert.NotEmpty(t, resp.ClientID)
+		assert.NotEmpty(t, resp.ClientSecret)
+		assert.Equal(t, 0, int(resp.ClientSecretExpiresAt))
+		assert.Equal(t, []string{"authorization_code"}, resp.GrantTypes)
+
+		// issued secret must authenticate against the stored client
+		_, err := oauthProviderService.ValidateClient(resp.ClientID, resp.ClientSecret)
+		assert.NoError(t, err)
+	})
+
+	t.Run("registers native public client without secret", func(t *testing.T) {
+		w := send(`{"client_name":"mobile-app","application_type":"native","token_endpoint_auth_method":"none","redirect_uris":["com.app.example:/cb"]}`)
+		assert.Equal(t, http.StatusCreated, w.Code)
+
+		var resp dto.DynamicClientRegistrationResponse
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+		assert.NotEmpty(t, resp.ClientID)
+		assert.Empty(t, resp.ClientSecret)
+		assert.Equal(t, "native", resp.ApplicationType)
+	})
+
+	t.Run("rejects unknown grant type", func(t *testing.T) {
+		w := send(`{"client_name":"bad","redirect_uris":["https://x.example/cb"],"grant_types":["implicit"]}`)
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+		var body map[string]string
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+		assert.Equal(t, "invalid_client_metadata", body["error"])
+	})
+
+	t.Run("rejects web client without redirect_uris", func(t *testing.T) {
+		w := send(`{"client_name":"no-redirect"}`)
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("rejects invalid scope", func(t *testing.T) {
+		w := send(`{"client_name":"bad-scope","redirect_uris":["https://x.example/cb"],"scope":"admin:*"}`)
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("returns 403 when registration disabled", func(t *testing.T) {
+		disabledCfg := &config.Config{App: config.AppConfig{DynamicClientRegistration: false}}
+		disabledHandler := handler.NewOAuthHandler(oauthProviderService, repository.NewUserRepository(db), disabledCfg)
+		r2 := gin.New()
+		r2.POST("/oauth/register", disabledHandler.RegisterClient)
+		req := httptest.NewRequest(http.MethodPost, "/oauth/register", strings.NewReader(`{"client_name":"x"}`))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		r2.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusForbidden, w.Code)
+	})
+}
