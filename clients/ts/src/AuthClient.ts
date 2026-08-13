@@ -230,6 +230,19 @@ export class AuthClient {
     }
   }
 
+  /**
+   * Reports a network-level failure from the fetch interceptor (offline,
+   * unreachable server, DNS failure). Fires the `network:error` event and
+   * invokes the optional `onNetworkError` callback from the client config so
+   * the UI can react (e.g. show an offline banner).
+   */
+  public reportNetworkError(error: Error): void {
+    this.emit('network:error', error);
+    if (this.onNetworkError) {
+      this.onNetworkError(error);
+    }
+  }
+
   /** Returns the current access token, or null if not authenticated */
   public getAccessToken(): string | null {
     return this.accessToken;

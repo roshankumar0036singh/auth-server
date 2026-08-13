@@ -107,6 +107,8 @@ export interface AuthEvents {
   'token:refreshed': (session: Session) => void;
   /** Fired when any API request throws an AuthError */
   error: (error: Error) => void;
+  /** Fired when a network-level failure occurs (offline, unreachable server) after retries are exhausted */
+  'network:error': (error: Error) => void;
 }
 
 export type AuthStateChangeCallback = (session: Session | null) => void;
