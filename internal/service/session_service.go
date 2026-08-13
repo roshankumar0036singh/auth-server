@@ -251,6 +251,22 @@ func (s *AuthService) revokeRefreshTokenFamily(storedToken *models.RefreshToken,
 func (s *AuthService) RefreshAccessToken(refreshTokenString string, ipAddress, userAgent string) (*dto.TokenRefreshResponse, error) {
 	ctx := context.Background()
 
+	// Deduplicate concurrent refreshes of the same token (issue #26): when a
+	// client fires two identical refresh requests (e.g. a retry racing the
+	// original), both would verify + rotate the token, tripping reuse
+	// detection and causing 401 storms. singleflight keys on the token so the
+	// loser simply receives the winner's response. Note: this dedupes within
+	// one process; a distributed lock would be needed across instances.
+	v, err, _ := s.singleflightGroup.Do(refreshTokenString, func() (interface{}, error) {
+		return s.refreshAccessTokenOnce(ctx, refreshTokenString, ipAddress, userAgent)
+	})
+	if err != nil {
+		return nil, err
+	}
+	return v.(*dto.TokenRefreshResponse), nil
+}
+
+func (s *AuthService) refreshAccessTokenOnce(ctx context.Context, refreshTokenString, ipAddress, userAgent string) (*dto.TokenRefreshResponse, error) {
 	storedToken, userID, isGrace, err := s.verifyRefreshTokenState(ctx, refreshTokenString, ipAddress, userAgent)
 	if err != nil {
 		return nil, err
