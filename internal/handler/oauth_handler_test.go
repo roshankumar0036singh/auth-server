@@ -463,3 +463,36 @@ func TestToken_ConfidentialClient_MissingSecret_Rejected(t *testing.T) {
 }
 
 func stringPtr(s string) *string { return &s }
+
+func TestOAuthHandler_Discovery(t *testing.T) {
+	_, db, mr := testutils.SetupIntegrationTest(t)
+	defer mr.Close()
+
+	oauthProviderService := service.NewOAuthProviderService(
+		repository.NewOAuthClientRepository(db),
+		repository.NewAuthorizationCodeRepository(db),
+		repository.NewOAuthTokenRepository(db),
+		repository.NewUserConsentRepository(db),
+		repository.NewOAuthProviderConfigRepository(db),
+		service.NewTokenService(&config.Config{JWT: config.JWTConfig{AccessSecret: "secret", RefreshSecret: "refresh"}}),
+		&config.Config{},
+	)
+
+	r := gin.New()
+	h := handler.NewOAuthHandler(oauthProviderService, repository.NewUserRepository(db))
+	r.GET("/.well-known/openid-configuration", h.Discovery)
+
+	t.Setenv("APP_URL", "https://auth.example.com")
+
+	req := httptest.NewRequest(http.MethodGet, "/.well-known/openid-configuration", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	var doc handler.OpenIDConfiguration
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &doc))
+	assert.Equal(t, "https://auth.example.com", doc.Issuer)
+	assert.Equal(t, "https://auth.example.com/oauth/authorize", doc.AuthorizationEndpoint)
+	assert.Contains(t, doc.GrantTypesSupported, "authorization_code")
+	assert.Contains(t, doc.ScopesSupported, "read:profile")
+}

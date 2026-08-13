@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"os"
 	"errors"
 	"net/http"
 	"net/url"
@@ -452,4 +453,53 @@ func strPtr(s string) *string {
 		return nil
 	}
 	return &s
+}
+
+// OpenIDConfiguration is the OIDC discovery document
+// (https://openid.net/specs/openid-connect-discovery-1_0.html).
+type OpenIDConfiguration struct {
+	Issuer                            string   `json:"issuer"`
+	AuthorizationEndpoint             string   `json:"authorization_endpoint"`
+	TokenEndpoint                     string   `json:"token_endpoint"`
+	UserInfoEndpoint                  string   `json:"userinfo_endpoint"`
+	IntrospectionEndpoint             string   `json:"introspection_endpoint"`
+	JwksURI                           string   `json:"jwks_uri,omitempty"`
+	ResponseTypesSupported            []string `json:"response_types_supported"`
+	GrantTypesSupported               []string `json:"grant_types_supported"`
+	TokenEndpointAuthMethodsSupported []string `json:"token_endpoint_auth_methods_supported"`
+	ScopesSupported                   []string `json:"scopes_supported"`
+	SubjectTypesSupported             []string `json:"subject_types_supported"`
+	IDTokenSigningAlgValuesSupported  []string `json:"id_token_signing_alg_values_supported"`
+	ClaimsSupported                   []string `json:"claims_supported"`
+}
+
+// Discovery serves the OIDC discovery document (issue #170).
+// @Summary OpenID Connect Discovery
+// @Description Returns the provider configuration document (OIDC Discovery 1.0)
+// @Tags OIDC
+// @Produce json
+// @Success 200 {object} OpenIDConfiguration
+// @Router /.well-known/openid-configuration [get]
+func (h *OAuthHandler) Discovery(c *gin.Context) {
+	base := os.Getenv("APP_URL")
+	if base == "" {
+		base = "http://localhost:3000"
+	}
+	base = strings.TrimRight(base, "/")
+
+	c.JSON(http.StatusOK, OpenIDConfiguration{
+		Issuer:                            base,
+		AuthorizationEndpoint:             base + "/oauth/authorize",
+		TokenEndpoint:                     base + "/oauth/token",
+		UserInfoEndpoint:                  base + "/oauth/userinfo",
+		IntrospectionEndpoint:             base + "/oauth/introspect",
+		JwksURI:                           "", // JWKS support tracked separately (#171)
+		ResponseTypesSupported:            []string{"code"},
+		GrantTypesSupported:               []string{"authorization_code", "client_credentials"},
+		TokenEndpointAuthMethodsSupported: []string{"client_secret_basic", "client_secret_post"},
+		ScopesSupported:                   []string{"read:profile", "write:profile", "read:email", "admin:users"},
+		SubjectTypesSupported:             []string{"public"},
+		IDTokenSigningAlgValuesSupported:  []string{"HS256"},
+		ClaimsSupported:                   []string{"sub", "email", "email_verified", "name", "given_name", "family_name", "picture"},
+	})
 }

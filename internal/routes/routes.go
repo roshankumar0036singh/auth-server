@@ -133,6 +133,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, redisClient *redis.Client, cfg
 	router.GET("/oauth/authorize", middleware.OptionalAuthMiddleware(tokenService, cacheService), oauthHandler.Authorize)
 	router.POST("/oauth/authorize", middleware.AuthMiddleware(tokenService, cacheService), oauthHandler.AuthorizePost)
 	router.POST("/oauth/token", oauthHandler.Token)
+	router.GET("/.well-known/openid-configuration", oauthHandler.Discovery)
 	router.GET("/oauth/userinfo", oauthHandler.UserInfo)
 
 	// API routes
