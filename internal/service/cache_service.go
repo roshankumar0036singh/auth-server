@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"time"
 
+	"errors"
 	"github.com/go-redis/redis/v8"
 	"github.com/go-webauthn/webauthn/webauthn"
-	"errors"
 )
 
 const (
