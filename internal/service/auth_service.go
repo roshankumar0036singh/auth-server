@@ -42,6 +42,7 @@ type AuthService struct {
 	emailService      EmailSender
 	auditService      *AuditService
 	mfaService        *MFAService
+	deviceService     *DeviceFingerprintService
 	config            *config.Config
 }
 
@@ -56,6 +57,7 @@ func NewAuthService(
 	auditService *AuditService,
 	mfaService *MFAService,
 	cfg *config.Config,
+	deviceService *DeviceFingerprintService,
 ) *AuthService {
 	return &AuthService{
 		userRepo:          userRepo,
@@ -67,6 +69,7 @@ func NewAuthService(
 		emailService:      emailService,
 		auditService:      auditService,
 		mfaService:        mfaService,
+		deviceService:     deviceService,
 		config:            cfg,
 	}
 }

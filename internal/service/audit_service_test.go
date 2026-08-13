@@ -49,7 +49,8 @@ func TestAuditService_GetUserAuditLogs(t *testing.T) {
 			page:          1,
 			limit:         1,
 			expectedPage:  1,
-			expectedCount: 2,
+			// register + login + new-device alert audit entries
+			expectedCount: 3,
 			expectedMore:  true,
 			expectedLogs:  1,
 			createLogs:    1,
