@@ -55,6 +55,7 @@ func NewOAuthProviderService(
 
 // ValidScopes defines all available OAuth scopes
 var ValidScopes = map[string]string{
+	"openid":        "Request an OIDC id_token (issue #85)",
 	"read:profile":  "Read your profile information",
 	"write:profile": "Update your profile",
 	"read:email":    "Access your email address",
@@ -209,7 +210,7 @@ func (s *OAuthProviderService) ValidateClientScopes(client *models.OAuthClient, 
 }
 
 // GenerateAuthorizationCode creates an authorization code
-func (s *OAuthProviderService) GenerateAuthorizationCode(clientID, userID, redirectURI string, scopes []string, codeChallenge, codeChallengeMethod *string) (string, error) {
+func (s *OAuthProviderService) GenerateAuthorizationCode(clientID, userID, redirectURI string, scopes []string, codeChallenge, codeChallengeMethod, nonce *string) (string, error) {
 	code, err := generateRandomString(32)
 	if err != nil {
 		return "", err
@@ -225,6 +226,7 @@ func (s *OAuthProviderService) GenerateAuthorizationCode(clientID, userID, redir
 		Used:        false,
                 CodeChallenge: codeChallenge,
                 CodeChallengeMethod: codeChallengeMethod,
+                Nonce:          nonce,
 	}
 
 	if err := s.codeRepo.Create(authCode); err != nil {
@@ -255,27 +257,27 @@ func (s *OAuthProviderService) validatePKCE(authCode *models.AuthorizationCode, 
 }
 
 // ExchangeCodeForToken exchanges an authorization code for an access token
-func (s *OAuthProviderService) ExchangeCodeForToken(code, clientID, redirectURI, codeVerifier string, isPublic bool) (*models.OAuthAccessToken, error) {
+func (s *OAuthProviderService) ExchangeCodeForToken(code, clientID, redirectURI, codeVerifier string, isPublic bool) (*models.OAuthAccessToken, *models.AuthorizationCode, error) {
 	// Find the authorization code
 	authCode, err := s.codeRepo.FindByCode(code)
 	if err != nil {
-		return nil, errors.New("invalid authorization code")
+		return nil, nil, errors.New("invalid authorization code")
 	}
 
 	// Reject expired codes up front. The single-use (used) check is enforced
 	// atomically below via MarkAsUsed so that two concurrent exchanges of the
 	// same code cannot both succeed.
 	if authCode.IsExpired() {
-		return nil, errors.New("authorization code expired")
+		return nil, nil, errors.New("authorization code expired")
 	}
 
 	// Verify client ID and redirect URI match
 	if authCode.ClientID != clientID || authCode.RedirectURI != redirectURI {
-		return nil, errors.New("invalid client or redirect_uri")
+		return nil, nil, errors.New("invalid client or redirect_uri")
 	}
 
 	if err := s.validatePKCE(authCode, isPublic, codeVerifier); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// Atomically consume the code. MarkAsUsed succeeds only for the first
@@ -284,19 +286,19 @@ func (s *OAuthProviderService) ExchangeCodeForToken(code, clientID, redirectURI,
 	// any tokens already issued to this user/client pair and reject.
 	claimed, err := s.codeRepo.MarkAsUsed(code)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if !claimed {
 		if revErr := s.tokenRepo.RevokeByUserAndClient(authCode.UserID, authCode.ClientID); revErr != nil {
-			return nil, revErr
+			return nil, nil, revErr
 		}
-		return nil, errors.New("authorization code already used")
+		return nil, nil, errors.New("authorization code already used")
 	}
 
 	// Generate access token
 	tokenString, err := generateRandomString(48)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	accessToken := &models.OAuthAccessToken{
@@ -309,10 +311,10 @@ func (s *OAuthProviderService) ExchangeCodeForToken(code, clientID, redirectURI,
 	}
 
 	if err := s.tokenRepo.Create(accessToken); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	return accessToken, nil
+	return accessToken, authCode, nil
 }
 
 // ValidateAccessToken validates an OAuth access token

@@ -53,11 +53,11 @@ func TestExchangeCodeForToken_ReplayIsRejectedAndRevokes(t *testing.T) {
 	require.NoError(t, err)
 
 	userID := "user-1"
-	code, err := ps.GenerateAuthorizationCode(client.ClientID, userID, redirectURI, []string{"read:profile"}, nil, nil)
+	code, err := ps.GenerateAuthorizationCode(client.ClientID, userID, redirectURI, []string{"read:profile"}, nil, nil, nil)
 	require.NoError(t, err)
 
 	// First exchange succeeds.
-	tok, err := ps.ExchangeCodeForToken(code, client.ClientID, redirectURI, "", false)
+	tok, _, err := ps.ExchangeCodeForToken(code, client.ClientID, redirectURI, "", false)
 	require.NoError(t, err)
 	require.NotNil(t, tok)
 
@@ -66,7 +66,7 @@ func TestExchangeCodeForToken_ReplayIsRejectedAndRevokes(t *testing.T) {
 	require.Len(t, issued, 1)
 
 	// Replay of the same code must fail.
-	_, err = ps.ExchangeCodeForToken(code, client.ClientID, redirectURI, "", false)
+	_, _, err = ps.ExchangeCodeForToken(code, client.ClientID, redirectURI, "", false)
 	require.Error(t, err)
 
 	// And the previously-issued token must have been revoked.
