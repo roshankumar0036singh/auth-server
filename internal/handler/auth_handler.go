@@ -350,8 +350,10 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	}
 
 	// Set session cookie for browser flows (like OAuth)
-	// MaxAge is 7 days (matching refresh token)
-	c.SetCookie("auth_token", loginResp.AccessToken, 7*24*3600, "/", "", false, true)
+	// MaxAge is 7 days (matching refresh token). Secure mirrors the OAuth
+	// cookies below: only set on HTTPS/Release deployments, never locally.
+	isProd := gin.Mode() == gin.ReleaseMode
+	c.SetCookie("auth_token", loginResp.AccessToken, 7*24*3600, "/", "", isProd, true)
 
 	c.JSON(http.StatusOK, utils.SuccessResponse(msgLoginSuccess, loginResp))
 }
