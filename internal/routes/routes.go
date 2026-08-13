@@ -76,7 +76,8 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, redisClient *redis.Client, cfg
 
 	// Initialize handlers
 	authHandler := handler.NewAuthHandler(authService, oauthService, oauthProviderService)
-	adminHandler := handler.NewAdminHandler(authService)
+	adminHandler := handler.NewAdminHandler(authService).
+		WithAuditChainVerifier(service.NewAuditChainVerifier(auditRepo))
 	oauthClientHandler := handler.NewOAuthClientHandler(oauthProviderService)
 	oauthHandler := handler.NewOAuthHandler(oauthProviderService, userRepo)
 
@@ -210,6 +211,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, redisClient *redis.Client, cfg
 			admin.POST("/users/:id/lock", adminHandler.LockUser)
 			admin.POST("/users/:id/unlock", adminHandler.UnlockUser)
 			admin.DELETE("/users/:id", adminHandler.DeleteUser)
+			admin.GET("/audit-chain/verify", adminHandler.VerifyAuditChain)
 		}
 	}
 }

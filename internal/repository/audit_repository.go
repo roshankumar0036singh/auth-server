@@ -37,3 +37,25 @@ func (r *AuditRepository) CountByUserID(userID string) (int64, error) {
 
 	return count, err
 }
+
+// LastHash returns the hash of the most recently written audit entry, or ""
+// when the table is empty. Used to extend the cryptographic chain (#154).
+func (r *AuditRepository) LastHash() (string, error) {
+	var last models.AuditLog
+	err := r.db.Order("created_at DESC, id DESC").First(&last).Error
+	if err == gorm.ErrRecordNotFound {
+		return "", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	return last.Hash, nil
+}
+
+// FindChained returns audit entries in insertion order for the chain
+// verifier (#154).
+func (r *AuditRepository) FindChained(offset, limit int) ([]models.AuditLog, error) {
+	var logs []models.AuditLog
+	err := r.db.Order("created_at ASC, id ASC").Offset(offset).Limit(limit).Find(&logs).Error
+	return logs, err
+}
