@@ -61,6 +61,7 @@ func main() {
 		&models.VerificationToken{},
 		&models.PasswordResetToken{},
 		&models.AuditLog{},
+		&models.ApiKey{},
 		// OAuth 2.0 Provider models
 		&models.OAuthClient{},
 		&models.AuthorizationCode{},
