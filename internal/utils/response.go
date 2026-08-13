@@ -1,6 +1,10 @@
 package utils
 
-import "github.com/gin-gonic/gin"
+import (
+	"net/http"
+
+	"github.com/gin-gonic/gin"
+)
 
 // Response structures for consistent API responses
 
@@ -14,6 +18,32 @@ type Response struct {
 type ErrorDetail struct {
 	Code    string `json:"code"`
 	Message string `json:"message"`
+	Status  int    `json:"status,omitempty"`
+}
+
+// ErrorCodeForStatus maps an HTTP status code to a stable, machine-readable
+// error code, so clients can branch on codes instead of parsing messages.
+func ErrorCodeForStatus(status int) string {
+	switch status {
+	case http.StatusBadRequest:
+		return "BAD_REQUEST"
+	case http.StatusUnauthorized:
+		return "UNAUTHORIZED"
+	case http.StatusForbidden:
+		return "FORBIDDEN"
+	case http.StatusNotFound:
+		return "NOT_FOUND"
+	case http.StatusConflict:
+		return "CONFLICT"
+	case http.StatusUnprocessableEntity:
+		return "VALIDATION_ERROR"
+	case http.StatusTooManyRequests:
+		return "RATE_LIMITED"
+	case http.StatusInternalServerError:
+		return "INTERNAL_ERROR"
+	default:
+		return "ERROR"
+	}
 }
 
 // SuccessResponse creates a success response
@@ -41,6 +71,28 @@ func ErrorResponse(message string, err error) Response {
 			Message: errMsg,
 		},
 	}
+}
+
+// WriteError writes a normalized error response with a machine-readable
+// code (derived from the HTTP status) and the status itself on the body,
+// keeping every handler's error shape identical.
+func WriteError(c *gin.Context, status int, message string, err error) {
+	var errMsg string
+	if err != nil {
+		errMsg = err.Error()
+	} else {
+		errMsg = message
+	}
+
+	c.JSON(status, Response{
+		Success: false,
+		Message: message,
+		Error: &ErrorDetail{
+			Code:    ErrorCodeForStatus(status),
+			Message: errMsg,
+			Status:  status,
+		},
+	})
 }
 
 // ValidationErrorResponse creates a validation error response

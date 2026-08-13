@@ -299,7 +299,13 @@ func TestOAuthHandler_UserInfoHandlesMissingUser(t *testing.T) {
 
 	var response map[string]interface{}
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
-	assert.Equal(t, "user_not_found", response["error"])
+	require.Equal(t, false, response["success"])
+
+	detail, ok := response["error"].(map[string]interface{})
+	require.True(t, ok)
+	assert.Equal(t, "NOT_FOUND", detail["code"])
+	assert.Equal(t, float64(404), detail["status"])
+	assert.Contains(t, detail["message"], "User not found")
 }
 
 func TestOAuthHandler_UserInfo_ErrorCases(t *testing.T) {
@@ -307,25 +313,25 @@ func TestOAuthHandler_UserInfo_ErrorCases(t *testing.T) {
 		name           string
 		authHeader     string
 		expectedStatus int
-		expectedError  string
+		expectedCode   string
 	}{
 		{
 			name:           "missing authorization header",
 			authHeader:     "",
 			expectedStatus: http.StatusUnauthorized,
-			expectedError:  "missing_token",
+			expectedCode:   "UNAUTHORIZED",
 		},
 		{
 			name:           "invalid token format without bearer prefix",
 			authHeader:     "InvalidFormatToken",
 			expectedStatus: http.StatusUnauthorized,
-			expectedError:  "invalid_token_format",
+			expectedCode:   "UNAUTHORIZED",
 		},
 		{
 			name:           "invalid or fake token",
 			authHeader:     "Bearer this-is-a-fake-token",
 			expectedStatus: http.StatusUnauthorized,
-			expectedError:  "invalid access token",
+			expectedCode:   "UNAUTHORIZED",
 		},
 	}
 
@@ -344,7 +350,12 @@ func TestOAuthHandler_UserInfo_ErrorCases(t *testing.T) {
 
 			var response map[string]interface{}
 			require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
-			assert.Equal(t, tt.expectedError, response["error"])
+			require.Equal(t, false, response["success"])
+
+			detail, ok := response["error"].(map[string]interface{})
+			require.True(t, ok)
+			assert.Equal(t, tt.expectedCode, detail["code"])
+			assert.Equal(t, float64(tt.expectedStatus), detail["status"])
 		})
 	}
 }
@@ -463,3 +474,45 @@ func TestToken_ConfidentialClient_MissingSecret_Rejected(t *testing.T) {
 }
 
 func stringPtr(s string) *string { return &s }
+
+func TestOAuthHandler_UserInfoErrorShapes(t *testing.T) {
+	t.Run("missing token returns normalized 401", func(t *testing.T) {
+		r, _, _ := setupOAuthUserInfoRouter(t)
+		w := performUserInfoRequest(r, "")
+
+		assert.Equal(t, http.StatusUnauthorized, w.Code)
+		var body map[string]interface{}
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+		assert.Equal(t, false, body["success"])
+		detail, ok := body["error"].(map[string]interface{})
+		require.True(t, ok)
+		assert.Equal(t, "UNAUTHORIZED", detail["code"])
+		assert.Equal(t, float64(401), detail["status"])
+	})
+
+	t.Run("unknown user returns normalized 404", func(t *testing.T) {
+		r, userRepo, tokenRepo := setupOAuthUserInfoRouter(t)
+
+		user := &models.User{
+			Email:         "ghost-user@example.com",
+			PasswordHash:  "hash",
+			FirstName:     "Ghost",
+			LastName:      "User",
+			EmailVerified: true,
+		}
+		require.NoError(t, userRepo.Create(user))
+		token := createOAuthAccessToken(t, tokenRepo, user.ID, []string{"read:profile"})
+
+		require.NoError(t, userRepo.Delete(user.ID))
+
+		w := performUserInfoRequest(r, token)
+		assert.Equal(t, http.StatusNotFound, w.Code)
+
+		var body map[string]interface{}
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+		detail, ok := body["error"].(map[string]interface{})
+		require.True(t, ok)
+		assert.Equal(t, "NOT_FOUND", detail["code"])
+		assert.Equal(t, float64(404), detail["status"])
+	})
+}

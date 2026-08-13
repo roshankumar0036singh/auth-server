@@ -11,6 +11,7 @@ import (
 	"github.com/roshankumar0036singh/auth-server/internal/models"
 	"github.com/roshankumar0036singh/auth-server/internal/repository"
 	"github.com/roshankumar0036singh/auth-server/internal/service"
+	"github.com/roshankumar0036singh/auth-server/internal/utils"
 )
 
 const errTmpl = "error.html"
@@ -313,24 +314,24 @@ func (h *OAuthHandler) Token(c *gin.Context) {
 func (h *OAuthHandler) UserInfo(c *gin.Context) {
 	token, err := extractBearerToken(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		utils.WriteError(c, http.StatusUnauthorized, "Authentication required", err)
 		return
 	}
 
 	// Validate token
 	accessToken, err := h.oauthProviderService.ValidateAccessToken(token)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		utils.WriteError(c, http.StatusUnauthorized, "Invalid or expired token", err)
 		return
 	}
 
 	user, err := h.userRepo.FindByID(accessToken.UserID)
 	if err != nil {
 		if errors.Is(err, repository.ErrUserNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{"error": "user_not_found"})
+			utils.WriteError(c, http.StatusNotFound, "User not found", nil)
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed_to_fetch_user"})
+		utils.WriteError(c, http.StatusInternalServerError, "Failed to fetch user", err)
 		return
 	}
 
