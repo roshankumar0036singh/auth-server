@@ -21,10 +21,17 @@ type AdminAuthService interface {
 
 type AdminHandler struct {
 	authService AdminAuthService
+	verifier    *service.AuditChainVerifier
 }
 
 func NewAdminHandler(authService AdminAuthService) *AdminHandler {
 	return &AdminHandler{authService: authService}
+}
+
+// WithAuditChainVerifier attaches the audit chain verifier (issue #154).
+func (h *AdminHandler) WithAuditChainVerifier(v *service.AuditChainVerifier) *AdminHandler {
+	h.verifier = v
+	return h
 }
 
 // GetUsers lists all users
@@ -146,4 +153,29 @@ func (h *AdminHandler) DeleteUser(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, utils.SuccessResponse("User deleted successfully", nil))
+}
+
+// VerifyAuditChain recomputes the audit hash chain and reports any broken
+// links or tampered entries (issue #154).
+// @Summary Verify audit log chain integrity
+// @Tags admin
+// @Produce json
+// @Success 200 {object} map[string]interface{}
+// @Failure 409 {object} map[string]interface{}
+// @Router /api/admin/audit-chain/verify [get]
+func (h *AdminHandler) VerifyAuditChain(c *gin.Context) {
+	if h.verifier == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "audit_verifier_unavailable"})
+		return
+	}
+	valid, broken := h.verifier.Verify()
+	if valid {
+		c.JSON(http.StatusOK, gin.H{"status": "ok", "chainValid": true, "brokenLinks": []interface{}{}})
+		return
+	}
+	c.JSON(http.StatusConflict, gin.H{
+		"status":      "tampered",
+		"chainValid":  false,
+		"brokenLinks": broken,
+	})
 }

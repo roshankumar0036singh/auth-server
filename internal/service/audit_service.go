@@ -2,6 +2,8 @@ package service
 
 import (
 	"encoding/json"
+	"fmt"
+	"time"
 
 	"github.com/roshankumar0036singh/auth-server/internal/dto"
 	"github.com/roshankumar0036singh/auth-server/internal/models"
@@ -26,6 +28,14 @@ func (s *AuditService) LogEvent(userID *string, action, entity, entityID, ip, us
 		}
 	}
 
+	// Cryptographic chaining (issue #154): each entry hashes its predecessor
+	// plus its own canonical payload, so any edit or deletion is detectable.
+	prevHash, err := s.auditRepo.LastHash()
+	if err != nil {
+		return err
+	}
+	now := time.Now()
+
 	log := &models.AuditLog{
 		UserID:    userID,
 		Action:    action,
@@ -34,9 +44,21 @@ func (s *AuditService) LogEvent(userID *string, action, entity, entityID, ip, us
 		IPAddress: ip,
 		UserAgent: userAgent,
 		Metadata:  metadataJSON,
+		PrevHash:  prevHash,
+		CreatedAt: now,
 	}
+	log.Hash = HashEntry(prevHash, fmt.Sprintf("%s|%s|%s|%s|%s|%s|%s",
+		strPtr(log.UserID), log.Action, log.Entity, log.EntityID, log.IPAddress, log.Metadata,
+		now.UTC().Format(time.RFC3339Nano)))
 
 	return s.auditRepo.Create(log)
+}
+
+func strPtr(p *string) string {
+	if p == nil {
+		return ""
+	}
+	return *p
 }
 
 // GetUserAuditLogs retrieves the audit logs for a specific user
