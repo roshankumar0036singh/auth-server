@@ -132,6 +132,48 @@ func (h *OAuthClientHandler) DeleteOAuthClient(c *gin.Context) {
 	c.JSON(http.StatusOK, utils.SuccessResponse("OAuth client deleted successfully", nil))
 }
 
+type UpdateSessionTTLRequest struct {
+	AccessTokenTTLSeconds  int64 `json:"access_token_ttl_seconds"`
+	RefreshTokenTTLSeconds int64 `json:"refresh_token_ttl_seconds"`
+}
+
+// UpdateSessionTTL overrides session expiration for one OAuth client
+// (issue #162). 0 means "use the global default".
+// @Summary Override per-client session TTLs
+// @Tags OAuth Client
+// @Accept json
+// @Produce json
+// @Param clientId path string true "Client ID"
+// @Param request body UpdateSessionTTLRequest true "TTLs in seconds (0 = global default)"
+// @Success 200 {object} utils.APIResponse
+// @Router /oauth/clients/{clientId}/session-ttl [put]
+func (h *OAuthClientHandler) UpdateSessionTTL(c *gin.Context) {
+	clientID := c.Param("clientId")
+	userID, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, utils.UnauthorizedResponse(errUserNotAuthenticated))
+		return
+	}
+
+	var req UpdateSessionTTLRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.BadRequestResponse(c, "invalid request body")
+		return
+	}
+
+	client, err := h.oauthProviderService.UpdateClientSessionTTL(clientID, userID.(string), req.AccessTokenTTLSeconds, req.RefreshTokenTTLSeconds)
+	if err != nil {
+		utils.BadRequestResponse(c, err.Error())
+		return
+	}
+
+	c.JSON(http.StatusOK, utils.SuccessResponse("Session TTLs updated", gin.H{
+		"client_id":                  client.ClientID,
+		"access_token_ttl_seconds":   client.AccessTokenTTLSeconds,
+		"refresh_token_ttl_seconds":  client.RefreshTokenTTLSeconds,
+	}))
+}
+
 // DTOs
 type CreateOAuthClientRequest struct {
 	Name         string   `json:"name" binding:"required"`

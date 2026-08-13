@@ -19,6 +19,10 @@ type OAuthClient struct {
 	OwnerID      string         `gorm:"type:uuid" json:"owner_id"`
 	IsActive     bool           `gorm:"default:true" json:"is_active"`
 	IsPublic     bool           `gorm:"default:false" json:"is_public"`
+	// Per-client session TTLs in seconds (issue #162). Zero means "use the
+	// global default" so existing clients keep current behavior.
+	AccessTokenTTLSeconds  int64 `gorm:"default:0" json:"access_token_ttl_seconds"`
+	RefreshTokenTTLSeconds int64 `gorm:"default:0" json:"refresh_token_ttl_seconds"`
         CreatedAt    time.Time      `json:"created_at"`
 	UpdatedAt    time.Time      `json:"updated_at"`
 }
