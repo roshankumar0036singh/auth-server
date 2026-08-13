@@ -36,6 +36,15 @@ func (s *AuthService) Login(req *dto.LoginRequest, ipAddress, userAgent string) 
 		return nil, fmt.Errorf("account is locked until %v", user.LockedUntil)
 	}
 
+	// Check if user is deactivated BEFORE verifying the password. Verifying the
+	// password first would let a deactivated account still be used to probe
+	// passwords (timing side channel) and would run an unnecessary bcrypt
+	// comparison for accounts that must never sign in again.
+	if !user.IsActive {
+		metrics.LoginFailureTotal.Inc()
+		return nil, errors.New("account is deactivated")
+	}
+
 	// Verify password
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password)); err != nil {
 		s.handleFailedLogin(user, req.Email, ctx)
