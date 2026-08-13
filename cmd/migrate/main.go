@@ -19,7 +19,6 @@ import (
 	"os"
 	"strconv"
 
-
 	"github.com/roshankumar0036singh/auth-server/internal/migration"
 )
 
