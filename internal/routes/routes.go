@@ -79,6 +79,9 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, redisClient *redis.Client, cfg
 	adminHandler := handler.NewAdminHandler(authService)
 	oauthClientHandler := handler.NewOAuthClientHandler(oauthProviderService)
 	oauthHandler := handler.NewOAuthHandler(oauthProviderService, userRepo)
+	apiKeyRepo := repository.NewApiKeyRepository(db)
+	apiKeyService := service.NewAPIKeyService(apiKeyRepo, auditService)
+	apiKeyHandler := handler.NewAPIKeyHandler(apiKeyService, userRepo)
 
 	// Apply global middleware
 	router.Use(middleware.CORSMiddleware(cfg))
@@ -210,6 +213,18 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, redisClient *redis.Client, cfg
 			admin.POST("/users/:id/lock", adminHandler.LockUser)
 			admin.POST("/users/:id/unlock", adminHandler.UnlockUser)
 			admin.DELETE("/users/:id", adminHandler.DeleteUser)
+
+			// Server-to-server API keys (#169)
+			admin.POST("/api-keys", apiKeyHandler.CreateAPIKey)
+			admin.GET("/api-keys", apiKeyHandler.ListAPIKeys)
+			admin.DELETE("/api-keys/:keyId", apiKeyHandler.RevokeAPIKey)
+		}
+
+		// Server-to-server routes authenticated with API keys
+		s2s := api.Group("/s2s")
+		s2s.Use(middleware.APIKeyMiddleware(apiKeyService))
+		{
+			s2s.GET("/user/:email", apiKeyHandler.VerifyUser)
 		}
 	}
 }
