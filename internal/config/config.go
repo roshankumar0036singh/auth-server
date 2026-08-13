@@ -46,11 +46,11 @@ type RedisConfig struct {
 }
 
 type JWTConfig struct {
-	AccessSecret        string
-	RefreshSecret       string
-	AccessExpiry        string
-	RefreshExpiry       string
-	RefreshGracePeriod  string
+	AccessSecret       string
+	RefreshSecret      string
+	AccessExpiry       string
+	RefreshExpiry      string
+	RefreshGracePeriod string
 	// RSAPrivateKey optionally enables RS256 signing (issue #171). When set,
 	// the public key is published at /.well-known/jwks.json. Accepts a PEM
 	// string or a "base64:" prefixed base64-encoded PEM.

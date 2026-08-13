@@ -12,8 +12,8 @@ import (
 )
 
 type TokenService struct {
-	cfg     *config.Config
-	jwks    *JWKSService
+	cfg  *config.Config
+	jwks *JWKSService
 }
 
 func NewTokenService(cfg *config.Config) *TokenService {
