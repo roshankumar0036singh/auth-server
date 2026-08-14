@@ -3,6 +3,7 @@ package service
 import (
 	"errors"
 	"log"
+	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -47,6 +48,8 @@ func (s *TokenService) GetRefreshTokenDuration() time.Duration {
 type JWTClaims struct {
 	UserID    string `json:"sub"`
 	SessionID string `json:"session_id"`
+	ClientID  string `json:"client_id,omitempty"`
+	Scope     string `json:"scope,omitempty"`
 	Email     string `json:"email"`
 	Role      string `json:"role"`
 	// Purpose marks special-purpose tokens (e.g. an MFA-pending token).
@@ -76,6 +79,32 @@ func (s *TokenService) GenerateAccessToken(user *models.User, sessionID string) 
 		Email:     user.Email,
 		Role:      user.Role,
 		SessionID: sessionID,
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(expirationTime),
+			IssuedAt:  jwt.NewNumericDate(time.Now()),
+			Issuer:    issuerAuthServer,
+			ID:        uuid.New().String(),
+		},
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	tokenString, err := token.SignedString([]byte(s.cfg.JWT.AccessSecret))
+	if err != nil {
+		return "", err
+	}
+
+	return tokenString, nil
+}
+
+// GenerateClientToken issues a machine-to-machine access token on behalf of
+// the OAuth client itself (OAuth 2.0 client_credentials grant, issue #174).
+// The token carries the client ID and granted scope, with no user identity.
+func (s *TokenService) GenerateClientToken(clientID string, scopes []string) (string, error) {
+	expirationTime := time.Now().Add(s.GetAccessTokenDuration())
+
+	claims := &JWTClaims{
+		ClientID: clientID,
+		Scope:    strings.Join(scopes, " "),
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(expirationTime),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
