@@ -18,9 +18,11 @@ const errTmpl = "error.html"
 type OAuthHandler struct {
 	oauthProviderService *service.OAuthProviderService
 	userRepo             *repository.UserRepository
+	tokenService         *service.TokenService
+	cacheService         *service.CacheService
 }
 
-func NewOAuthHandler(oauthProviderService *service.OAuthProviderService, userRepo *repository.UserRepository) *OAuthHandler {
+func NewOAuthHandler(oauthProviderService *service.OAuthProviderService, userRepo *repository.UserRepository, tokenService *service.TokenService, cacheService *service.CacheService) *OAuthHandler {
 	if userRepo == nil {
 		panic("oauth handler requires user repository")
 	}
@@ -28,6 +30,8 @@ func NewOAuthHandler(oauthProviderService *service.OAuthProviderService, userRep
 	return &OAuthHandler{
 		oauthProviderService: oauthProviderService,
 		userRepo:             userRepo,
+		tokenService:         tokenService,
+		cacheService:         cacheService,
 	}
 }
 
@@ -106,7 +110,7 @@ func (h *OAuthHandler) Authorize(c *gin.Context) {
 	if err == nil && hasConsent {
 		// User has already consented, generate code immediately
 		// in Authorize GET:
-                code, err := h.oauthProviderService.GenerateAuthorizationCode(clientID, userID.(string), redirectURI, scopes, strPtr(codeChallenge), strPtr(codeChallengeMethod))
+		code, err := h.oauthProviderService.GenerateAuthorizationCode(clientID, userID.(string), redirectURI, scopes, strPtr(codeChallenge), strPtr(codeChallengeMethod))
 		if err != nil {
 			redirectError(c, redirectURI, "server_error", "Failed to generate authorization code", state)
 			return
@@ -158,11 +162,11 @@ func (h *OAuthHandler) Authorize(c *gin.Context) {
 func (h *OAuthHandler) AuthorizePost(c *gin.Context) {
 	action := c.PostForm("action")
 	clientID := c.PostForm("client_id")
-        redirectURI := c.PostForm("redirect_uri")
-        scope := c.PostForm("scope")
+	redirectURI := c.PostForm("redirect_uri")
+	scope := c.PostForm("scope")
 	state := c.PostForm("state")
-        codeChallenge := c.PostForm("code_challenge")
-        codeChallengeMethod := c.PostForm("code_challenge_method")
+	codeChallenge := c.PostForm("code_challenge")
+	codeChallengeMethod := c.PostForm("code_challenge_method")
 
 	if codeChallenge != "" && codeChallengeMethod == "" {
 		codeChallengeMethod = "S256"
@@ -216,7 +220,7 @@ func (h *OAuthHandler) AuthorizePost(c *gin.Context) {
 	}
 
 	// Generate authorization code
-        code, err := h.oauthProviderService.GenerateAuthorizationCode(clientID, userID.(string), redirectURI, scopes, strPtr(codeChallenge), strPtr(codeChallengeMethod))
+	code, err := h.oauthProviderService.GenerateAuthorizationCode(clientID, userID.(string), redirectURI, scopes, strPtr(codeChallenge), strPtr(codeChallengeMethod))
 	if err != nil {
 		redirectError(c, redirectURI, "server_error", "Failed to generate authorization code", state)
 		return
@@ -248,10 +252,10 @@ func (h *OAuthHandler) Token(c *gin.Context) {
 	clientID := c.PostForm("client_id")
 	clientSecret := c.PostForm("client_secret")
 	redirectURI := c.PostForm("redirect_uri")
-        codeVerifier := c.PostForm("code_verifier")
+	codeVerifier := c.PostForm("code_verifier")
 
 	// Validate grant type
-	if grantType != "authorization_code" {
+	if grantType != "authorization_code" && grantType != "client_credentials" {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "unsupported_grant_type",
 			"code":  "UNSUPPORTED_GRANT_TYPE",
@@ -265,6 +269,47 @@ func (h *OAuthHandler) Token(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{
 			"error": "invalid_client",
 			"code":  "INVALID_CLIENT",
+		})
+		return
+	}
+
+	// RFC 6749 §4.4 — Client Credentials grant for machine-to-machine flows.
+	// The token represents the application itself, not a user. Public clients
+	// (which cannot hold a secret) are rejected.
+	if grantType == "client_credentials" {
+		if client.IsPublic {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error":             "invalid_request",
+				"error_description": "Client Credentials grant requires a confidential client",
+				"code":              "INVALID_REQUEST",
+			})
+			return
+		}
+
+		scopes := service.ParseScopes(c.PostForm("scope"))
+		if err := h.oauthProviderService.ValidateClientScopes(client, scopes); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error":             "invalid_scope",
+				"error_description": err.Error(),
+				"code":              "INVALID_SCOPE",
+			})
+			return
+		}
+
+		accessToken, err := h.tokenService.GenerateClientToken(clientID, scopes)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": "server_error",
+				"code":  "SERVER_ERROR",
+			})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"access_token": accessToken,
+			"token_type":   "Bearer",
+			"expires_in":   int(h.tokenService.GetAccessTokenDuration().Seconds()),
+			"scope":        strings.Join(scopes, " "),
 		})
 		return
 	}
