@@ -5,12 +5,12 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
-        "testing"
+	"testing"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-        "golang.org/x/crypto/bcrypt"
+	"github.com/lib/pq"
 	"github.com/roshankumar0036singh/auth-server/internal/config"
 	"github.com/roshankumar0036singh/auth-server/internal/handler"
 	"github.com/roshankumar0036singh/auth-server/internal/models"
@@ -20,7 +20,7 @@ import (
 	"github.com/roshankumar0036singh/auth-server/internal/utils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-        "github.com/lib/pq"
+	"golang.org/x/crypto/bcrypt"
 )
 
 func setupOAuthUserInfoRouter(t *testing.T) (*gin.Engine, *repository.UserRepository, *repository.OAuthTokenRepository) {
@@ -43,7 +43,7 @@ func setupOAuthUserInfoRouter(t *testing.T) (*gin.Engine, *repository.UserReposi
 
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
-	r.GET("/oauth/userinfo", handler.NewOAuthHandler(oauthProviderService, userRepo).UserInfo)
+	r.GET("/oauth/userinfo", handler.NewOAuthHandler(oauthProviderService, userRepo, service.NewTokenService(&config.Config{}), nil).UserInfo)
 
 	return r, userRepo, tokenRepo
 }
@@ -89,7 +89,7 @@ func TestNewOAuthHandlerPanicsWithoutUserRepository(t *testing.T) {
 	)
 
 	require.Panics(t, func() {
-		handler.NewOAuthHandler(oauthProviderService, nil)
+		handler.NewOAuthHandler(oauthProviderService, nil, service.NewTokenService(&config.Config{}), nil)
 	})
 }
 
@@ -372,7 +372,7 @@ func setupTokenRouter(t *testing.T) (*gin.Engine, *repository.OAuthClientReposit
 
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
-	r.POST("/oauth/token", handler.NewOAuthHandler(oauthProviderService, userRepo).Token)
+	r.POST("/oauth/token", handler.NewOAuthHandler(oauthProviderService, userRepo, service.NewTokenService(&config.Config{}), nil).Token)
 	return r, clientRepo, codeRepo
 }
 
@@ -387,7 +387,7 @@ func TestToken_PublicClient_MissingVerifier_Rejected(t *testing.T) {
 		ClientID:     clientID,
 		ClientSecret: "unused",
 		RedirectURIs: pq.StringArray{"http://localhost/cb"},
-                Scopes:       pq.StringArray{"read:profile"},
+		Scopes:       pq.StringArray{"read:profile"},
 		IsActive:     true,
 		IsPublic:     true,
 	})
@@ -401,7 +401,7 @@ func TestToken_PublicClient_MissingVerifier_Rejected(t *testing.T) {
 		Code:                code,
 		ClientID:            clientID,
 		UserID:              uuid.NewString(),
-		RedirectURI:        "http://localhost/cb",
+		RedirectURI:         "http://localhost/cb",
 		Scopes:              pq.StringArray{"read:profile"},
 		ExpiresAt:           time.Now().Add(10 * time.Minute),
 		CodeChallenge:       &challenge,
@@ -432,7 +432,7 @@ func TestToken_ConfidentialClient_MissingSecret_Rejected(t *testing.T) {
 		ClientID:     clientID,
 		ClientSecret: string(hashedSecret),
 		RedirectURIs: pq.StringArray{"http://localhost/cb"},
-                Scopes:       pq.StringArray{"read:profile"},
+		Scopes:       pq.StringArray{"read:profile"},
 		IsActive:     true,
 		IsPublic:     false,
 	})
