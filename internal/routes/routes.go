@@ -39,7 +39,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, redisClient *redis.Client, cfg
 	// The server always starts — missing templates only fail at send time.
 	emailService := service.NewEmailService(cfg)
 
-	auditService := service.NewAuditService(auditRepo)
+	auditService := service.NewAuditService(auditRepo, nil)
 	oauthService := service.NewOAuthService(cfg, oauthProviderConfigRepo)
 	mfaService := service.NewMFAService(cfg)
 
@@ -73,6 +73,7 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, redisClient *redis.Client, cfg
 		log.Fatalf("Failed to initialize WebAuthn service: %v", err)
 	}
 	webAuthnHandler := handler.NewWebAuthnHandler(webAuthnService, authService)
+	webhookHandler := handler.NewWebhookHandler(repository.NewWebhookRepository(db))
 
 	// Initialize handlers
 	authHandler := handler.NewAuthHandler(authService, oauthService, oauthProviderService)
@@ -210,6 +211,10 @@ func SetupRoutes(router *gin.Engine, db *gorm.DB, redisClient *redis.Client, cfg
 			admin.POST("/users/:id/lock", adminHandler.LockUser)
 			admin.POST("/users/:id/unlock", adminHandler.UnlockUser)
 			admin.DELETE("/users/:id", adminHandler.DeleteUser)
+			admin.GET("/webhooks", webhookHandler.ListWebhooks)
+			admin.POST("/webhooks", webhookHandler.CreateWebhook)
+			admin.PATCH("/webhooks/:id", webhookHandler.ToggleWebhook)
+			admin.DELETE("/webhooks/:id", webhookHandler.DeleteWebhook)
 		}
 	}
 }

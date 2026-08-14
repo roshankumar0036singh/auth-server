@@ -18,12 +18,21 @@ type Config struct {
 	Email    EmailConfig
 	Security SecurityConfig
 	WebAuthn WebAuthnConfig
+	Webhook  WebhookConfig
 }
 
 type AppConfig struct {
 	Port int
 	Env  string
 	URL  string
+}
+
+// WebhookConfig tunes the lifecycle-event webhook dispatcher (issue #163).
+type WebhookConfig struct {
+	// Workers is the number of delivery goroutines.
+	Workers int
+	// QueueSize is the max pending deliveries before drops.
+	QueueSize int
 }
 
 type WebAuthnConfig struct {
@@ -46,11 +55,11 @@ type RedisConfig struct {
 }
 
 type JWTConfig struct {
-	AccessSecret        string
-	RefreshSecret       string
-	AccessExpiry        string
-	RefreshExpiry       string
-	RefreshGracePeriod  string
+	AccessSecret       string
+	RefreshSecret      string
+	AccessExpiry       string
+	RefreshExpiry      string
+	RefreshGracePeriod string
 }
 type OAuthConfig struct {
 	Google GoogleOAuthConfig
@@ -189,6 +198,10 @@ func LoadConfig() *Config {
 
 			ForgotRateLimitMax:    forgotRateLimitMax,
 			ForgotRateLimitWindow: forgotRateLimitWindow,
+		},
+		Webhook: WebhookConfig{
+			Workers:   getEnvAsInt("WEBHOOK_WORKERS", 4),
+			QueueSize: getEnvAsInt("WEBHOOK_QUEUE_SIZE", 100),
 		},
 		WebAuthn: WebAuthnConfig{
 			RPDisplayName: getEnv("WEBAUTHN_RP_DISPLAY_NAME", "Auth Server"),

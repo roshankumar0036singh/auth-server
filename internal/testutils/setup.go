@@ -53,7 +53,18 @@ func SetupIntegrationTest(t *testing.T) (*service.AuthService, *gorm.DB, *minire
         assert.NoError(t, db.Exec("DELETE FROM oauth_access_tokens").Error)
         
         // OAuth tables — using raw SQL to avoid Postgres-specific gen_random_uuid()
-        err = db.Exec(`CREATE TABLE IF NOT EXISTS oauth_clients (
+        err = db.Exec(`CREATE TABLE IF NOT EXISTS webhooks (
+            id TEXT PRIMARY KEY,
+            owner_id TEXT NOT NULL,
+            url TEXT NOT NULL UNIQUE,
+            secret TEXT NOT NULL,
+            events TEXT,
+            is_active INTEGER DEFAULT 1,
+            created_at DATETIME,
+            updated_at DATETIME
+        );
+
+        CREATE TABLE IF NOT EXISTS oauth_clients (
             id TEXT PRIMARY KEY,
             name TEXT NOT NULL,
             client_id TEXT UNIQUE NOT NULL,
@@ -127,7 +138,7 @@ func SetupIntegrationTest(t *testing.T) (*service.AuthService, *gorm.DB, *minire
 	tokenService := service.NewTokenService(cfg)
 	cacheService := service.NewCacheService(rdb)
 	emailService := &MockEmailSender{}
-	auditService := service.NewAuditService(auditRepo)
+	auditService := service.NewAuditService(auditRepo, nil)
 	mfaService := service.NewMFAService(cfg)
 
 	authService := service.NewAuthService(

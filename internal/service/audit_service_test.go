@@ -65,7 +65,7 @@ func TestAuditService_GetUserAuditLogs(t *testing.T) {
 			})
 
 			auditRepo := repository.NewAuditRepository(db)
-			auditService := service.NewAuditService(auditRepo)
+			auditService := service.NewAuditService(auditRepo, nil)
 
 			user, err := authService.Register(&dto.RegisterRequest{
 				Email:     strings.ReplaceAll(tt.name, " ", "_") + "@example.com",
