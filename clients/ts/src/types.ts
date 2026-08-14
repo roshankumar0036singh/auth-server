@@ -15,16 +15,22 @@ export interface User {
   lastLoginAt?: string;
 }
 
+/**
+ * Matches the backend's PaginationMetaData (internal/dto/audit_dto.go).
+ */
 export interface PaginationMetaData {
-  total: number;
-  page: number;
-  limit: number;
-  totalPages: number;
+  totalCount: number;
+  currentPage: number;
+  hasMore: boolean;
 }
 
+/**
+ * Matches the backend's models.PaginatedUsers returned by
+ * GET /api/admin/users: `{ total, users }`.
+ */
 export interface UsersResponse {
+  total: number;
   users: User[];
-  meta: PaginationMetaData;
 }
 
 export interface Session {
