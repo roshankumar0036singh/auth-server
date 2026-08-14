@@ -9,6 +9,10 @@ import (
 	"strings"
 	"time"
 
+	"crypto/hmac"
+	"crypto/sha256"
+	"crypto/subtle"
+	"encoding/hex"
 	"github.com/lib/pq"
 	"github.com/roshankumar0036singh/auth-server/internal/config"
 	"github.com/roshankumar0036singh/auth-server/internal/models"
@@ -98,7 +102,7 @@ func (s *OAuthProviderService) CreateClient(name string, redirectURIs []string, 
 		Scopes:       pq.StringArray(scopes),
 		OwnerID:      ownerID,
 		IsActive:     true,
-                IsPublic:     isPublic,
+		IsPublic:     isPublic,
 	}
 
 	if err := s.clientRepo.Create(client); err != nil {
@@ -216,15 +220,15 @@ func (s *OAuthProviderService) GenerateAuthorizationCode(clientID, userID, redir
 	}
 
 	authCode := &models.AuthorizationCode{
-		Code:        code,
-		ClientID:    clientID,
-		UserID:      userID,
-		Scopes:      pq.StringArray(scopes),
-		RedirectURI: redirectURI,
-		ExpiresAt:   time.Now().Add(10 * time.Minute), // 10 minutes
-		Used:        false,
-                CodeChallenge: codeChallenge,
-                CodeChallengeMethod: codeChallengeMethod,
+		Code:                code,
+		ClientID:            clientID,
+		UserID:              userID,
+		Scopes:              pq.StringArray(scopes),
+		RedirectURI:         redirectURI,
+		ExpiresAt:           time.Now().Add(10 * time.Minute), // 10 minutes
+		Used:                false,
+		CodeChallenge:       codeChallenge,
+		CodeChallengeMethod: codeChallengeMethod,
 	}
 
 	if err := s.codeRepo.Create(authCode); err != nil {
@@ -358,6 +362,43 @@ func (s *OAuthProviderService) CheckConsent(userID, clientID string, requestedSc
 	}
 
 	return true, nil
+}
+
+// consentChallenge cryptographically binds the original authorization request
+// parameters (user, client, exact scope set) into a signed token so the consent
+// form cannot be forged to grant scopes the user was never shown (issue #153).
+func (s *OAuthProviderService) consentChallenge(userID, clientID string, scopes []string) string {
+	mac := hmac.New(sha256.New, []byte(s.cfg.Security.EncryptionKey))
+	mac.Write([]byte(userID))
+	mac.Write([]byte{0})
+	mac.Write([]byte(clientID))
+	mac.Write([]byte{0})
+	for _, scope := range slices.Sorted(slices.Values(scopes)) {
+		mac.Write([]byte(scope))
+		mac.Write([]byte{0})
+	}
+	return hex.EncodeToString(mac.Sum(nil))
+}
+
+// CreateConsentChallenge returns the signed token for the scopes currently
+// requested in /authorize. Rendered server-side into the consent form.
+func (s *OAuthProviderService) CreateConsentChallenge(userID, clientID string, scopes []string) string {
+	return s.consentChallenge(userID, clientID, scopes)
+}
+
+// ValidateConsentChallenge verifies that the scopes submitted with the consent
+// form are exactly the ones from the original authorization request (same
+// user, same client, same scope set).
+func (s *OAuthProviderService) ValidateConsentChallenge(token, userID, clientID string, scopes []string) bool {
+	expected, err := hex.DecodeString(token)
+	if err != nil || len(expected) == 0 {
+		return false
+	}
+	actual, err := hex.DecodeString(s.consentChallenge(userID, clientID, scopes))
+	if err != nil {
+		return false
+	}
+	return subtle.ConstantTimeCompare(actual, expected) == 1
 }
 
 // SaveConsent saves user consent
