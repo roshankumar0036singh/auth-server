@@ -12,6 +12,7 @@ import (
 type Config struct {
 	App      AppConfig
 	Database DatabaseConfig
+	GeoIP    GeoIPConfig
 	Redis    RedisConfig
 	JWT      JWTConfig
 	OAuth    OAuthConfig
@@ -46,15 +47,20 @@ type RedisConfig struct {
 }
 
 type JWTConfig struct {
-	AccessSecret        string
-	RefreshSecret       string
-	AccessExpiry        string
-	RefreshExpiry       string
-	RefreshGracePeriod  string
+	AccessSecret       string
+	RefreshSecret      string
+	AccessExpiry       string
+	RefreshExpiry      string
+	RefreshGracePeriod string
 }
 type OAuthConfig struct {
 	Google GoogleOAuthConfig
 	GitHub GitHubOAuthConfig
+}
+
+// GeoIPConfig controls optional IP-to-location enrichment (issue #167).
+type GeoIPConfig struct {
+	Enabled bool
 }
 
 type GoogleOAuthConfig struct {
@@ -141,6 +147,9 @@ func LoadConfig() *Config {
 			Port: port,
 			Env:  getEnv("APP_ENV", "development"),
 			URL:  appURL,
+		},
+		GeoIP: GeoIPConfig{
+			Enabled: getEnv("GEOIP_ENABLED", "") == "true",
 		},
 		Database: DatabaseConfig{
 			URL:             getEnv("DATABASE_URL", ""),

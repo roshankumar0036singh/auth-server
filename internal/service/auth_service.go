@@ -5,8 +5,10 @@ import (
 	"log"
 	"time"
 
+	"context"
 	"github.com/roshankumar0036singh/auth-server/internal/config"
 	"github.com/roshankumar0036singh/auth-server/internal/dto"
+	"github.com/roshankumar0036singh/auth-server/internal/geoip"
 	"github.com/roshankumar0036singh/auth-server/internal/models"
 	"github.com/roshankumar0036singh/auth-server/internal/repository"
 	"github.com/roshankumar0036singh/auth-server/internal/utils"
@@ -42,7 +44,29 @@ type AuthService struct {
 	emailService      EmailSender
 	auditService      *AuditService
 	mfaService        *MFAService
+	geoClient         *geoip.Client
 	config            *config.Config
+}
+
+// loginMetadata attaches a human-readable location to login audits when
+// geolocation is enabled (issue #167). Fail-open: no location ⇒ no metadata.
+func (s *AuthService) loginMetadata(ipAddress, userAgent string) map[string]interface{} {
+	if s.geoClient == nil || s.config == nil || !s.config.GeoIP.Enabled {
+		return nil
+	}
+	loc := s.geoClient.Lookup(context.Background(), ipAddress)
+	if loc.String() == "" {
+		return nil
+	}
+	return map[string]interface{}{"location": loc.String(), "ip_address": ipAddress, "user_agent": userAgent}
+}
+
+// LoginMetadataForTest exercises the geoip metadata helper with an injected
+// client/config (used by tests only).
+func (s *AuthService) LoginMetadataForTest(client *geoip.Client, cfg *config.Config, ip, ua string) map[string]interface{} {
+	s.geoClient = client
+	s.config = cfg
+	return s.loginMetadata(ip, ua)
 }
 
 func NewAuthService(
@@ -55,6 +79,7 @@ func NewAuthService(
 	emailService EmailSender,
 	auditService *AuditService,
 	mfaService *MFAService,
+	geoClient *geoip.Client,
 	cfg *config.Config,
 ) *AuthService {
 	return &AuthService{
@@ -67,6 +92,7 @@ func NewAuthService(
 		emailService:      emailService,
 		auditService:      auditService,
 		mfaService:        mfaService,
+		geoClient:         geoClient,
 		config:            cfg,
 	}
 }

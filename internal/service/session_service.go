@@ -88,7 +88,7 @@ func (s *AuthService) ProcessPostLogin(ctx context.Context, user *models.User, i
 	metrics.LoginSuccessTotal.Inc()
 
 	// Audit Log
-	s.auditService.LogEvent(&user.ID, "USER_LOGIN_SUCCESS", "USER", user.ID, ipAddress, userAgent, nil)
+	s.auditService.LogEvent(&user.ID, "USER_LOGIN_SUCCESS", "USER", user.ID, ipAddress, userAgent, s.loginMetadata(ipAddress, userAgent))
 
 	return response, nil
 }
@@ -149,7 +149,7 @@ func (s *AuthService) LoginWithOAuth(email, oauthID, firstName, lastName, provid
 		return nil, err
 	}
 
-	s.auditService.LogEvent(&user.ID, "USER_LOGIN_SUCCESS_OAUTH", "USER", user.ID, ipAddress, userAgent, nil)
+	s.auditService.LogEvent(&user.ID, "USER_LOGIN_SUCCESS_OAUTH", "USER", user.ID, ipAddress, userAgent, s.loginMetadata(ipAddress, userAgent))
 
 	return response, nil
 
