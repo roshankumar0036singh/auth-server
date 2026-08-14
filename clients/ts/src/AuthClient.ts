@@ -114,6 +114,7 @@ export class AuthClient {
   }
 
   private async saveSession(session: Session) {
+    this.log("session: persisted (storage=" + this.storageType + ", hasRefresh=" + !!session.refreshToken + ")");
     this.accessToken = session.accessToken;
     this.refreshToken = session.refreshToken ?? null;
 
@@ -235,6 +236,22 @@ export class AuthClient {
     return this.accessToken;
   }
 
+  /**
+   * Decodes the exp claim of a JWT for debug logging (issue #182).
+   * Returns "expired" or an ISO timestamp; "" when unparseable.
+   */
+  private decodeExpiry(token: string): string {
+    try {
+      const payload = token.split('.')[1];
+      const claims = JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/')));
+      if (!claims.exp) return "n/a";
+      const expMs = claims.exp * 1000;
+      return expMs < Date.now() ? "expired" : new Date(expMs).toISOString();
+    } catch {
+      return "n/a";
+    }
+  }
+
   /** Returns the current refresh token, or null */
   public getRefreshToken(): string | null {
     return this.refreshToken;
@@ -332,6 +349,7 @@ export class AuthClient {
 
         // Handle 401 Unauthorized with auto-refresh
         if (response.status === 401 && this.refreshToken && path !== '/api/auth/refresh') {
+          this.log("request: 401 on " + path + ", attempting refresh-and-retry");
           return await this.handleUnauthorizedRetry(path, options, headers);
         }
 
@@ -360,6 +378,7 @@ export class AuthClient {
 
       // Exponential backoff
       const delay = this.retryDelay * Math.pow(2, attempt - 1);
+      this.log("request: attempt " + attempt + "/" + maxAttempts + " failed, backing off " + delay + "ms");
       await new Promise(r => setTimeout(r, delay));
     }
     throw new AuthError("Max retries exceeded", "NETWORK_ERROR", 0);
@@ -424,9 +443,11 @@ export class AuthClient {
 
     // Deduplicate concurrent refresh calls
     if (this.isRefreshing && this.refreshPromise) {
+      this.log("refresh: deduplicating concurrent refresh (already in flight)");
       return this.refreshPromise;
     }
 
+    this.log("refresh: starting token refresh");
     this.isRefreshing = true;
     this.refreshPromise = this.fetchApi<Session>("/api/auth/refresh", {
       method: "POST",
@@ -434,8 +455,10 @@ export class AuthClient {
     }).then(async res => {
       await this.saveSession(res.data);
       this.emit('token:refreshed', res.data);
+      this.log("refresh: completed; access token rotated (new exp: " + (res.data.accessToken ? this.decodeExpiry(res.data.accessToken) : "n/a") + ")");
       return res.data;
     }).catch(async err => {
+      this.log("refresh: failed, clearing session", err);
       await this.clearSession();
       throw err;
     }).finally(() => {
@@ -448,6 +471,7 @@ export class AuthClient {
 
   /** Logout the current session. Clears tokens even if the API call fails. */
   public async logout(): Promise<void> {
+    this.log("logout: starting (revoking server session)");
     try {
       if (this.refreshToken) {
         await this.fetchApi("/api/auth/logout", {
@@ -455,11 +479,13 @@ export class AuthClient {
           body: JSON.stringify({ refreshToken: this.refreshToken }),
         });
       }
-    } catch {
+    } catch (err) {
+      this.log("logout: server revoke failed (continuing with local clear)", err);
       // Best-effort server-side logout; always clear client session
     }
     await this.clearSession();
     this.emit('logout');
+    this.log("logout: complete");
   }
 
   /** Logout from all devices */
