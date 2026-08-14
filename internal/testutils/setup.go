@@ -12,6 +12,7 @@ import (
 	"github.com/roshankumar0036singh/auth-server/internal/service"
 	"github.com/stretchr/testify/assert"
 	"gorm.io/gorm"
+	"github.com/roshankumar0036singh/auth-server/internal/geoip"
 )
 
 // MockEmailSender
@@ -140,6 +141,7 @@ func SetupIntegrationTest(t *testing.T) (*service.AuthService, *gorm.DB, *minire
 		emailService,
 		auditService,
 		mfaService,
+		geoip.NewClient(),
 		cfg,
 	)
 
