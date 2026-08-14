@@ -86,6 +86,8 @@ func main() {
 
 	router := gin.Default()
 
+	config.ApplyTrustedProxies(router, cfg)
+
 	router.Use(middleware.PrometheusMiddleware())
 
 	// Prometheus metrics endpoint

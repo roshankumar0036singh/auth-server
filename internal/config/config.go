@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/joho/godotenv"
+	"strings"
 )
 
 type Config struct {
@@ -46,11 +47,11 @@ type RedisConfig struct {
 }
 
 type JWTConfig struct {
-	AccessSecret        string
-	RefreshSecret       string
-	AccessExpiry        string
-	RefreshExpiry       string
-	RefreshGracePeriod  string
+	AccessSecret       string
+	RefreshSecret      string
+	AccessExpiry       string
+	RefreshExpiry      string
+	RefreshGracePeriod string
 }
 type OAuthConfig struct {
 	Google GoogleOAuthConfig
@@ -85,6 +86,13 @@ type SecurityConfig struct {
 
 	ForgotRateLimitMax    int
 	ForgotRateLimitWindow int
+
+	// TrustedProxies lists CIDRs of reverse proxies/LBs allowed to supply
+	// X-Forwarded-For (issue #151). Empty ⇒ RemoteAddr only, spoof-proof.
+	TrustedProxies []string
+	// TrustedPlatform is an optional platform header (e.g. "X-Forwarded-For")
+	// trusted unconditionally for platforms like Cloudflare.
+	TrustedPlatform string
 }
 
 func mustAtoi(key string, defaultValue int) int {
@@ -183,6 +191,8 @@ func LoadConfig() *Config {
 
 			LoginRateLimitMax:    loginRateLimitMax,
 			LoginRateLimitWindow: loginRateLimitWindow,
+			TrustedProxies:       splitCSV(getEnv("TRUSTED_PROXIES", "")),
+			TrustedPlatform:      getEnv("TRUSTED_PLATFORM", ""),
 
 			RegisterRateLimitMax:    registerRateLimitMax,
 			RegisterRateLimitWindow: registerRateLimitWindow,
@@ -196,6 +206,17 @@ func LoadConfig() *Config {
 			RPOrigins:     []string{appURL}, // Assuming APP_URL is the primary origin
 		},
 	}
+}
+
+// splitCSV splits a comma-separated env value, trimming whitespace.
+func splitCSV(v string) []string {
+	var out []string
+	for _, part := range strings.Split(v, ",") {
+		if p := strings.TrimSpace(part); p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
 }
 
 func getEnv(key, defaultValue string) string {
