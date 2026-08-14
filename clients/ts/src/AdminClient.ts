@@ -37,11 +37,16 @@ export class AdminClient {
   }
 
   /**
-   * List all users. 
-   * Resolved Issue #61: Returns a paginated UsersResponse.
+   * List all users (strictly typed against the backend's PaginatedUsers).
+   * Resolved Issue #61: returns `{ total, users }` with optional
+   * page/limit query parameters (backend clamps limit to 1..100).
+   *
+   * @param page  1-based page number (default 1)
+   * @param limit Items per page, 1-100 (default 10)
    */
-  public async listUsers(): Promise<ApiResponse<UsersResponse>> {
-    return this.fetchApi<UsersResponse>("/api/admin/users", { method: "GET" });
+  public async getUsers(page: number = 1, limit: number = 10): Promise<ApiResponse<UsersResponse>> {
+    const query = new URLSearchParams({ page: String(page), limit: String(limit) });
+    return this.fetchApi<UsersResponse>(`/api/admin/users?${query.toString()}`, { method: "GET" });
   }
 
   /**
